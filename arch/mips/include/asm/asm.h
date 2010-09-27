@@ -387,11 +387,11 @@ symbol		=	value
 /*
  * Some cp0 registers were extended to 64bit for MIPS III.
  */
-#if (_MIPS_SIM == _MIPS_SIM_ABI32)
+#if (_MIPS_SIM == _MIPS_SIM_ABI32) || defined(CONFIG_CPU_R5900)
 #define MFC0		mfc0
 #define MTC0		mtc0
 #endif
-#if (_MIPS_SIM == _MIPS_SIM_NABI32) || (_MIPS_SIM == _MIPS_SIM_ABI64)
+#if ((_MIPS_SIM == _MIPS_SIM_NABI32) || (_MIPS_SIM == _MIPS_SIM_ABI64)) && !defined(CONFIG_CPU_R5900)
 #define MFC0		dmfc0
 #define MTC0		dmtc0
 #endif

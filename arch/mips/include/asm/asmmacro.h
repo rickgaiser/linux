@@ -10,10 +10,10 @@
 
 #include <asm/hazards.h>
 
-#ifdef CONFIG_32BIT
+#if defined(CONFIG_32BIT) || defined(CONFIG_CPU_R5900)
 #include <asm/asmmacro-32.h>
 #endif
-#ifdef CONFIG_64BIT
+#if defined(CONFIG_64BIT) && !defined(CONFIG_CPU_R5900)
 #include <asm/asmmacro-64.h>
 #endif
 #ifdef CONFIG_MIPS_MT_SMTC

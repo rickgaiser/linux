@@ -39,7 +39,11 @@
 	 * 0+DVG in tlblo_1.
 	 */
 	dli	t0, 0xffffffffc0000000
+#ifdef CONFIG_CPU_R5900
+	mtc0	t0, CP0_ENTRYHI
+#else
 	dmtc0	t0, CP0_ENTRYHI
+#endif
 	li	t0, 0x1c000		# Offset of text into node memory
 	dsll	t1, NASID_SHFT		# Shift text nasid into place
 	dsll	t2, NASID_SHFT		# Same for data nasid
