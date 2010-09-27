@@ -681,6 +681,20 @@ config CAVIUM_OCTEON_REFERENCE_BOARD
 		Hikari
 	  Say Y here for most Octeon reference boards.
 
+config SONY_PS2
+	bool "Sony Playstation 2"
+	select BOOT_ELF32
+	select IRQ_CPU
+	select SYS_HAS_CPU_R5900
+	select SYS_SUPPORTS_32BIT_KERNEL
+	select SYS_SUPPORTS_64BIT_KERNEL
+	select SYS_SUPPORTS_LITTLE_ENDIAN
+	select DMA_NONCOHERENT
+	select NO_IOPORT
+	select SYS_HAS_EARLY_PRINTK
+	help
+	  This enables support for Sony Playstation 2.
+
 endchoice
 
 source "arch/mips/alchemy/Kconfig"
@@ -1307,6 +1321,14 @@ config CPU_CAVIUM_OCTEON
 	  can have up to 16 Mips64v2 cores and 8 integrated gigabit ethernets.
 	  Full details can be found at http://www.caviumnetworks.com.
 
+config CPU_R5900
+	bool "R5900"
+	depends on SYS_HAS_CPU_R5900
+	select CPU_SUPPORTS_32BIT_KERNEL
+	select CPU_SUPPORTS_64BIT_KERNEL
+	help
+	  MIPS Technologies R5900 processor (Emotion Engine in Sony Playstation 2).
+
 endchoice
 
 if CPU_LOONGSON2F
@@ -1399,6 +1421,9 @@ config SYS_HAS_CPU_R5432
 	bool
 
 config SYS_HAS_CPU_R5500
+	bool
+
+config SYS_HAS_CPU_R5900
 	bool
 
 config SYS_HAS_CPU_R6000

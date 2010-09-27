@@ -12,6 +12,7 @@
 #include <asm/fpregdef.h>
 #include <asm/mipsregs.h>
 
+#if !defined(CONFIG_CPU_R5900)
 	.macro	fpu_save_double thread status tmp1=t0
 	cfc1	\tmp1,  fcr31
 	sdc1	$f0,  THREAD_FPR0(\thread)
@@ -32,6 +33,11 @@
 	sdc1	$f30, THREAD_FPR30(\thread)
 	sw	\tmp1, THREAD_FCR31(\thread)
 	.endm
+#else
+	.macro fpu_save_double thread status tmp1=t0
+	fpu_save_single \thread \tmp1
+	.endm
+#endif
 
 	.macro	fpu_save_single thread tmp=t0
 	cfc1	\tmp,  fcr31
@@ -70,6 +76,7 @@
 	sw	\tmp, THREAD_FCR31(\thread)
 	.endm
 
+#if !defined(CONFIG_CPU_R5900)
 	.macro	fpu_restore_double thread status tmp=t0
 	lw	\tmp, THREAD_FCR31(\thread)
 	ldc1	$f0,  THREAD_FPR0(\thread)
@@ -90,6 +97,11 @@
 	ldc1	$f30, THREAD_FPR30(\thread)
 	ctc1	\tmp, fcr31
 	.endm
+#else
+	.macro	fpu_restore_double thread status tmp=t0
+	fpu_restore_single \thread \tmp
+	.endm
+#endif
 
 	.macro	fpu_restore_single thread tmp=t0
 	lw	\tmp, THREAD_FCR31(\thread)
