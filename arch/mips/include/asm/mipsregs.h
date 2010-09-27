@@ -678,6 +678,7 @@ do {								\
 	__res;								\
 })
 
+#if !defined(CONFIG_CPU_R5900)
 #define __read_64bit_c0_register(source, sel)				\
 ({ unsigned long long __res;						\
 	if (sizeof(unsigned long) == 4)					\
@@ -696,6 +697,7 @@ do {								\
 			: "=r" (__res));				\
 	__res;								\
 })
+#endif
 
 #define __write_32bit_c0_register(register, sel, value)			\
 do {									\
@@ -711,6 +713,7 @@ do {									\
 			: : "Jr" ((unsigned int)(value)));		\
 } while (0)
 
+#if !defined(CONFIG_CPU_R5900)
 #define __write_64bit_c0_register(register, sel, value)			\
 do {									\
 	if (sizeof(unsigned long) == 4)					\
@@ -728,12 +731,22 @@ do {									\
 			".set\tmips0"					\
 			: : "Jr" (value));				\
 } while (0)
+#endif
 
+#if defined(CONFIG_CPU_R5900)
+#define __read_ulong_c0_register(reg, sel)				\
+	((unsigned long) __read_32bit_c0_register(reg, sel))
+#else
 #define __read_ulong_c0_register(reg, sel)				\
 	((sizeof(unsigned long) == 4) ?					\
 	(unsigned long) __read_32bit_c0_register(reg, sel) :		\
 	(unsigned long) __read_64bit_c0_register(reg, sel))
+#endif
 
+#if defined(CONFIG_CPU_R5900)
+#define __write_ulong_c0_register(reg, sel, val)			\
+		__write_32bit_c0_register(reg, sel, val)
+#else
 #define __write_ulong_c0_register(reg, sel, val)			\
 do {									\
 	if (sizeof(unsigned long) == 4)					\
@@ -741,6 +754,7 @@ do {									\
 	else								\
 		__write_64bit_c0_register(reg, sel, val);		\
 } while (0)
+#endif
 
 /*
  * On RM7000/RM9000 these are uses to access cop0 set 1 registers
@@ -760,6 +774,7 @@ do {									\
 		: : "Jr" ((unsigned int)(value)));			\
 } while (0)
 
+#if !defined(CONFIG_CPU_R5900)
 /*
  * These versions are only needed for systems with more than 38 bits of
  * physical address space running the 32-bit kernel.  That's none atm :-)
@@ -792,7 +807,9 @@ do {									\
 									\
 	__val;								\
 })
+#endif
 
+#if !defined(CONFIG_CPU_R5900)
 #define __write_64bit_c0_split(source, sel, val)			\
 do {									\
 	unsigned long __flags;						\
@@ -820,6 +837,7 @@ do {									\
 			: : "r" (val));					\
 	local_irq_restore(__flags);					\
 } while (0)
+#endif
 
 #define read_c0_index()		__read_32bit_c0_register($0, 0)
 #define write_c0_index(val)	__write_32bit_c0_register($0, 0, val)

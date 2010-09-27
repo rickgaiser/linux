@@ -19,6 +19,7 @@ obj-$(CONFIG_CPU_R4X00)		+= dump_tlb.o
 obj-$(CONFIG_CPU_R5000)		+= dump_tlb.o
 obj-$(CONFIG_CPU_R5432)		+= dump_tlb.o
 obj-$(CONFIG_CPU_R5500)		+= dump_tlb.o
+obj-$(CONFIG_CPU_R5900)		+= dump_tlb.o
 obj-$(CONFIG_CPU_R6000)		+=
 obj-$(CONFIG_CPU_R8000)		+=
 obj-$(CONFIG_CPU_RM7000)	+= dump_tlb.o
@@ -31,3 +32,4 @@ obj-$(CONFIG_CPU_CAVIUM_OCTEON)	+= dump_tlb.o
 
 # libgcc-style stuff needed in the kernel
 obj-y += ashldi3.o ashrdi3.o cmpdi2.o lshrdi3.o ucmpdi2.o
+obj-$(CONFIG_CPU_R5900) += muldi3.o udivdi3.o

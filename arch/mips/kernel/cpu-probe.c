@@ -616,6 +616,14 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c, unsigned int cpu)
 			     MIPS_CPU_32FPR;
 		c->tlbsize = 64;
 		break;
+	case PRID_IMP_R5900:
+		c->cputype = CPU_R5900;
+		__cpu_name[cpu] = "R5900";
+		c->tlbsize = 48;
+		c->icache.ways = 2;
+		c->dcache.ways = 2;
+		c->options = MIPS_CPU_TLB | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+		break;
 	}
 }
 
