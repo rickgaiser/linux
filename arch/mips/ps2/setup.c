@@ -10,6 +10,7 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/pm.h>
+#include <asm/bootinfo.h>
 
 void __init plat_mem_setup(void)
 {
@@ -22,4 +23,11 @@ void __init plat_mem_setup(void)
 
 	ioport_resource.start = ~0UL;
 	ioport_resource.end = 0UL;
+
+	/* Exeception vectors. */
+	add_memory_region(0x00000000, 0x00001000, BOOT_MEM_RAM);
+	/* Reserved for SBIOS. */
+	add_memory_region(0x00001000, 0x0000F000, BOOT_MEM_RESERVED);
+	/* Free memory. */
+	add_memory_region(0x00010000, 0x01ff0000, BOOT_MEM_RAM);
 }
