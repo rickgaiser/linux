@@ -365,8 +365,10 @@ I_u1s2(_bltz)
 I_u1s2(_bltzl)
 I_u1u2s3(_bne)
 I_u2s3u1(_cache)
+#ifndef CONFIG_CPU_R5900
 I_u1u2u3(_dmfc0)
 I_u1u2u3(_dmtc0)
+#endif
 I_u2u1s3(_daddiu)
 I_u3u1u2(_daddu)
 I_u2u1u3(_dsll)
@@ -420,7 +422,7 @@ void __cpuinit uasm_build_label(struct uasm_label **lab, u32 *addr, int lid)
 int __cpuinit uasm_in_compat_space_p(long addr)
 {
 	/* Is this address in 32bit compat space? */
-#ifdef CONFIG_64BIT
+#if defined(CONFIG_64BIT) && !defined(CONFIG_CPU_R5900)
 	return (((addr) & 0xffffffff00000000L) == 0xffffffff00000000L);
 #else
 	return 1;
@@ -429,7 +431,7 @@ int __cpuinit uasm_in_compat_space_p(long addr)
 
 static int __cpuinit uasm_rel_highest(long val)
 {
-#ifdef CONFIG_64BIT
+#if defined(CONFIG_64BIT) && !defined(CONFIG_CPU_R5900)
 	return ((((val + 0x800080008000L) >> 48) & 0xffff) ^ 0x8000) - 0x8000;
 #else
 	return 0;
@@ -438,7 +440,7 @@ static int __cpuinit uasm_rel_highest(long val)
 
 static int __cpuinit uasm_rel_higher(long val)
 {
-#ifdef CONFIG_64BIT
+#if defined(CONFIG_64BIT) && !defined(CONFIG_CPU_R5900)
 	return ((((val + 0x80008000L) >> 32) & 0xffff) ^ 0x8000) - 0x8000;
 #else
 	return 0;

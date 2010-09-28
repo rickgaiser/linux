@@ -408,6 +408,9 @@ static void __cpuinit build_tlb_write_entry(u32 **p, struct uasm_label **l,
 		uasm_i_nop(p);
 		tlbw(p);
 		break;
+	case CPU_R5900:
+		tlbw(p);
+		break;
 
 	default:
 		panic("No TLB refill handler yet (CPU type: %d)",
@@ -547,7 +550,11 @@ build_get_pmde64(u32 **p, struct uasm_label **l, struct uasm_reloc **r,
 	/*
 	 * The vmalloc handling is not in the hotpath.
 	 */
+#ifndef CONFIG_CPU_R5900
 	uasm_i_dmfc0(p, tmp, C0_BADVADDR);
+#else
+	uasm_i_mfc0(p, tmp, C0_BADVADDR);
+#endif
 
 	if (check_for_high_segbits) {
 		/*
@@ -608,7 +615,11 @@ build_get_pmde64(u32 **p, struct uasm_label **l, struct uasm_reloc **r,
 	uasm_i_andi(p, tmp, tmp, (PTRS_PER_PGD - 1)<<3);
 	uasm_i_daddu(p, ptr, ptr, tmp); /* add in pgd offset */
 #ifndef __PAGETABLE_PMD_FOLDED
+#ifndef CONFIG_CPU_R5900
 	uasm_i_dmfc0(p, tmp, C0_BADVADDR); /* get faulting address */
+#else
+	uasm_i_mfc0(p, tmp, C0_BADVADDR); /* get faulting address */
+#endif
 	uasm_i_ld(p, ptr, 0, ptr); /* get pmd pointer */
 	uasm_i_dsrl_safe(p, tmp, tmp, PMD_SHIFT-3); /* get pmd offset in bytes */
 	uasm_i_andi(p, tmp, tmp, (PTRS_PER_PMD - 1)<<3);
@@ -857,8 +868,13 @@ static void __cpuinit build_r4000_tlb_refill_handler(void)
 	if (bcm1250_m3_war()) {
 		unsigned int segbits = 44;
 
+#ifndef CONFIG_CPU_R5900
 		uasm_i_dmfc0(&p, K0, C0_BADVADDR);
 		uasm_i_dmfc0(&p, K1, C0_ENTRYHI);
+#else
+		uasm_i_mfc0(&p, K0, C0_BADVADDR);
+		uasm_i_mfc0(&p, K1, C0_ENTRYHI);
+#endif
 		uasm_i_xor(&p, K0, K0, K1);
 		uasm_i_dsrl_safe(&p, K1, K0, 62);
 		uasm_i_dsrl_safe(&p, K0, K0, 12 + 1);
@@ -1377,8 +1393,13 @@ static void __cpuinit build_r4000_tlb_load_handler(void)
 	if (bcm1250_m3_war()) {
 		unsigned int segbits = 44;
 
+#ifndef CONFIG_CPU_R5900
 		uasm_i_dmfc0(&p, K0, C0_BADVADDR);
 		uasm_i_dmfc0(&p, K1, C0_ENTRYHI);
+#else
+		uasm_i_mfc0(&p, K0, C0_BADVADDR);
+		uasm_i_mfc0(&p, K1, C0_ENTRYHI);
+#endif
 		uasm_i_xor(&p, K0, K0, K1);
 		uasm_i_dsrl_safe(&p, K1, K0, 62);
 		uasm_i_dsrl_safe(&p, K0, K0, 12 + 1);
