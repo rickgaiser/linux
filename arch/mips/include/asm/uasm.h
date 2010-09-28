@@ -61,8 +61,10 @@ Ip_u1s2(_bltz);
 Ip_u1s2(_bltzl);
 Ip_u1u2s3(_bne);
 Ip_u2s3u1(_cache);
+#ifndef CONFIG_CPU_R5900
 Ip_u1u2u3(_dmfc0);
 Ip_u1u2u3(_dmtc0);
+#endif
 Ip_u2u1s3(_daddiu);
 Ip_u3u1u2(_daddu);
 Ip_u2u1u3(_dsll);
@@ -134,8 +136,13 @@ static inline void __cpuinit uasm_l##lb(struct uasm_label **lab, u32 *addr) \
 # define UASM_i_SRA(buf, rs, rt, sh) uasm_i_dsra(buf, rs, rt, sh)
 # define UASM_i_SRL(buf, rs, rt, sh) uasm_i_dsrl(buf, rs, rt, sh)
 # define UASM_i_ROTR(buf, rs, rt, sh) uasm_i_drotr(buf, rs, rt, sh)
+#ifndef CONFIG_CPU_R5900
 # define UASM_i_MFC0(buf, rt, rd...) uasm_i_dmfc0(buf, rt, rd)
 # define UASM_i_MTC0(buf, rt, rd...) uasm_i_dmtc0(buf, rt, rd)
+#else
+# define UASM_i_MFC0(buf, rt, rd...) uasm_i_mfc0(buf, rt, rd)
+# define UASM_i_MTC0(buf, rt, rd...) uasm_i_mtc0(buf, rt, rd)
+#endif
 # define UASM_i_ADDIU(buf, rs, rt, val) uasm_i_daddiu(buf, rs, rt, val)
 # define UASM_i_ADDU(buf, rs, rt, rd) uasm_i_daddu(buf, rs, rt, rd)
 # define UASM_i_SUBU(buf, rs, rt, rd) uasm_i_dsubu(buf, rs, rt, rd)
