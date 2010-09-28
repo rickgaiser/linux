@@ -928,6 +928,17 @@ static void __cpuinit probe_pcache(void)
 		c->dcache.waybit = 0;
 		break;
 
+	case CPU_R5900:
+		icache_size = 16 * 1024;
+		dcache_size = 8 * 1024;
+		c->icache.linesz = 64;
+		c->icache.ways = 2;
+		c->icache.waybit = __ffs(icache_size/c->icache.ways);
+		c->dcache.ways = 2;
+		c->dcache.linesz = 64;
+		c->dcache.waybit = __ffs(dcache_size/c->dcache.ways);
+		break;
+
 	default:
 		if (!(config & MIPS_CONF_M))
 			panic("Don't know how to probe P-caches on this cpu.");
