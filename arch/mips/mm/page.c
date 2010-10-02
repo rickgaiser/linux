@@ -643,6 +643,8 @@ void clear_page(void *page)
 	u64 to_phys = CPHYSADDR((unsigned long)page);
 	unsigned int cpu = smp_processor_id();
 
+	printk("clear_page(0x%016llx phys 0x%16llx\n", page, to_phys);
+
 	/* if the page is not in KSEG0, use old way */
 	if ((long)KSEGX((unsigned long)page) != (long)CKSEG0)
 		return clear_page_cpu(page);

@@ -7,10 +7,10 @@
 
 int prom_putchar(char c)
 {
-	tge_sbcall_putc_arg_t putc_arg;
+	struct sb_putchar_arg putc_arg;
 
 	putc_arg.c = c;
-	ps2_sbios(3, &putc_arg);
+	ps2_sbios(SB_PUTCHAR, &putc_arg);
 
 	return 1;
 }
