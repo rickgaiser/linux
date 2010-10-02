@@ -30,4 +30,10 @@ void __init plat_mem_setup(void)
 	add_memory_region(0x00001000, 0x0000F000, BOOT_MEM_RESERVED);
 	/* Free memory. */
 	add_memory_region(0x00010000, 0x01ff0000, BOOT_MEM_RAM);
+
+	/* Set base address of outb()/outw()/outl()/outq()/
+	 * inb()/inw()/inl()/inq().
+	 * This memory region is uncached.
+	 */
+	set_io_port_base(0xA0000000);
 }

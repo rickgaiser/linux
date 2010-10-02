@@ -5,5 +5,6 @@
 
 #define cpu_has_llsc		0
 #define cpu_has_4k_cache	1 /* TBD: Verify cache functions. */
+#define cpu_has_divec		1 /* TBD: Check also other bits near definition of MIPS_CPU_DIVEC. */
 
 #endif
