@@ -643,8 +643,8 @@ static void r4k_dma_cache_inv(unsigned long addr, unsigned long size)
 			 * hit ops with insufficient alignment.  Solved by
 			 * aligning the address to cache line size.
 			 */
-			cache_op(Hit_Writeback_Inv_SD, addr & almask);
-			cache_op(Hit_Writeback_Inv_SD,
+			cache_op_s(Hit_Writeback_Inv_SD, addr & almask);
+			cache_op_s(Hit_Writeback_Inv_SD,
 				 (addr + size - 1) & almask);
 			blast_inv_scache_range(addr, addr + size);
 		}
@@ -658,8 +658,8 @@ static void r4k_dma_cache_inv(unsigned long addr, unsigned long size)
 		unsigned long almask = ~(lsize - 1);
 
 		R4600_HIT_CACHEOP_WAR_IMPL;
-		cache_op(Hit_Writeback_Inv_D, addr & almask);
-		cache_op(Hit_Writeback_Inv_D, (addr + size - 1)  & almask);
+		cache_op_d(Hit_Writeback_Inv_D, addr & almask);
+		cache_op_d(Hit_Writeback_Inv_D, (addr + size - 1)  & almask);
 		blast_inv_dcache_range(addr, addr + size);
 	}
 
@@ -1114,15 +1114,15 @@ static int __cpuinit probe_scache(void)
 	write_c0_taglo(0);
 	write_c0_taghi(0);
 	__asm__ __volatile__("nop; nop; nop; nop;"); /* avoid the hazard */
-	cache_op(Index_Store_Tag_I, begin);
-	cache_op(Index_Store_Tag_D, begin);
-	cache_op(Index_Store_Tag_SD, begin);
+	cache_op_i(Index_Store_Tag_I, begin);
+	cache_op_d(Index_Store_Tag_D, begin);
+	cache_op_s(Index_Store_Tag_SD, begin);
 
 	/* Now search for the wrap around point. */
 	pow2 = (128 * 1024);
 	tmp = 0;
 	for (addr = begin + (128 * 1024); addr < end; addr = begin + pow2) {
-		cache_op(Index_Load_Tag_SD, addr);
+		cache_op_s(Index_Load_Tag_SD, addr);
 		__asm__ __volatile__("nop; nop; nop; nop;"); /* hazard... */
 		if (!read_c0_taglo())
 			break;
