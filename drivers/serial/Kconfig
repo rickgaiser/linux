@@ -1575,4 +1575,19 @@ config SERIAL_ALTERA_UART_CONSOLE
 	help
 	  Enable a Altera UART port to be the system console.
 
+config SERIAL_PS2_SBIOS
+	tristate "PS2 serial port over SBIOS"
+	depends on SONY_PS2
+	select SERIAL_CORE
+	default y
+	help
+	  If you have Sony Playstation 2 the output is handled by
+	  the putc function of the SBIOS.
+	  This means you can see the output in ps2link or with
+	  a serial cable connected to the internal serial pins
+	  of the PS2.
+	  To use this as system console, you need to specify
+	  the kernel parameter:
+	  console=ttyS0
+
 endmenu
