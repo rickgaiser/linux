@@ -929,8 +929,8 @@ static void __cpuinit probe_pcache(void)
 		break;
 
 	case CPU_R5900:
-		icache_size = 16 * 1024;
-		dcache_size = 8 * 1024;
+		icache_size = 1 << (12 + ((config & CONF_IC) >> 9));
+		dcache_size = 1 << (12 + ((config & CONF_DC) >> 6));
 		c->icache.linesz = 64;
 		c->icache.ways = 2;
 		c->icache.waybit = __ffs(icache_size/c->icache.ways);

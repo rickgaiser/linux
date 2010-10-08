@@ -101,7 +101,9 @@ int __compute_return_epc(struct pt_regs *regs)
 			regs->cp0_epc = epc;
 			break;
 		case bposge32_op:
+#ifndef CONFIG_CPU_R5900
 			if (!cpu_has_dsp)
+#endif
 				goto sigill;
 
 			dspcontrol = rddsp(0x01);

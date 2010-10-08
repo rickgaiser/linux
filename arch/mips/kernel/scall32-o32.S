@@ -27,6 +27,10 @@
 	.align  5
 NESTED(handle_sys, PT_SIZE, sp)
 	.set	noat
+#ifdef CONFIG_CPU_R5900
+	nop
+	nop
+#endif
 	SAVE_SOME
 	TRACE_IRQS_ON_RELOAD
 	STI

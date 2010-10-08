@@ -52,6 +52,10 @@ NESTED(except_vec1_generic, 0, sp)
 NESTED(except_vec3_generic, 0, sp)
 	.set	push
 	.set	noat
+#ifdef CONFIG_CPU_R5900
+	nop
+	nop
+#endif
 #if R5432_CP0_INTERRUPT_WAR
 	mfc0	k0, CP0_INDEX
 #endif
@@ -164,6 +168,10 @@ LEAF(r4k_wait)
 	.align  5
 BUILD_ROLLBACK_PROLOGUE handle_int
 NESTED(handle_int, PT_SIZE, sp)
+#ifdef CONFIG_CPU_R5900
+	nop
+	nop
+#endif
 #ifdef CONFIG_TRACE_IRQFLAGS
 	/*
 	 * Check to see if the interrupted code has just disabled
@@ -243,6 +251,10 @@ NESTED(except_vec_vi, 0, sp)
 	SAVE_AT
 	.set	push
 	.set	noreorder
+#ifdef CONFIG_CPU_R5900
+	nop
+	nop
+#endif
 #ifdef CONFIG_MIPS_MT_SMTC
 	/*
 	 * To keep from blindly blocking *all* interrupts
@@ -431,6 +443,10 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	.align	5
 	NESTED(handle_\exception, PT_SIZE, sp)
 	.set	noat
+#ifdef CONFIG_CPU_R5900
+	nop
+	nop
+#endif
 	SAVE_ALL
 	FEXPORT(handle_\exception\ext)
 	__BUILD_clear_\clear
