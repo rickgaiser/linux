@@ -12,6 +12,8 @@
 #include <linux/pm.h>
 #include <asm/bootinfo.h>
 
+#include <asm/mach-ps2/ps2.h>
+
 void __init plat_mem_setup(void)
 {
 	printk("plat_mem_setup: TBD: Memory initialisation incomplete.\n");
@@ -36,4 +38,6 @@ void __init plat_mem_setup(void)
 	 * This memory region is uncached.
 	 */
 	set_io_port_base(0xA0000000);
+
+	conswitchp=&ps2_con;
 }
