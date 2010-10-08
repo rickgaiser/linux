@@ -1334,6 +1334,10 @@ build_r4000_tlbchange_handler_head(u32 **p, struct uasm_label **l,
 				   struct uasm_reloc **r, unsigned int pte,
 				   unsigned int ptr)
 {
+#ifdef CONFIG_CPU_R5900
+	uasm_i_nop(p);
+	uasm_i_nop(p);
+#endif
 #ifdef CONFIG_64BIT
 	build_get_pmde64(p, l, r, pte, ptr); /* get pmd in ptr */
 #else
@@ -1394,6 +1398,8 @@ static void __cpuinit build_r4000_tlb_load_handler(void)
 		unsigned int segbits = 44;
 
 #ifndef CONFIG_CPU_R5900
+		uasm_i_nop(&p);
+		uasm_i_nop(&p);
 		uasm_i_dmfc0(&p, K0, C0_BADVADDR);
 		uasm_i_dmfc0(&p, K1, C0_ENTRYHI);
 #else

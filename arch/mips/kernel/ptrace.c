@@ -361,7 +361,11 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 			preempt_enable();
 			break;
 		}
+#ifdef CONFIG_CPU_R5900
+		case DSP_BASE ... DSP_BASE + 1: {
+#else
 		case DSP_BASE ... DSP_BASE + 5: {
+#endif
 			dspreg_t *dregs;
 
 			if (!cpu_has_dsp) {
@@ -373,6 +377,7 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 			tmp = (unsigned long) (dregs[addr - DSP_BASE]);
 			break;
 		}
+#ifndef CONFIG_CPU_R5900
 		case DSP_CONTROL:
 			if (!cpu_has_dsp) {
 				tmp = 0;
@@ -381,6 +386,7 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 			}
 			tmp = child->thread.dsp.dspcontrol;
 			break;
+#endif
 		default:
 			tmp = 0;
 			ret = -EIO;
@@ -450,7 +456,11 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 		case FPC_CSR:
 			child->thread.fpu.fcr31 = data;
 			break;
+#ifdef CONFIG_CPU_R5900
+		case DSP_BASE ... DSP_BASE + 1: {
+#else
 		case DSP_BASE ... DSP_BASE + 5: {
+#endif
 			dspreg_t *dregs;
 
 			if (!cpu_has_dsp) {
@@ -462,6 +472,7 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 			dregs[addr - DSP_BASE] = data;
 			break;
 		}
+#ifndef CONFIG_CPU_R5900
 		case DSP_CONTROL:
 			if (!cpu_has_dsp) {
 				ret = -EIO;
@@ -469,6 +480,7 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 			}
 			child->thread.dsp.dspcontrol = data;
 			break;
+#endif
 		default:
 			/* The rest are not allowed. */
 			ret = -EIO;
