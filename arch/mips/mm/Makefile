@@ -5,8 +5,12 @@
 obj-y				+= cache.o dma-default.o extable.o fault.o \
 				   init.o tlbex.o tlbex-fault.o uasm.o page.o
 
+ifeq ($(CONFIG_CPU_R5900),y)
+obj-$(CONFIG_CPU_R5900)		+= ioremap.o pgtable-32.o
+else
 obj-$(CONFIG_32BIT)		+= ioremap.o pgtable-32.o
 obj-$(CONFIG_64BIT)		+= pgtable-64.o
+endif
 obj-$(CONFIG_HIGHMEM)		+= highmem.o
 obj-$(CONFIG_HUGETLB_PAGE)	+= hugetlbpage.o
 

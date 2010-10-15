@@ -43,7 +43,7 @@ void __init prom_init(void)
 
 	/* get command line parameters */
 	if (ps2_bootinfo->opt_string != 0) {
-	    strncpy(arcs_cmdline, (const char *) ps2_bootinfo->opt_string, COMMAND_LINE_SIZE);
+	    strncpy(arcs_cmdline, (const char *) ((uintptr_t) ps2_bootinfo->opt_string), COMMAND_LINE_SIZE);
 	    arcs_cmdline[COMMAND_LINE_SIZE - 1] = '\0';
 	}
 

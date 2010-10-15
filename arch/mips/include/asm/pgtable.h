@@ -8,11 +8,15 @@
 #ifndef _ASM_PGTABLE_H
 #define _ASM_PGTABLE_H
 
+#ifdef CONFIG_CPU_R5900
+#include <asm/pgtable-32.h>
+#else
 #ifdef CONFIG_32BIT
 #include <asm/pgtable-32.h>
 #endif
 #ifdef CONFIG_64BIT
 #include <asm/pgtable-64.h>
+#endif
 #endif
 
 #include <asm/io.h>
