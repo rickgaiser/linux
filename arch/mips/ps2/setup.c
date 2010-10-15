@@ -25,6 +25,8 @@ void __init plat_mem_setup(void)
 
 	ioport_resource.start = ~0UL;
 	ioport_resource.end = 0UL;
+	iomem_resource.start = 0;
+	iomem_resource.end = ~0UL;	/* no limit */
 
 	/* Exeception vectors. */
 	add_memory_region(0x00000000, 0x00001000, BOOT_MEM_RAM);

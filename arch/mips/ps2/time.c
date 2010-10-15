@@ -69,6 +69,16 @@ static unsigned long ps2_do_gettimeoffset(void)
 	return res;
 }
 
+unsigned long long sched_clock(void)
+{
+	unsigned long long rv;
+
+	rv = (unsigned long long) (jiffies - INITIAL_JIFFIES);
+	rv *= (unsigned long long) (NSEC_PER_SEC / HZ);
+	rv += ((unsigned long long) NSEC_PER_USEC) * ((unsigned long long) ps2_do_gettimeoffset());
+	return rv;
+}
+
 /**
  * 	ps2_timer_interrupt - Timer Interrupt Routine
  *
