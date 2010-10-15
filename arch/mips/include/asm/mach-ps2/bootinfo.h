@@ -58,7 +58,7 @@ struct ps2_bootinfo {
     char		*ver_dvd_hdd;
     char		*ver_dvd_path;
 };
-#define PS2_BOOTINFO_OLDSIZE	((int)(&((struct ps2_bootinfo*)0)->magic))
+#define PS2_BOOTINFO_OLDSIZE	((uintptr_t)(&((struct ps2_bootinfo*)0)->magic))
 
 extern struct ps2_bootinfo *ps2_bootinfo;
 
