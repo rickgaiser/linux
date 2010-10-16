@@ -41,5 +41,5 @@ void __init plat_mem_setup(void)
 	 */
 	set_io_port_base(0xA0000000);
 
-	conswitchp=&ps2_con;
+	add_preferred_console(PS2_SBIOS_SERIAL_DEVICE_NAME, 0, NULL);
 }
