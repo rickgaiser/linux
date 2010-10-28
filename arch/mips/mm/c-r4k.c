@@ -933,10 +933,10 @@ static void __cpuinit probe_pcache(void)
 		dcache_size = 1 << (12 + ((config & CONF_DC) >> 6));
 		c->icache.linesz = 64;
 		c->icache.ways = 2;
-		c->icache.waybit = __ffs(icache_size/c->icache.ways);
+		c->icache.waybit = 0;
 		c->dcache.ways = 2;
 		c->dcache.linesz = 64;
-		c->dcache.waybit = __ffs(dcache_size/c->dcache.ways);
+		c->dcache.waybit = 0;
 		break;
 
 	default:
