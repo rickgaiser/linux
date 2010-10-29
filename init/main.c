@@ -77,6 +77,9 @@
 #include <asm/setup.h>
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
+#ifdef CONFIG_SONY_PS2
+#include <asm/mach-ps2/ps2.h>
+#endif
 
 #ifdef CONFIG_X86_LOCAL_APIC
 #include <asm/smp.h>
@@ -779,6 +782,12 @@ extern initcall_t __initcall_start[], __initcall_end[], __early_initcall_end[];
 static void __init do_initcalls(void)
 {
 	initcall_t *fn;
+
+#ifdef CONFIG_SONY_PS2
+	/* PS2 device system must be initialized before each device. */
+	/* TBD: Define bus for this. */
+	ps2_dev_init();
+#endif
 
 	for (fn = __early_initcall_end; fn < __initcall_end; fn++)
 		do_one_initcall(*fn);
