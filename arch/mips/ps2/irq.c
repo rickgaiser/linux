@@ -2,7 +2,7 @@
  * irq.c
  *
  *	Copyright (C) 2000-2002  Sony Computer Entertainment Inc.
- *	Copyright (C) 2010 Mega Man
+ *	Copyright (C) 2010       Mega Man
  *
  * This file is subject to the terms and conditions of the GNU General
  * Public License Version 2. See the file "COPYING" in the main
@@ -34,7 +34,7 @@
 #define GS_CSR		0x12001000
 #define GS_IMR		0x12001010
 
-#define SBUS_SMFLG		0x1000f230
+#define SBUS_SMFLG	0x1000f230
 #define SBUS_AIF_INTSR	0x18000004
 #define SBUS_AIF_INTEN	0x18000006
 #define SBUS_PCIC_EXC1	0x1f801476

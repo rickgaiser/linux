@@ -58,7 +58,7 @@
 /** Kernel uses 64-Bit pointers, but SBIOS expects 32-Bit pointers. */
 typedef uint32_t ps2_addr_t;
 
-int ps2_sbios(int sbcall, void *arg);
+int sbios(int sbcall, void *arg);
 
 #define SBIOS_VERSION	0x0257
 

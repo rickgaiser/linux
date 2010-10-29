@@ -13,6 +13,8 @@
 #include <asm/bootinfo.h>
 
 #include <asm/mach-ps2/ps2.h>
+#include <asm/mach-ps2/dma.h>
+#include <asm/mach-ps2/sifdefs.h>
 
 void __init plat_mem_setup(void)
 {
@@ -41,5 +43,14 @@ void __init plat_mem_setup(void)
 	 */
 	set_io_port_base(0xA0000000);
 
+#ifdef SERIAL_PS2_SBIOS_DEFAULT
+	/* Use PS2 SBIOS as default console. */
 	add_preferred_console(PS2_SBIOS_SERIAL_DEVICE_NAME, 0, NULL);
+#endif
+}
+
+void ps2_dev_init(void)
+{
+	ps2dma_init();
+	ps2sif_init();
 }
