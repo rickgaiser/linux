@@ -1579,7 +1579,7 @@ config SERIAL_PS2_SBIOS
 	tristate "PS2 serial port over SBIOS"
 	depends on SONY_PS2
 	select SERIAL_CORE
-	default y
+	default n
 	help
 	  If you have Sony Playstation 2 the output is handled by
 	  the putc function of the SBIOS.
@@ -1589,5 +1589,15 @@ config SERIAL_PS2_SBIOS
 	  To use this as system console, you need to specify
 	  the kernel parameter:
 	  console=ttyS0
+
+config SERIAL_PS2_SBIOS_DEFAULT
+	bool "Use PS2 serial console as default"
+	depends on SERIAL_PS2_SBIOS=y
+	default n
+	help
+	  Don't use graphical console as default. Use PS2 SBIOS
+	  console as default console. This is only for debugging
+	  You need to have a PS2 serial cable or ps2link enabled
+	  in kernelloader.
 
 endmenu

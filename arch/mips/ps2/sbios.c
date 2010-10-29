@@ -8,13 +8,13 @@
 
 typedef int (sbios_t) (int sbcall, void *arg);
 
-EXPORT_SYMBOL(ps2_sbios);
+EXPORT_SYMBOL(sbios);
 
-int ps2_sbios(int sbcall, void *arg)
+int sbios(int sbcall, void *arg)
 {
-	sbios_t *sbios;
+	sbios_t *ps2_sbios;
 
-	sbios = *((sbios_t **) SBIOS_BASE);
+	ps2_sbios = *((sbios_t **) SBIOS_BASE);
 
-	return sbios(sbcall, arg);
+	return ps2_sbios(sbcall, arg);
 }

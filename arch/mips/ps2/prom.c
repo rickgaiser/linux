@@ -1,4 +1,5 @@
 /* Copyright 2010 Mega Man */
+/* Copyright 2010 Mega Man */
 /* TBD: Unfinished state. Rework code. */
 #include <linux/init.h>
 #include <linux/mm.h>
@@ -51,7 +52,7 @@ void __init prom_init(void)
 	ps2_pcic_type = ps2_bootinfo->pcic_type;
 	ps2_sysconf = &ps2_bootinfo->sysconf;
 
-	printk("PlayStation 2 SIF BIOS: %04x\n", ps2_sbios(SB_GETVER, 0));
+	printk("PlayStation 2 SIF BIOS: %04x\n", sbios(SB_GETVER, 0));
 }
 
 void __init prom_free_prom_memory(void)
