@@ -31,7 +31,7 @@ EXPORT_SYMBOL(ps2sif_bustovirt);
 
 int __init ps2sif_initiopheap(void)
 {
-    int i;
+    volatile int i;
     int result;
     int err;
 
@@ -51,7 +51,7 @@ int __init ps2sif_initiopheap(void)
     return 0;
 }
 
-void *ps2sif_allociopheap(int size)
+dma_addr_t ps2sif_allociopheap(int size)
 {
     struct sbr_ioph_alloc_arg arg;
     int result;
@@ -65,10 +65,10 @@ void *ps2sif_allociopheap(int size)
 
     if (err < 0)
 	return NULL;
-    return (void *)result;
+    return result;
 }
 
-int ps2sif_freeiopheap(void *addr)
+int ps2sif_freeiopheap(dma_addr_t addr)
 {
     struct sbr_ioph_free_arg arg;
     int result;
@@ -85,12 +85,12 @@ int ps2sif_freeiopheap(void *addr)
     return result;
 }
 
-unsigned long ps2sif_virttobus(volatile void *a)
+dma_addr_t ps2sif_virttobus(volatile void *a)
 {
-	return((unsigned long)a - 0xbc000000);
+	return((unsigned int)a - PS2_IOP_HEAP_BASE);
 }
 
-void *ps2sif_bustovirt(unsigned long a)
+void *ps2sif_bustovirt(dma_addr_t a)
 {
-	return((void *)a + 0xbc000000);
+	return((void *)a + PS2_IOP_HEAP_BASE);
 }
