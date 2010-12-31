@@ -137,10 +137,10 @@ ps2sif_queuedata_t *ps2sif_removerpcqueue(ps2sif_queuedata_t *);
  * IOP heap defines
  */
 
-void *ps2sif_allociopheap(int);
-int ps2sif_freeiopheap(void *);
-unsigned long ps2sif_virttobus(volatile void *);
-void *ps2sif_bustovirt(unsigned long);
+dma_addr_t ps2sif_allociopheap(int);
+int ps2sif_freeiopheap(dma_addr_t);
+dma_addr_t ps2sif_virttobus(volatile void *);
+void *ps2sif_bustovirt(dma_addr_t);
 
 /*
  * SBIOS defines

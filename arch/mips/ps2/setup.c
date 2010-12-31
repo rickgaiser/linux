@@ -10,11 +10,39 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/pm.h>
-#include <asm/bootinfo.h>
+#include <linux/platform_device.h>
 
+#include <asm/bootinfo.h>
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/dma.h>
 #include <asm/mach-ps2/sifdefs.h>
+
+static struct resource usb_ohci_resources[] = {
+	[0] = {
+		.start	= 0xbf801600,
+		.end	= 0xbf801700,
+		/* OHCI needs IO memory. */
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_SBUS_USB,
+		.end	= IRQ_SBUS_USB,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static u64 usb_ohci_dma_mask = 0xffffffffUL;
+static struct platform_device usb_ohci_device = {
+	.name		= "ps2_ohci",
+	.id		= -1,
+	.dev = {
+		/* TBD: DMA must be allocated from IOP heap. */
+		.dma_mask		= &usb_ohci_dma_mask,
+		.coherent_dma_mask	= 0xffffffff,
+	},
+	.num_resources	= ARRAY_SIZE(usb_ohci_resources),
+	.resource	= usb_ohci_resources,
+};
 
 void __init plat_mem_setup(void)
 {
@@ -25,10 +53,13 @@ void __init plat_mem_setup(void)
 	pm_power_off = ps2_machine_power_off;
 #endif
 
-	ioport_resource.start = ~0UL;
-	ioport_resource.end = 0UL;
-	iomem_resource.start = 0;
-	iomem_resource.end = ~0UL;	/* no limit */
+	/* IO port (out and in functions). */
+	ioport_resource.start = 0x10000000;
+	ioport_resource.end   = 0x1FFFFFFF;
+
+	/* IO memory. */
+	iomem_resource.start = 0x00000000;
+	iomem_resource.end   = KSEG2 - 1;
 
 	/* Exeception vectors. */
 	add_memory_region(0x00000000, 0x00001000, BOOT_MEM_RAM);
@@ -43,7 +74,7 @@ void __init plat_mem_setup(void)
 	 */
 	set_io_port_base(0xA0000000);
 
-#ifdef SERIAL_PS2_SBIOS_DEFAULT
+#ifdef CONFIG_SERIAL_PS2_SBIOS_DEFAULT
 	/* Use PS2 SBIOS as default console. */
 	add_preferred_console(PS2_SBIOS_SERIAL_DEVICE_NAME, 0, NULL);
 #endif
@@ -53,4 +84,5 @@ void ps2_dev_init(void)
 {
 	ps2dma_init();
 	ps2sif_init();
+	platform_device_register(&usb_ohci_device);
 }
