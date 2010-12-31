@@ -7,6 +7,12 @@
 /* Device name of PS2 SBIOS serial device. */
 #define PS2_SBIOS_SERIAL_DEVICE_NAME "ttyS"
 
+/* Base address for hardware. */
+#define PS2_HW_BASE 0x10000000
+
+/* Base address for IOP memory. */
+#define PS2_IOP_HEAP_BASE 0xbc000000
+
 extern int ps2_pccard_present;
 extern int ps2_pcic_type;
 extern struct ps2_sysconf *ps2_sysconf;

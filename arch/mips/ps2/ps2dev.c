@@ -1080,6 +1080,7 @@ int __init ps2dev_init(void)
     ps2gs_get_gssreg(PS2_GSSREG_CSR, &gs_revision);
 
     /* map scratchpad RAM */
+    /* TBD: Check if mapping works. Scatchpad has extra bits in TLB? */
     ps2spr_vaddr = ioremap_nocache(0x80000000, SPR_SIZE);
 
     printk("PlayStation 2 device support: GIF, VIF, GS, VU, IPU, SPR\n");

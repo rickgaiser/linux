@@ -333,19 +333,32 @@ int __init ps2sif_init(void)
 {
     init_waitqueue_head(&ps2sif_dma_waitq);
 
-    if (sbios(SB_SIFINIT, 0) < 0)
+    if (sbios(SB_SIFINIT, 0) < 0) {
+	printk(KERN_ERR "ps2sif: SIF init failed.\n");
 	return -1;
-    if (sbios(SB_SIFINITCMD, 0) < 0)
+    }
+    if (sbios(SB_SIFINITCMD, 0) < 0) {
+	printk(KERN_ERR "ps2sif: SIF CMD init failed.\n");
 	return -1;
-    if (request_irq(IRQ_DMAC_5, sif0_dma_handler, IRQF_SHARED, "SIF0 DMA", NULL))
+    }
+    if (request_irq(IRQ_DMAC_5, sif0_dma_handler, 0, "SIF0 DMA", NULL)) {
+	printk(KERN_ERR "ps2sif: Failed to setup SIF0 handler.\n");
 	return -1;
-    if (request_irq(IRQ_DMAC_6, sif1_dma_handler, IRQF_SHARED, "SIF1 DMA", NULL))
+    }
+    if (request_irq(IRQ_DMAC_6, sif1_dma_handler, 0, "SIF1 DMA", NULL)) {
+	printk(KERN_ERR "ps2sif: Failed to setup SIF1 handler.\n");
 	return -1;
-    if (sbios(SB_SIFINITRPC, 0) < 0)
+    }
+    if (sbios(SB_SIFINITRPC, 0) < 0) {
+	printk(KERN_ERR "ps2sif: SIF init RPC failed.\n");
 	return -1;
+    }
 
-    if (ps2sif_initiopheap() < 0)
+    if (ps2sif_initiopheap() < 0) {
+	printk(KERN_ERR "ps2sif: init IOP heap failed.\n");
 	return -1;
+    }
+    printk(KERN_INFO "ps2sif: SIF initialized.\n");
 
     return 0;
 }
@@ -356,4 +369,6 @@ void ps2sif_exit(void)
     sbios(SB_SIFEXITCMD, 0);
     free_irq(IRQ_DMAC_5, NULL);
     sbios(SB_SIFEXIT, 0);
+    /* TBD: Check exit. */
+    free_irq(IRQ_DMAC_6, NULL);
 }
