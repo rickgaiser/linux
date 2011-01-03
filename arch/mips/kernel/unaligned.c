@@ -101,6 +101,9 @@ static u32 unaligned_action;
 #define unaligned_action UNALIGNED_ACTION_QUIET
 #endif
 extern void show_registers(struct pt_regs *regs);
+#ifdef CONFIG_CPU_R5900
+asmlinkage void do_ri(struct pt_regs *regs);
+#endif
 
 static void emulate_load_store_insn(struct pt_regs *regs,
 	void __user *addr, unsigned int __user *pc)
@@ -472,6 +475,13 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 	case sdc2_op:
 		cu2_notifier_call_chain(CU2_SDC2_OP, regs);
 		break;
+
+#ifdef CONFIG_CPU_R5900
+	case spec3_op:
+		/* On R5900 it is possible that illegal opcode generates a fetch exception. */
+		do_ri(regs);
+		return;
+#endif
 
 	default:
 		/*
