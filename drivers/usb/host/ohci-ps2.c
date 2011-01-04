@@ -57,7 +57,7 @@ static const struct hc_driver ohci_ps2_hc_driver = {
 	 * generic hardware linkage
 	 */
 	.irq =			ohci_irq,
-	.flags =		HCD_USB11 | HCD_MEMORY,
+	.flags =		HCD_USB11 | HCD_MEMORY | HCD_LOCAL_MEM | HCD_LOCAL_DMA,
 
 	/*
 	 * basic lifecycle operations
