@@ -23,7 +23,7 @@
 #include <asm/mach-ps2/sifdefs.h>
 
 /* Size of buffer allocated from IOP heap. */
-#define DMA_BUFFER_SIZE (128 * 1024)
+#define DMA_BUFFER_SIZE (256 * 1024)
 
 #define ERROR(args...) printk(KERN_ERR "ohci-ps: " args);
 
@@ -102,8 +102,7 @@ iopheap_alloc_coherent(struct device *dev, size_t size, int flags)
 		if (!dma_declare_coherent_memory(dev, (unsigned int) ps2sif_bustovirt(addr),
 						 addr,
 						 size,
-						 DMA_MEMORY_MAP |
-						 DMA_MEMORY_EXCLUSIVE)) {
+						 flags)) {
 			ERROR("cannot declare coherent memory\n");
 			ps2sif_freeiopheap(addr);
 			return -ENXIO;
@@ -151,7 +150,7 @@ static int ohci_hcd_ps2_probe(struct platform_device *pdev)
 		ERROR("platform_get_irq error.");
 		return -ENODEV;
 	}
-	ret = iopheap_alloc_coherent(&pdev->dev, DMA_BUFFER_SIZE, DMA_MEMORY_MAP);
+	ret = iopheap_alloc_coherent(&pdev->dev, DMA_BUFFER_SIZE, DMA_MEMORY_MAP | DMA_MEMORY_EXCLUSIVE);
 	if (ret) {
 		return ret;
 	}
