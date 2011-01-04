@@ -836,6 +836,24 @@ asmlinkage void do_ri(struct pt_regs *regs)
 	if (status < 0)
 		status = simulate_sync(regs, opcode);
 
+#ifdef CONFIG_CPU_R5900
+	/* R5900 supports 32 bit FPU operation, but no 64 bit instructions. */
+	/* We need to emulate it here. */
+	if (cpu_has_fpu && status < 0) {
+		/* Undo skip-over.  */
+		regs->cp0_epc = old_epc;
+
+		/* Ensure 'resume' not overwrite saved fp context again. */
+		lose_fpu(1);
+
+		/* Run the emulator */
+		status = fpu_emulator_cop1Handler(regs, &current->thread.fpu, 1);
+
+		/* Restore the hardware register state */
+		own_fpu(1);	/* Using the FPU again.  */
+	}
+#endif
+
 	if (status < 0)
 		status = SIGILL;
 
