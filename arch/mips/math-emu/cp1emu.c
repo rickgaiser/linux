@@ -320,7 +320,7 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_struct *ctx)
 	case cop1_op:
 		switch (MIPSInst_RS(ir)) {
 
-#if defined(__mips64)
+#if defined(__mips64) || defined(CONFIG_CPU_R5900)
 		case dmfc_op:
 			/* copregister fs -> gpr[rt] */
 			if (MIPSInst_RT(ir) != 0) {
@@ -447,7 +447,7 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_struct *ctx)
 				switch (MIPSInst_OPCODE(ir)) {
 				case lwc1_op:
 				case swc1_op:
-#if (__mips >= 2 || defined(__mips64))
+#if (__mips >= 2 || defined(__mips64)) || defined(CONFIG_CPU_R5900)
 				case ldc1_op:
 				case sdc1_op:
 #endif
@@ -775,7 +775,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		ieee754dp d;
 		ieee754sp s;
 		int w;
-#ifdef __mips64
+#if defined(__mips64) || defined(CONFIG_CPU_R5900)
 		s64 l;
 #endif
 	} rv;			/* resulting value */
@@ -804,7 +804,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 			goto scopbop;
 
 			/* unary  ops */
-#if __mips >= 2 || defined(__mips64)
+#if __mips >= 2 || defined(__mips64) || defined(CONFIG_CPU_R5900)
 		case fsqrt_op:
 			handler.u = ieee754sp_sqrt;
 			goto scopuop;
@@ -899,7 +899,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 			goto copcsr;
 		}
 
-#if __mips >= 2 || defined(__mips64)
+#if __mips >= 2 || defined(__mips64) || defined(CONFIG_CPU_R5900)
 		case fround_op:
 		case ftrunc_op:
 		case fceil_op:
@@ -916,7 +916,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		}
 #endif /* __mips >= 2 */
 
-#if defined(__mips64)
+#if defined(__mips64) || defined(CONFIG_CPU_R5900)
 		case fcvtl_op:{
 			ieee754sp fs;
 
@@ -989,7 +989,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 			goto dcopbop;
 
 			/* unary  ops */
-#if __mips >= 2 || defined(__mips64)
+#if __mips >= 2 || defined(__mips64) || defined(CONFIG_CPU_R5900)
 		case fsqrt_op:
 			handler.u = ieee754dp_sqrt;
 			goto dcopuop;
@@ -1073,7 +1073,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 			goto copcsr;
 		}
 
-#if __mips >= 2 || defined(__mips64)
+#if __mips >= 2 || defined(__mips64) || defined(CONFIG_CPU_R5900)
 		case fround_op:
 		case ftrunc_op:
 		case fceil_op:
@@ -1090,7 +1090,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		}
 #endif
 
-#if defined(__mips64)
+#if defined(__mips64) || defined(CONFIG_CPU_R5900)
 		case fcvtl_op:{
 			ieee754dp fs;
 
@@ -1165,7 +1165,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		break;
 	}
 
-#if defined(__mips64)
+#if defined(__mips64) || defined(CONFIG_CPU_R5900)
 	case l_fmt:{
 		switch (MIPSInst_FUNC(ir)) {
 		case fcvts_op:
@@ -1227,7 +1227,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 	case w_fmt:
 		SITOREG(rv.w, MIPSInst_FD(ir));
 		break;
-#if defined(__mips64)
+#if defined(__mips64) || defined(CONFIG_CPU_R5900)
 	case l_fmt:
 		DITOREG(rv.l, MIPSInst_FD(ir));
 		break;
