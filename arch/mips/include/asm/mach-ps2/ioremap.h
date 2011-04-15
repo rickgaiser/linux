@@ -52,9 +52,9 @@ static inline void __iomem *plat_ioremap(phys_t offset, unsigned long size,
 
 static inline int plat_iounmap(const volatile void __iomem *addr)
 {
-	unsigned int kseg_addr;
+	unsigned long kseg_addr;
 
-	kseg_addr = (unsigned int) addr;
+	kseg_addr = (unsigned long) addr;
 	if ((kseg_addr >= CKSEG0) && (kseg_addr < CKSEG2)) {
 		/* Memory is always mapped in kernel mode. No unmap possible. */
 		return 1;
