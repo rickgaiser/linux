@@ -15,7 +15,7 @@
  * Cache Operations available on all MIPS processors with R4000-style caches
  */
 #ifdef CONFIG_CPU_R5900
-#define Index_Invalidate_I      0x03
+#define Index_Invalidate_I      0x07
 #define Index_Writeback_Inv_D   0x14
 #define Index_Load_Tag_I	0x00
 #define Index_Load_Tag_D	0x10
