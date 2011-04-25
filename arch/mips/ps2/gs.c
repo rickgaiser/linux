@@ -33,6 +33,14 @@
 #include <asm/mach-ps2/sysconf.h>
 #include <asm/mach-ps2/sbios.h>
 
+/** Aligment for GS packets. */
+#define DMA_ALIGN_SIZE 16
+
+typedef struct gsreg_packet {
+    ps2_giftag giftag; // 128bit
+    u64 param[2];
+} gsreg_packet_t;
+
 static u64 gssreg[0x10];
 static int gs_mode = -1;
 static int gs_pmode;
@@ -88,23 +96,22 @@ int ps2gs_get_gssreg(int reg, u64 *val)
 
 int ps2gs_set_gsreg(int reg, u64 val)
 {
-    struct {
-    	ps2_giftag giftag; // 128bit
-	u64 param[2];
-    } packet;
+    unsigned char buffer[sizeof(gsreg_packet_t) + DMA_ALIGN_SIZE];
+    /* Align packet to 16 byte on stack. */
+    gsreg_packet_t *packet = (void *) ((((unsigned int) buffer) + DMA_ALIGN_SIZE - 1) & ~(DMA_ALIGN_SIZE - 1));
 
-    PS2_GIFTAG_CLEAR_TAG(&(packet.giftag));
-    packet.giftag.NLOOP = 1;
-    packet.giftag.EOP = 1;
-    packet.giftag.PRE = 0;
-    packet.giftag.PRIM = 0;
-    packet.giftag.FLG = PS2_GIFTAG_FLG_PACKED;
-    packet.giftag.NREG = 1;
-    packet.giftag.REGS0 = PS2_GIFTAG_REGS_AD;
-    packet.param[0] = val;
-    packet.param[1] = reg;
+    PS2_GIFTAG_CLEAR_TAG(&(packet->giftag));
+    packet->giftag.NLOOP = 1;
+    packet->giftag.EOP = 1;
+    packet->giftag.PRE = 0;
+    packet->giftag.PRIM = 0;
+    packet->giftag.FLG = PS2_GIFTAG_FLG_PACKED;
+    packet->giftag.NREG = 1;
+    packet->giftag.REGS0 = PS2_GIFTAG_REGS_AD;
+    packet->param[0] = val;
+    packet->param[1] = reg;
 
-    ps2sdma_send(DMA_GIF, &packet, sizeof(packet));
+    ps2sdma_send(DMA_GIF, packet, sizeof(*packet));
     return 0;
 }
 
