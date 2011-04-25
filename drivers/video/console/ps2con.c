@@ -461,7 +461,7 @@ static void ps2con_clear(struct vc_data *conp, int sy, int sx, int height,
 	redraw_cursor = 1;
     }
 
-    if ((gsp = ps2con_gsp_alloc(ALIGN16(5 * 8), NULL)) == NULL)
+    if ((gsp = ps2con_gsp_alloc(ALIGN16(6 * 8), NULL)) == NULL)
 	return;
 
     *gsp++ = PS2_GIFTAG_SET_TOPHALF(1, 1, 0, 0, PS2_GIFTAG_FLG_REGLIST, 4);
