@@ -1,0 +1,17 @@
+#
+# Sony Playstation 2 configuration
+#
+
+menu "Sony Playstation 2 devices"
+
+config PS2_ETHER_SMAP
+	tristate "Support for PS2 SMAP (ethernet)"
+	default y
+	depends on SONY_PS2
+	depends on NET
+	help
+	   This enables the driver for the network adapter in the fat PS2.
+
+	   If you don't know what to do here, say Y.
+
+endmenu

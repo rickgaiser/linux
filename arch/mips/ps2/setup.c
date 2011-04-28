@@ -44,6 +44,10 @@ static struct platform_device usb_ohci_device = {
 	.resource	= usb_ohci_resources,
 };
 
+static struct platform_device smap_device = {
+	.name           = "ps2smap",
+};
+
 void __init plat_mem_setup(void)
 {
 	printk("plat_mem_setup: TBD: Memory initialisation incomplete.\n");
@@ -85,4 +89,13 @@ void ps2_dev_init(void)
 	ps2dma_init();
 	ps2sif_init();
 	platform_device_register(&usb_ohci_device);
+
+	switch (ps2_pccard_present) {
+	case 0x0100:
+		platform_device_register(&smap_device);
+		break;
+	default:
+		printk("No SMAP network device found.");
+		break;
+	}
 }
