@@ -55,8 +55,12 @@
 
 #include <linux/types.h>
 
+#ifdef CONFIG_64BIT
 /** Kernel uses 64-Bit pointers, but SBIOS expects 32-Bit pointers. */
 typedef uint32_t ps2_addr_t;
+#else
+typedef void *ps2_addr_t;
+#endif
 
 int sbios(int sbcall, void *arg);
 
@@ -90,6 +94,9 @@ struct sb_setgscrt_arg {
 struct sb_setrgbyc_arg {
     int rgbyc;
 };
+
+/** Debug output in TGE (not supported by RTE). */
+#define SB_SET_PRINTS_CALLBACK 15
 
 /*
  *  SIF DMA services
@@ -636,6 +643,9 @@ struct sbr_cdvd_rcbyctl_arg {
     int param;
     int stat;
 };
+
+/* Uses sbr_cdvd_read_arg */
+#define SBR_CDVD_READ_DVD	196
 
 /*
  * Remote Controller
