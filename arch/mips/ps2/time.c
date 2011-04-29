@@ -19,6 +19,7 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
+#include <linux/timex.h>
 
 #include <asm/bootinfo.h>
 #include <asm/time.h>
@@ -67,6 +68,12 @@ static unsigned long ps2_do_gettimeoffset(void)
 		res = USECS_PER_JIFFY-1;
 
 	return res;
+}
+
+u32 arch_gettimeoffset(void)
+{
+	// TBD: Time seems to be too fast. "ping" on console has often 10.0 ms.
+	return ps2_do_gettimeoffset() * NSEC_PER_USEC;
 }
 
 unsigned long long sched_clock(void)
@@ -151,9 +158,6 @@ void __init plat_time_init(void)
 	struct clock_event_device *cd = &timer0_clockevent_device;
 	struct irqaction *action = &timer0_irqaction;
 	unsigned int cpu = smp_processor_id();
-
-	/* TBD: Initialization of time missing. */
-	printk("TBD: Initialization of time missing.\n");
 
 	cd->cpumask = cpumask_of(cpu);
 	clockevents_register_device(cd);
