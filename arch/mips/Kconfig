@@ -694,6 +694,7 @@ config SONY_PS2
 	select SYS_HAS_EARLY_PRINTK
 	select USB_ARCH_HAS_OHCI
 	select USB_OHCI_LITTLE_ENDIAN
+	select ARCH_USES_GETTIMEOFFSET
 	help
 	  This enables support for Sony Playstation 2.
 
@@ -752,6 +753,10 @@ config GENERIC_CLOCKEVENTS
 config GENERIC_TIME
 	bool
 	default y
+
+config ARCH_USES_GETTIMEOFFSET
+	bool
+	default n
 
 config GENERIC_CMOS_UPDATE
 	bool
