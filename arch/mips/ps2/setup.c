@@ -92,6 +92,7 @@ void ps2_dev_init(void)
 {
 	ps2dma_init();
 	ps2sif_init();
+	ps2rtc_init();
 	platform_device_register(&usb_ohci_device);
 
 	switch (ps2_pccard_present) {

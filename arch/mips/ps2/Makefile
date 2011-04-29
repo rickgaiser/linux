@@ -14,3 +14,5 @@ obj-y		+= dma.o
 obj-y		+= ps2mem.o
 obj-y		+= sbcall.o
 obj-y		+= iopheap.o
+obj-y		+= rtc.o
+obj-y		+= siflock.o
