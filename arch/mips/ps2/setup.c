@@ -48,6 +48,10 @@ static struct platform_device smap_device = {
 	.name           = "ps2smap",
 };
 
+static struct platform_device smaprpc_device = {
+	.name           = "ps2smaprpc",
+};
+
 void __init plat_mem_setup(void)
 {
 	printk("plat_mem_setup: TBD: Memory initialisation incomplete.\n");
@@ -93,6 +97,9 @@ void ps2_dev_init(void)
 	switch (ps2_pccard_present) {
 	case 0x0100:
 		platform_device_register(&smap_device);
+		break;
+	case 0x0200:
+		platform_device_register(&smaprpc_device);
 		break;
 	default:
 		printk("No SMAP network device found.");

@@ -2915,7 +2915,7 @@ static int __devinit smap_probe(struct platform_device *dev)
 #endif /* HAVE_TX_TIMEOUT */
 	kernel_thread(smap_thread, (void *)smap, 0);
 
-	printk("PlayStation 2 SMAP(Ethernet) device driver.\n");
+	printk("Fat PlayStation 2 SMAP(Ethernet) device driver.\n");
 
 	return(0);	/* success */
 
@@ -3018,8 +3018,8 @@ static void __exit smap_exit(void)
 module_init(smap_init);
 module_exit(smap_exit);
 
-MODULE_AUTHOR("Sony Computer Entertainment Inc.");
-MODULE_DESCRIPTION("PlayStation 2 ethernet device driver");
+MODULE_AUTHOR("Mega Man");
+MODULE_DESCRIPTION("PlayStation 2 ethernet device driver for fat PS2.");
 MODULE_LICENSE("GPL");
 
 /*--------------------------------------------------------------------------*/
