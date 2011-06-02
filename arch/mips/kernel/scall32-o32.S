@@ -141,6 +141,10 @@ stackargs:
 
 	la	t1, 5f			# load up to 3 arguments
 	subu	t1, t3
+#ifdef CONFIG_CPU_R5900
+	/* In an error exception handler the user space could be uncached. */
+	sync.l
+#endif
 1:	lw	t5, 16(t0)		# argument #5 from usp
 	.set    push
 	.set    noreorder
@@ -148,8 +152,20 @@ stackargs:
 	jr	t1
 	 addiu	t1, 6f - 5f
 
+#ifdef CONFIG_CPU_R5900
+	/* In an error exception handler the user space could be uncached. */
+	sync.l
+#endif
 2:	lw	t8, 28(t0)		# argument #8 from usp
+#ifdef CONFIG_CPU_R5900
+	/* In an error exception handler the user space could be uncached. */
+	sync.l
+#endif
 3:	lw	t7, 24(t0)		# argument #7 from usp
+#ifdef CONFIG_CPU_R5900
+	/* In an error exception handler the user space could be uncached. */
+	sync.l
+#endif
 4:	lw	t6, 20(t0)		# argument #6 from usp
 5:	jr	t1
 	 sw	t5, 16(sp)		# argument #5 to ksp

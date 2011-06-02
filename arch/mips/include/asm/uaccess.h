@@ -252,6 +252,29 @@ do {									\
 	__gu_err;							\
 })
 
+#ifdef CONFIG_CPU_R5900
+#define __get_user_asm(val, insn, addr)					\
+{									\
+	long __gu_tmp;							\
+									\
+	__asm__ __volatile__(						\
+	/* In an error exception handler the user space could be uncached. */ \
+	"sync.l							\n"	\
+	"1:	" insn "	%1, %3				\n"	\
+	"2:							\n"	\
+	"	.section .fixup,\"ax\"				\n"	\
+	"3:	li	%0, %4					\n"	\
+	"	j	2b					\n"	\
+	"	.previous					\n"	\
+	"	.section __ex_table,\"a\"			\n"	\
+	"	"__UA_ADDR "\t1b, 3b				\n"	\
+	"	.previous					\n"	\
+	: "=r" (__gu_err), "=r" (__gu_tmp)				\
+	: "0" (0), "o" (__m(addr)), "i" (-EFAULT));			\
+									\
+	(val) = (__typeof__(*(addr))) __gu_tmp;				\
+}
+#else
 #define __get_user_asm(val, insn, addr)					\
 {									\
 	long __gu_tmp;							\
@@ -271,10 +294,42 @@ do {									\
 									\
 	(val) = (__typeof__(*(addr))) __gu_tmp;				\
 }
+#endif
 
 /*
  * Get a long long 64 using 32 bit registers.
  */
+#ifdef CONFIG_CPU_R5900
+#define __get_user_asm_ll32(val, addr)					\
+{									\
+	union {								\
+		unsigned long long	l;				\
+		__typeof__(*(addr))	t;				\
+	} __gu_tmp;							\
+									\
+	__asm__ __volatile__(						\
+	/* In an error exception handler the user space could be uncached. */ \
+	"sync.l							\n"	\
+	"1:	lw	%1, (%3)				\n"	\
+	/* In an error exception handler the user space could be uncached. */ \
+	"sync.l							\n"	\
+	"2:	lw	%D1, 4(%3)				\n"	\
+	"3:	.section	.fixup,\"ax\"			\n"	\
+	"4:	li	%0, %4					\n"	\
+	"	move	%1, $0					\n"	\
+	"	move	%D1, $0					\n"	\
+	"	j	3b					\n"	\
+	"	.previous					\n"	\
+	"	.section	__ex_table,\"a\"		\n"	\
+	"	" __UA_ADDR "	1b, 4b				\n"	\
+	"	" __UA_ADDR "	2b, 4b				\n"	\
+	"	.previous					\n"	\
+	: "=r" (__gu_err), "=&r" (__gu_tmp.l)				\
+	: "0" (0), "r" (addr), "i" (-EFAULT));				\
+									\
+	(val) = __gu_tmp.t;						\
+}
+#else
 #define __get_user_asm_ll32(val, addr)					\
 {									\
 	union {								\
@@ -300,6 +355,7 @@ do {									\
 									\
 	(val) = __gu_tmp.t;						\
 }
+#endif
 
 /*
  * Yuck.  We need two variants, one for 64bit operation and one
@@ -348,6 +404,26 @@ do {									\
 	__pu_err;							\
 })
 
+#ifdef CONFIG_CPU_R5900
+#define __put_user_asm(insn, ptr)					\
+{									\
+	__asm__ __volatile__(						\
+	/* In an error exception handler the user space could be uncached. */ \
+	"sync.l							\n"	\
+	"1:	" insn "	%z2, %3		# __put_user_asm\n"	\
+	"2:							\n"	\
+	"	.section	.fixup,\"ax\"			\n"	\
+	"3:	li	%0, %4					\n"	\
+	"	j	2b					\n"	\
+	"	.previous					\n"	\
+	"	.section	__ex_table,\"a\"		\n"	\
+	"	" __UA_ADDR "	1b, 3b				\n"	\
+	"	.previous					\n"	\
+	: "=r" (__pu_err)						\
+	: "0" (0), "Jr" (__pu_val), "o" (__m(ptr)),			\
+	  "i" (-EFAULT));						\
+}
+#else
 #define __put_user_asm(insn, ptr)					\
 {									\
 	__asm__ __volatile__(						\
@@ -364,7 +440,32 @@ do {									\
 	: "0" (0), "Jr" (__pu_val), "o" (__m(ptr)),			\
 	  "i" (-EFAULT));						\
 }
+#endif
 
+#ifdef CONFIG_CPU_R5900
+#define __put_user_asm_ll32(ptr)					\
+{									\
+	__asm__ __volatile__(						\
+	/* In an error exception handler the user space could be uncached. */ \
+	"sync.l							\n"	\
+	"1:	sw	%2, (%3)	# __put_user_asm_ll32	\n"	\
+	/* In an error exception handler the user space could be uncached. */ \
+	"sync.l							\n"	\
+	"2:	sw	%D2, 4(%3)				\n"	\
+	"3:							\n"	\
+	"	.section	.fixup,\"ax\"			\n"	\
+	"4:	li	%0, %4					\n"	\
+	"	j	3b					\n"	\
+	"	.previous					\n"	\
+	"	.section	__ex_table,\"a\"		\n"	\
+	"	" __UA_ADDR "	1b, 4b				\n"	\
+	"	" __UA_ADDR "	2b, 4b				\n"	\
+	"	.previous"						\
+	: "=r" (__pu_err)						\
+	: "0" (0), "r" (__pu_val), "r" (ptr),				\
+	  "i" (-EFAULT));						\
+}
+#else
 #define __put_user_asm_ll32(ptr)					\
 {									\
 	__asm__ __volatile__(						\
@@ -383,6 +484,7 @@ do {									\
 	: "0" (0), "r" (__pu_val), "r" (ptr),				\
 	  "i" (-EFAULT));						\
 }
+#endif
 
 extern void __put_user_unknown(void);
 
@@ -515,6 +617,30 @@ do {									\
 	__gu_err;							\
 })
 
+#ifdef CONFIG_CPU_R5900
+#define __get_user_unaligned_asm(val, insn, addr)			\
+{									\
+	long __gu_tmp;							\
+									\
+	__asm__ __volatile__(						\
+	/* In an error exception handler the user space could be uncached. */ \
+	"sync.l							\n"	\
+	"1:	" insn "	%1, %3				\n"	\
+	"2:							\n"	\
+	"	.section .fixup,\"ax\"				\n"	\
+	"3:	li	%0, %4					\n"	\
+	"	j	2b					\n"	\
+	"	.previous					\n"	\
+	"	.section __ex_table,\"a\"			\n"	\
+	"	"__UA_ADDR "\t1b, 3b				\n"	\
+	"	"__UA_ADDR "\t1b + 4, 3b			\n"	\
+	"	.previous					\n"	\
+	: "=r" (__gu_err), "=r" (__gu_tmp)				\
+	: "0" (0), "o" (__m(addr)), "i" (-EFAULT));			\
+									\
+	(val) = (__typeof__(*(addr))) __gu_tmp;				\
+}
+#else
 #define __get_user_unaligned_asm(val, insn, addr)			\
 {									\
 	long __gu_tmp;							\
@@ -535,10 +661,41 @@ do {									\
 									\
 	(val) = (__typeof__(*(addr))) __gu_tmp;				\
 }
+#endif
 
 /*
  * Get a long long 64 using 32 bit registers.
  */
+#ifdef CONFIG_CPU_R5900
+#define __get_user_unaligned_asm_ll32(val, addr)			\
+{									\
+        unsigned long long __gu_tmp;					\
+									\
+	__asm__ __volatile__(						\
+	/* In an error exception handler the user space could be uncached. */ \
+	"sync.l							\n"	\
+	"1:	ulw	%1, (%3)				\n"	\
+	/* In an error exception handler the user space could be uncached. */ \
+	"sync.l							\n"	\
+	"2:	ulw	%D1, 4(%3)				\n"	\
+	"	move	%0, $0					\n"	\
+	"3:	.section	.fixup,\"ax\"			\n"	\
+	"4:	li	%0, %4					\n"	\
+	"	move	%1, $0					\n"	\
+	"	move	%D1, $0					\n"	\
+	"	j	3b					\n"	\
+	"	.previous					\n"	\
+	"	.section	__ex_table,\"a\"		\n"	\
+	"	" __UA_ADDR "	1b, 4b				\n"	\
+	"	" __UA_ADDR "	1b + 4, 4b			\n"	\
+	"	" __UA_ADDR "	2b, 4b				\n"	\
+	"	" __UA_ADDR "	2b + 4, 4b			\n"	\
+	"	.previous					\n"	\
+	: "=r" (__gu_err), "=&r" (__gu_tmp)				\
+	: "0" (0), "r" (addr), "i" (-EFAULT));				\
+	(val) = (__typeof__(*(addr))) __gu_tmp;				\
+}
+#else
 #define __get_user_unaligned_asm_ll32(val, addr)			\
 {									\
         unsigned long long __gu_tmp;					\
@@ -563,6 +720,7 @@ do {									\
 	: "0" (0), "r" (addr), "i" (-EFAULT));				\
 	(val) = (__typeof__(*(addr))) __gu_tmp;				\
 }
+#endif
 
 /*
  * Yuck.  We need two variants, one for 64bit operation and one
@@ -609,6 +767,26 @@ do {									\
 	__pu_err;							\
 })
 
+#ifdef CONFIG_CPU_R5900
+#define __put_user_unaligned_asm(insn, ptr)				\
+{									\
+	__asm__ __volatile__(						\
+	/* In an error exception handler the user space could be uncached. */ \
+	"sync.l							\n"	\
+	"1:	" insn "	%z2, %3		# __put_user_unaligned_asm\n" \
+	"2:							\n"	\
+	"	.section	.fixup,\"ax\"			\n"	\
+	"3:	li	%0, %4					\n"	\
+	"	j	2b					\n"	\
+	"	.previous					\n"	\
+	"	.section	__ex_table,\"a\"		\n"	\
+	"	" __UA_ADDR "	1b, 3b				\n"	\
+	"	.previous					\n"	\
+	: "=r" (__pu_err)						\
+	: "0" (0), "Jr" (__pu_val), "o" (__m(ptr)),			\
+	  "i" (-EFAULT));						\
+}
+#else
 #define __put_user_unaligned_asm(insn, ptr)				\
 {									\
 	__asm__ __volatile__(						\
@@ -625,7 +803,32 @@ do {									\
 	: "0" (0), "Jr" (__pu_val), "o" (__m(ptr)),			\
 	  "i" (-EFAULT));						\
 }
+#endif
 
+#ifdef CONFIG_CPU_R5900
+#define __put_user_unaligned_asm_ll32(ptr)				\
+{									\
+	__asm__ __volatile__(						\
+	/* In an error exception handler the user space could be uncached. */ \
+	"sync.l							\n"	\
+	"1:	sw	%2, (%3)	# __put_user_unaligned_asm_ll32	\n" \
+	"2:	sw	%D2, 4(%3)				\n"	\
+	"3:							\n"	\
+	"	.section	.fixup,\"ax\"			\n"	\
+	"4:	li	%0, %4					\n"	\
+	"	j	3b					\n"	\
+	"	.previous					\n"	\
+	"	.section	__ex_table,\"a\"		\n"	\
+	"	" __UA_ADDR "	1b, 4b				\n"	\
+	"	" __UA_ADDR "	1b + 4, 4b			\n"	\
+	"	" __UA_ADDR "	2b, 4b				\n"	\
+	"	" __UA_ADDR "	2b + 4, 4b			\n"	\
+	"	.previous"						\
+	: "=r" (__pu_err)						\
+	: "0" (0), "r" (__pu_val), "r" (ptr),				\
+	  "i" (-EFAULT));						\
+}
+#else
 #define __put_user_unaligned_asm_ll32(ptr)				\
 {									\
 	__asm__ __volatile__(						\
@@ -646,6 +849,7 @@ do {									\
 	: "0" (0), "r" (__pu_val), "r" (ptr),				\
 	  "i" (-EFAULT));						\
 }
+#endif
 
 extern void __put_user_unaligned_unknown(void);
 

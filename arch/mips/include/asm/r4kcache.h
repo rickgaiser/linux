@@ -28,7 +28,12 @@
  *  - We need a properly sign extended address for 64-bit code.  To get away
  *    without ifdefs we let the compiler do it by a type cast.
  */
+#ifdef CONFIG_CPU_R5900
+/* CPU has a bug MSB must be 0 for instruction cache. */
+#define INDEX_BASE	0
+#else
 #define INDEX_BASE	CKSEG0
+#endif
 
 #define cache_op_s(op,addr)						\
 	__asm__ __volatile__(						\

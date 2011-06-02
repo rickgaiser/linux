@@ -327,11 +327,22 @@ LEAF(csum_partial)
  * These handlers do not need to overwrite any data.
  */
 
+#ifdef CONFIG_CPU_R5900
 #define EXC(inst_reg,addr,handler)		\
+	/* In an error exception handler the user space could be uncached. */ \
+	sync.l;						\
 9:	inst_reg, addr;				\
 	.section __ex_table,"a";		\
 	PTR	9b, handler;			\
 	.previous
+#else
+#define EXC(inst_reg,addr,handler)		\
+	/* In an error exception handler the user space could be uncached. */ \
+9:	inst_reg, addr;				\
+	.section __ex_table,"a";		\
+	PTR	9b, handler;			\
+	.previous
+#endif
 
 #ifdef USE_DOUBLE
 

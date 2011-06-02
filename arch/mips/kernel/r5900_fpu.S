@@ -24,6 +24,8 @@
 	.macro	EX insn, reg, src
 	.set	push
 	.set	nomacro
+	/* In an error exception handler the user space could be uncached. */
+	sync.l
 .ex\@:	\insn	\reg, \src
 	.set	pop
 	.section __ex_table,"a"

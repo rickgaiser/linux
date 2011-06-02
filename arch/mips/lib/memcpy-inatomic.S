@@ -85,11 +85,21 @@
  * they're not protected.
  */
 
+#ifdef CONFIG_CPU_R5900
+#define EXC(inst_reg,addr,handler)		\
+	/* In an error exception handler the user space could be uncached. */ \
+	sync.l;					\
+9:	inst_reg, addr;				\
+	.section __ex_table,"a";		\
+	PTR	9b, handler;			\
+	.previous
+#else
 #define EXC(inst_reg,addr,handler)		\
 9:	inst_reg, addr;				\
 	.section __ex_table,"a";		\
 	PTR	9b, handler;			\
 	.previous
+#endif
 
 /*
  * Only on the 64-bit kernel we can made use of 64-bit registers.
@@ -437,6 +447,10 @@ EXC(	lb	t0, NBYTES-2(src), .Ll_exc)
 EXC(	lb	t1, 0(src),	.Ll_exc)
 	ADD	src, src, 1
 	sb	t1, 0(dst)	# can't fault -- we're copy_from_user
+#ifdef CONFIG_CPU_R5900
+	nop
+	nop
+#endif
 	.set	reorder				/* DADDI_WAR */
 	ADD	dst, dst, 1
 	bne	src, t0, 1b
