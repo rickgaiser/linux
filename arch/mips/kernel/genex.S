@@ -161,6 +161,9 @@ LEAF(r4k_wait)
 	xori	k0, 0x1f
 	bne	k0, k1, 9f
 	MTC0	k0, CP0_EPC
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 9:
 	.set pop
 	.endm
@@ -544,6 +547,9 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	.set	noat
 #endif
 	MTC0	k0, CP0_EPC
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	/* I hope three instructions between MTC0 and ERET are enough... */
 	ori	k1, _THREAD_MASK
 	xori	k1, _THREAD_MASK

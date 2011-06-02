@@ -162,7 +162,14 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			"2:\tlbu\t$1, 1(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
+#ifdef CONFIG_CPU_R5900
+			/* In an error exception handler the user space could be uncached. */
+			"sync.l\n\t"
+#endif
 			"1:\tlb\t%0, 1(%2)\n"
+#ifdef CONFIG_CPU_R5900
+			"sync.l\n\t"
+#endif
 			"2:\tlbu\t$1, 0(%2)\n\t"
 #endif
 			"sll\t%0, 0x8\n\t"
@@ -195,7 +202,14 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			"2:\tlwr\t%0, 3(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
+#ifdef CONFIG_CPU_R5900
+			/* In an error exception handler the user space could be uncached. */
+			"sync.l\n\t"
+#endif
 			"1:\tlwl\t%0, 3(%2)\n"
+#ifdef CONFIG_CPU_R5900
+			"sync.l\n\t"
+#endif
 			"2:\tlwr\t%0, (%2)\n\t"
 #endif
 			"li\t%1, 0\n"
@@ -226,7 +240,14 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			"2:\tlbu\t$1, 1(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
+#ifdef CONFIG_CPU_R5900
+			/* In an error exception handler the user space could be uncached. */
+			"sync.l\n\t"
+#endif
 			"1:\tlbu\t%0, 1(%2)\n"
+#ifdef CONFIG_CPU_R5900
+			"sync.l\n\t"
+#endif
 			"2:\tlbu\t$1, 0(%2)\n\t"
 #endif
 			"sll\t%0, 0x8\n\t"
@@ -267,7 +288,14 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			"2:\tlwr\t%0, 3(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
+#ifdef CONFIG_CPU_R5900
+			/* In an error exception handler the user space could be uncached. */
+			"sync.l\n\t"
+#endif
 			"1:\tlwl\t%0, 3(%2)\n"
+#ifdef CONFIG_CPU_R5900
+			"sync.l\n\t"
+#endif
 			"2:\tlwr\t%0, (%2)\n\t"
 #endif
 			"dsll\t%0, %0, 32\n\t"
@@ -311,7 +339,14 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			"2:\tldr\t%0, 7(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
+#ifdef CONFIG_CPU_R5900
+			/* In an error exception handler the user space could be uncached. */
+			"sync.l\n\t"
+#endif
 			"1:\tldl\t%0, 7(%2)\n"
+#ifdef CONFIG_CPU_R5900
+			"sync.l\n\t"
+#endif
 			"2:\tldr\t%0, (%2)\n\t"
 #endif
 			"li\t%1, 0\n"
@@ -350,8 +385,15 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 #endif
 #ifdef __LITTLE_ENDIAN
 			".set\tnoat\n"
+#ifdef CONFIG_CPU_R5900
+			/* In an error exception handler the user space could be uncached. */
+			"sync.l\n\t"
+#endif
 			"1:\tsb\t%1, 0(%2)\n\t"
 			"srl\t$1,%1, 0x8\n"
+#ifdef CONFIG_CPU_R5900
+			"sync.l\n\t"
+#endif
 			"2:\tsb\t$1, 1(%2)\n\t"
 			".set\tat\n\t"
 #endif
@@ -383,7 +425,14 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			"2:\tswr\t%1, 3(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
+#ifdef CONFIG_CPU_R5900
+			/* In an error exception handler the user space could be uncached. */
+			"sync.l\n\t"
+#endif
 			"1:\tswl\t%1, 3(%2)\n"
+#ifdef CONFIG_CPU_R5900
+			"sync.l\n\t"
+#endif
 			"2:\tswr\t%1, (%2)\n\t"
 #endif
 			"li\t%0, 0\n"
@@ -422,7 +471,14 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			"2:\tsdr\t%1, 7(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
+#ifdef CONFIG_CPU_R5900
+			/* In an error exception handler the user space could be uncached. */
+			"sync.l\n\t"
+#endif
 			"1:\tsdl\t%1, 7(%2)\n"
+#ifdef CONFIG_CPU_R5900
+			"sync.l\n\t"
+#endif
 			"2:\tsdr\t%1, (%2)\n\t"
 #endif
 			"li\t%0, 0\n"
