@@ -10,11 +10,21 @@
 #include <asm/asm-offsets.h>
 #include <asm/regdef.h>
 
+#ifdef CONFIG_CPU_R5900
+#define EX(insn,reg,addr,handler)			\
+	/* In an error exception handler the user space could be uncached. */ \
+	sync.l;						\
+9:	insn	reg, addr;				\
+	.section __ex_table,"a";			\
+	PTR	9b, handler;				\
+	.previous
+#else
 #define EX(insn,reg,addr,handler)			\
 9:	insn	reg, addr;				\
 	.section __ex_table,"a";			\
 	PTR	9b, handler;				\
 	.previous
+#endif
 
 /*
  * Return the size of a string including the ending NUL character upto a
@@ -36,6 +46,12 @@ FEXPORT(__strnlen_user_nocheck_asm)
 1:	beq		v0, a1, 1f		# limit reached?
 	EX(lb, t0, (v0), .Lfault)
 	PTR_ADDU	v0, 1
+#ifdef CONFIG_CPU_R5900
+	/* no short loop. */
+	nop
+	nop
+	nop
+#endif
 	bnez		t0, 1b
 1:	PTR_SUBU	v0, a0
 	jr		ra

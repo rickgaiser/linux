@@ -29,10 +29,16 @@ __asm__(
 #elif defined(CONFIG_CPU_MIPSR2)
 	"	ei							\n"
 #else
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 	"	mfc0	$1,$12						\n"
 	"	ori	$1,0x1f						\n"
 	"	xori	$1,0x1e						\n"
 	"	mtc0	$1,$12						\n"
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 #endif
 	"	irq_enable_hazard					\n"
 	"	.set	pop						\n"
@@ -87,6 +93,9 @@ __asm__(
 #elif defined(CONFIG_CPU_MIPSR2)
 	"	di							\n"
 #else
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 	"	mfc0	$1,$12						\n"
 	"	ori	$1,0x1f						\n"
 	"	xori	$1,0x1f						\n"
@@ -113,6 +122,9 @@ __asm__(
 #ifdef CONFIG_MIPS_MT_SMTC
 	"	mfc0	\\flags, $2, 1					\n"
 #else
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 	"	mfc0	\\flags, $12					\n"
 #endif
 	"	.set	pop						\n"
@@ -138,11 +150,17 @@ __asm__(
 	"	di	\\result					\n"
 	"	andi	\\result, 1					\n"
 #else
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 	"	mfc0	\\result, $12					\n"
 	"	ori	$1, \\result, 0x1f				\n"
 	"	xori	$1, 0x1f					\n"
 	"	.set	noreorder					\n"
 	"	mtc0	$1, $12						\n"
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 #endif
 	"	irq_disable_hazard					\n"
 	"	.set	pop						\n"
@@ -184,12 +202,18 @@ __asm__(
 	"	ins	$1, \\flags, 0, 1				\n"
 	"	mtc0	$1, $12						\n"
 #else
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 	"	mfc0	$1, $12						\n"
 	"	andi	\\flags, 1					\n"
 	"	ori	$1, 0x1f					\n"
 	"	xori	$1, 0x1f					\n"
 	"	or	\\flags, $1					\n"
 	"	mtc0	\\flags, $12					\n"
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 #endif
 	"	irq_disable_hazard					\n"
 	"	.set	pop						\n"

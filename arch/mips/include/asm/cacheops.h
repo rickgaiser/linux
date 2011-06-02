@@ -46,7 +46,7 @@
 #define Create_Dirty_Excl_D	0x0d
 #ifdef CONFIG_CPU_R5900
 #define Fill			0x0e
-#define Hit_Writeback_I		0x1c
+#define Hit_Writeback_D		0x1c
 #else
 #define Fill			0x14
 #define Hit_Writeback_I		0x18
