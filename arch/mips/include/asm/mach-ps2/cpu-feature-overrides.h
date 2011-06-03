@@ -17,10 +17,11 @@
 #define cpu_has_dsp				1
 #define cpu_has_userlocal		0
 #define cpu_has_64bit_addresses	0
-#define cpu_has_64bit_gp_regs	1
-#define cpu_has_64bit_zero_reg	1
+#define cpu_has_64bit_gp_regs	0	/* TBD: Change to 1 if 64-bit support is enabled in exception handler. */
+#define cpu_has_64bit_zero_reg	0	/* TBD: Change to 1 if 64-bit support is enabled in exception handler. */
 #define cpu_vmbits				31
 #define cpu_has_clo_clz			0
 #define cpu_has_ejtag			0
+/* TBD: Check define for cpu_has_dc_aliases */
 
 #endif
