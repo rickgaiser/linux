@@ -663,6 +663,24 @@ do {								\
  * Macros to access the system control coprocessor
  */
 
+#ifdef CONFIG_CPU_R5900
+#define __read_32bit_c0_register(source, sel)				\
+({ int __res;								\
+	if (sel == 0)							\
+		__asm__ __volatile__(					\
+			"sync.p\n\t"					\
+			"mfc0\t%0, " #source "\n\t"			\
+			: "=r" (__res));				\
+	else								\
+		__asm__ __volatile__(					\
+			".set\tmips32\n\t"				\
+			"sync.p\n\t"					\
+			"mfc0\t%0, " #source ", " #sel "\n\t"		\
+			".set\tmips0\n\t"				\
+			: "=r" (__res));				\
+	__res;								\
+})
+#else
 #define __read_32bit_c0_register(source, sel)				\
 ({ int __res;								\
 	if (sel == 0)							\
@@ -677,6 +695,7 @@ do {								\
 			: "=r" (__res));				\
 	__res;								\
 })
+#endif
 
 #if !defined(CONFIG_CPU_R5900)
 #define __read_64bit_c0_register(source, sel)				\
@@ -699,6 +718,23 @@ do {								\
 })
 #endif
 
+#ifdef CONFIG_CPU_R5900
+#define __write_32bit_c0_register(register, sel, value)			\
+do {									\
+	if (sel == 0)							\
+		__asm__ __volatile__(					\
+			"mtc0\t%z0, " #register "\n\t"			\
+			"sync.p\n\t"					\
+			: : "Jr" ((unsigned int)(value)));		\
+	else								\
+		__asm__ __volatile__(					\
+			".set\tmips32\n\t"				\
+			"mtc0\t%z0, " #register ", " #sel "\n\t"	\
+			"sync.p\n\t"					\
+			".set\tmips0"					\
+			: : "Jr" ((unsigned int)(value)));		\
+} while (0)
+#else
 #define __write_32bit_c0_register(register, sel, value)			\
 do {									\
 	if (sel == 0)							\
@@ -712,6 +748,7 @@ do {									\
 			".set\tmips0"					\
 			: : "Jr" ((unsigned int)(value)));		\
 } while (0)
+#endif
 
 #if !defined(CONFIG_CPU_R5900)
 #define __write_64bit_c0_register(register, sel, value)			\
