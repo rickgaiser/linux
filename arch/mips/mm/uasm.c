@@ -67,7 +67,7 @@ enum opcode {
 	insn_mtc0, insn_or, insn_ori, insn_pref, insn_rfe, insn_sc, insn_scd,
 	insn_sd, insn_sll, insn_sra, insn_srl, insn_rotr, insn_subu, insn_sw,
 	insn_tlbp, insn_tlbr, insn_tlbwi, insn_tlbwr, insn_xor, insn_xori,
-	insn_dins, insn_syscall
+	insn_dins, insn_syscall, insn_sync, insn_syncp
 };
 
 struct insn {
@@ -141,6 +141,8 @@ static struct insn insn_table[] __cpuinitdata = {
 	{ insn_xori,  M(xori_op, 0, 0, 0, 0, 0),  RS | RT | UIMM },
 	{ insn_dins, M(spec3_op, 0, 0, 0, 0, dins_op), RS | RT | RD | RE },
 	{ insn_syscall, M(spec_op, 0, 0, 0, 0, syscall_op), SCIMM},
+	{ insn_sync,  M(spec_op, 0, 0, 0, 0, sync_op),  0 },
+	{ insn_syncp,  M(spec_op, 0, 0, 0, 0x10, sync_op),  0 },
 	{ insn_invalid, 0, 0 }
 };
 
@@ -410,6 +412,8 @@ I_u3u1u2(_xor)
 I_u2u1u3(_xori)
 I_u2u1msbu3(_dins);
 I_u1(_syscall);
+I_0(_sync)
+I_0(_syncp)
 
 /* Handle labels. */
 void __cpuinit uasm_build_label(struct uasm_label **lab, u32 *addr, int lid)
