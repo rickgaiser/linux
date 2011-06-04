@@ -487,6 +487,9 @@
 #endif /* CONFIG_MIPS_MT_SMTC */
 		LONG_L	v1, PT_EPC(sp)
 		MTC0	v1, CP0_EPC
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		LONG_L	$31, PT_R31(sp)
 		LONG_L	$28, PT_R28(sp)
 		LONG_L	$25, PT_R25(sp)
