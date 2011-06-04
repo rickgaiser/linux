@@ -47,6 +47,7 @@
  */
 	.align	5
 	LEAF(resume)
+	sync.p
 	mfc0	t1, CP0_STATUS
 	LONG_S	t1, THREAD_STATUS(a0)
 	cpu_save_nonscratch a0
@@ -88,9 +89,11 @@
 	set_saved_sp	t0, t1, t2
 #ifdef CONFIG_MIPS_MT_SMTC
 	/* Read-modify-writes of Status must be atomic on a VPE */
+	sync.p
 	mfc0	t2, CP0_TCSTATUS
 	ori	t1, t2, TCSTATUS_IXMT
 	mtc0	t1, CP0_TCSTATUS
+	sync.p
 	andi	t2, t2, TCSTATUS_IXMT
 	_ehb
 	DMT	8				# dmt	t0
@@ -98,6 +101,7 @@
 	jal	mips_ihb
 	move	ra,t1
 #endif /* CONFIG_MIPS_MT_SMTC */
+	sync.p
 	mfc0	t1, CP0_STATUS		/* Do we really need this? */
 	li	a3, 0xff01
 	and	t1, a3
@@ -106,16 +110,19 @@
 	and	a2, a3
 	or	a2, t1
 	mtc0	a2, CP0_STATUS
+	sync.p
 #ifdef CONFIG_MIPS_MT_SMTC
 	_ehb
 	andi	t0, t0, VPECONTROL_TE
 	beqz	t0, 1f
 	emt
 1:
+	sync.p
 	mfc0	t1, CP0_TCSTATUS
 	xori	t1, t1, TCSTATUS_IXMT
 	or	t1, t1, t2
 	mtc0	t1, CP0_TCSTATUS
+	sync.p
 	_ehb
 #endif /* CONFIG_MIPS_MT_SMTC */
 	move	v0, a0
@@ -127,6 +134,7 @@
  */
 LEAF(_save_fp)
 #ifdef CONFIG_64BIT
+	sync.p
 	mfc0	t0, CP0_STATUS
 #endif
 	fpu_save_double a0 t0 t1		# clobbers t1
@@ -138,6 +146,7 @@ LEAF(_save_fp)
  */
 LEAF(_restore_fp)
 #ifdef CONFIG_64BIT
+	sync.p
 	mfc0	t0, CP0_STATUS
 #endif
 	fpu_restore_double a0 t0 t1		# clobbers t1
@@ -157,16 +166,20 @@ LEAF(_restore_fp)
 LEAF(_init_fpu)
 #ifdef CONFIG_MIPS_MT_SMTC
 	/* Rather than manipulate per-VPE Status, set per-TC bit in TCStatus */
+	sync.p
 	mfc0	t0, CP0_TCSTATUS
 	/* Bit position is the same for Status, TCStatus */
 	li	t1, ST0_CU1
 	or	t0, t1
 	mtc0	t0, CP0_TCSTATUS
+	sync.p
 #else /* Normal MIPS CU1 enable */
+	sync.p
 	mfc0	t0, CP0_STATUS
 	li	t1, ST0_CU1
 	or	t0, t1
 	mtc0	t0, CP0_STATUS
+	sync.p
 #endif /* CONFIG_MIPS_MT_SMTC */
 	enable_fpu_hazard
 

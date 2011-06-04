@@ -503,6 +503,10 @@
 #define R5K_CONF_SE		(_ULCAST_(1) << 12)
 #define R5K_CONF_SS		(_ULCAST_(3) << 20)
 
+#define R5900_CONF_ICE		(_ULCAST_(1) << 17)
+#define R5900_CONF_DCE		(_ULCAST_(1) << 16)
+#define R5900_CONF_BPE		(_ULCAST_(1) << 12)
+
 /* Bits specific to the RM7000.  */
 #define RM7K_CONF_SE		(_ULCAST_(1) <<  3)
 #define RM7K_CONF_TE		(_ULCAST_(1) << 12)

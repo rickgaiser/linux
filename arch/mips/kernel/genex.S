@@ -57,7 +57,13 @@ NESTED(except_vec3_generic, 0, sp)
 	nop
 #endif
 #if R5432_CP0_INTERRUPT_WAR
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	mfc0	k0, CP0_INDEX
+#endif
+#ifdef CONFIG_CPU_R5900
+	sync.p
 #endif
 	mfc0	k1, CP0_CAUSE
 	andi	k1, k1, 0x7c
@@ -79,6 +85,9 @@ NESTED(except_vec3_r4000, 0, sp)
 	.set	push
 	.set	mips3
 	.set	noat
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	mfc0	k1, CP0_CAUSE
 	li	k0, 31<<2
 	andi	k1, k1, 0x7c
@@ -102,10 +111,16 @@ NESTED(except_vec3_r4000, 0, sp)
 	 * load / store will be re-executed.
 	 */
 handle_vced:
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	MFC0	k0, CP0_BADVADDR
 	li	k1, -4					# Is this ...
 	and	k0, k1					# ... really needed?
 	mtc0	zero, CP0_TAGLO
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	cache	Index_Store_Tag_D, (k0)
 	cache	Hit_Writeback_Inv_SD, (k0)
 #ifdef CONFIG_PROC_FS
@@ -117,6 +132,9 @@ handle_vced:
 	eret
 
 handle_vcei:
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	MFC0	k0, CP0_BADVADDR
 	cache	Hit_Writeback_Inv_SD, (k0)		# also cleans pi
 #ifdef CONFIG_PROC_FS
@@ -155,6 +173,9 @@ LEAF(r4k_wait)
 	FEXPORT(rollback_\handler)
 	.set	push
 	.set	noat
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	MFC0	k0, CP0_EPC
 	PTR_LA	k1, r4k_wait
 	ori	k0, 0x1f	/* 32 byte rollback region */
@@ -188,11 +209,17 @@ NESTED(handle_int, PT_SIZE, sp)
 	 */
 	.set	push
 	.set	noat
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	mfc0	k0, CP0_STATUS
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
 	and	k0, ST0_IEP
 	bnez	k0, 1f
 
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	mfc0	k0, CP0_EPC
 	.set	noreorder
 	j	k0
@@ -293,15 +320,27 @@ NESTED(except_vec_vi_handler, 0, sp)
 	 * service routine will have cleared the state, and any active
 	 * level represents a new or otherwised unserviced event...
 	 */
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	mfc0	t1, CP0_STATUS
 	and	t0, a0, t1
 #ifdef CONFIG_MIPS_MT_SMTC_IM_BACKSTOP
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	mfc0	t2, CP0_TCCONTEXT
 	or	t2, t0, t2
 	mtc0	t2, CP0_TCCONTEXT
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 #endif /* CONFIG_MIPS_MT_SMTC_IM_BACKSTOP */
 	xor	t1, t1, t0
 	mtc0	t1, CP0_STATUS
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	_ehb
 #endif /* CONFIG_MIPS_MT_SMTC */
 	CLI
@@ -330,6 +369,9 @@ NESTED(ejtag_debug_handler, PT_SIZE, sp)
 	.set	push
 	.set	noat
 	MTC0	k0, CP0_DESAVE
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	mfc0	k0, CP0_DEBUG
 
 	sll	k0, k0, 30	# Check for SDBBP.
@@ -345,6 +387,9 @@ NESTED(ejtag_debug_handler, PT_SIZE, sp)
 	LONG_L	k1, 0(k0)
 
 ejtag_return:
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	MFC0	k0, CP0_DESAVE
 	.set	mips32
 	deret
@@ -413,6 +458,9 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	.endm
 
 	.macro	__build_clear_ade
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	MFC0	t0, CP0_BADVADDR
 	PTR_S	t0, PT_BVADDR(sp)
 	KMODE
@@ -499,16 +547,28 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	.set	noat
 	.set	noreorder
 	/* check if TLB contains a entry for EPC */
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	MFC0	k1, CP0_ENTRYHI
 	andi	k1, 0xff	/* ASID_MASK */
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	MFC0	k0, CP0_EPC
 	PTR_SRL	k0, PAGE_SHIFT + 1
 	PTR_SLL	k0, PAGE_SHIFT + 1
 	or	k1, k0
 	MTC0	k1, CP0_ENTRYHI
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	mtc0_tlbw_hazard
 	tlbp
 	tlb_probe_hazard
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	mfc0	k1, CP0_INDEX
 	.set	pop
 	bltz	k1, handle_ri	/* slow path */
@@ -521,6 +581,9 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	.set	noat
 	.set	noreorder
 	/* 0x7c03e83b: rdhwr v1,$29 */
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	MFC0	k1, CP0_EPC
 	lui	k0, 0x7c03
 	lw	k1, (k1)
@@ -530,6 +593,9 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	/* The insn is rdhwr.  No need to check CAUSE.BD here. */
 	get_saved_sp	/* k1 := current_thread_info */
 	.set	noreorder
+#ifdef CONFIG_CPU_R5900
+	sync.p
+#endif
 	MFC0	k0, CP0_EPC
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
 	ori	k1, _THREAD_MASK

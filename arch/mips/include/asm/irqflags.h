@@ -101,6 +101,9 @@ __asm__(
 	"	xori	$1,0x1f						\n"
 	"	.set	noreorder					\n"
 	"	mtc0	$1,$12						\n"
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 #endif
 	"	irq_disable_hazard					\n"
 	"	.set	pop						\n"
