@@ -99,6 +99,9 @@
 #define CPU_ID_MFC0 MFC0
 #endif
 		.macro	get_saved_sp	/* SMP variation */
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		CPU_ID_MFC0	k0, CPU_ID_REG
 #if defined(CONFIG_32BIT) || defined(KBUILD_64BIT_SYM32)
 		lui	k1, %hi(kernelsp)
@@ -115,6 +118,9 @@
 		.endm
 
 		.macro	set_saved_sp stackp temp temp2
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		CPU_ID_MFC0	\temp, CPU_ID_REG
 		LONG_SRL	\temp, PTEBASE_SHIFT
 		LONG_S	\stackp, kernelsp(\temp)
@@ -139,6 +145,9 @@
 1:		move	ra, k0
 		li	k0, 3
 		mtc0	k0, $22
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 #endif /* CONFIG_CPU_LOONGSON2F */
 #if defined(CONFIG_32BIT) || defined(KBUILD_64BIT_SYM32)
 		lui	k1, %hi(kernelsp)
@@ -161,6 +170,9 @@
 		.set	push
 		.set	noat
 		.set	reorder
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	k0, CP0_STATUS
 		sll	k0, 3		/* extract cu0 bit */
 		.set	noreorder
@@ -187,6 +199,9 @@
 		 * need it to operate correctly
 		 */
 		LONG_S	$0, PT_R0(sp)
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	v1, CP0_STATUS
 		LONG_S	$2, PT_R2(sp)
 #ifdef CONFIG_MIPS_MT_SMTC
@@ -195,6 +210,9 @@
 		 * to cover the pipeline delay.
 		 */
 		.set	mips32
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	v1, CP0_TCSTATUS
 		.set	mips0
 		LONG_S	v1, PT_TCSTATUS(sp)
@@ -202,10 +220,16 @@
 		LONG_S	$4, PT_R4(sp)
 		LONG_S	$5, PT_R5(sp)
 		LONG_S	v1, PT_STATUS(sp)
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	v1, CP0_CAUSE
 		LONG_S	$6, PT_R6(sp)
 		LONG_S	$7, PT_R7(sp)
 		LONG_S	v1, PT_CAUSE(sp)
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		MFC0	v1, CP0_EPC
 #ifdef CONFIG_64BIT
 		LONG_S	$8, PT_R8(sp)
@@ -292,6 +316,9 @@
 		.set	push
 		.set	reorder
 		.set	noat
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	a0, CP0_STATUS
 		li	v1, 0xff00
 		ori	a0, STATMASK
@@ -353,9 +380,15 @@
 		 * If you can find a better design, implement it!
 		 *
 		 */
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	v0, CP0_TCSTATUS
 		ori	v0, TCSTATUS_IXMT
 		mtc0	v0, CP0_TCSTATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		_ehb
 		DVPE	5				# dvpe a1
 		jal	mips_ihb
@@ -364,10 +397,16 @@
 		/* Restore the Octeon multiplier state */
 		jal	octeon_mult_restore
 #endif
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	a0, CP0_STATUS
 		ori	a0, STATMASK
 		xori	a0, STATMASK
 		mtc0	a0, CP0_STATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		li	v1, 0xff00
 		and	a0, v1
 		LONG_L	v0, PT_STATUS(sp)
@@ -375,6 +414,9 @@
 		and	v0, v1
 		or	v0, a0
 		mtc0	v0, CP0_STATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 #ifdef CONFIG_MIPS_MT_SMTC
 /*
  * Only after EXL/ERL have been restored to status can we
@@ -382,6 +424,9 @@
  */
 		LONG_L	v1, PT_TCSTATUS(sp)
 		_ehb
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	a0, CP0_TCSTATUS
 		andi	v1, TCSTATUS_IXMT
 		bnez	v1, 0f
@@ -396,6 +441,9 @@
  * the TCContext register to hold 16 bits of offset that we
  * can add in-line to find the queue head.
  */
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	v0, CP0_TCCONTEXT
 		la	a2, IPIQ
 		srl	v0, v0, 16
@@ -405,9 +453,15 @@
 /*
  * If we have a queue, provoke dispatch within the VPE by setting C_SW1
  */
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	v0, CP0_CAUSE
 		ori	v0, v0, C_SW1
 		mtc0	v0, CP0_CAUSE
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 0:
 		/*
 		 * This test should really never branch but
@@ -424,6 +478,9 @@
 		xori	a0, a0, TCSTATUS_IXMT
 		or	a0, a0, v1
 		mtc0	a0, CP0_TCSTATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		_ehb
 
 		.set	mips0
@@ -481,17 +538,26 @@
  */
 		.macro	CLI
 #if !defined(CONFIG_MIPS_MT_SMTC)
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	t0, CP0_STATUS
 		li	t1, ST0_CU0 | STATMASK
 		or	t0, t1
 		xori	t0, STATMASK
 		mtc0	t0, CP0_STATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 #else /* CONFIG_MIPS_MT_SMTC */
 		/*
 		 * For SMTC, we need to set privilege
 		 * and disable interrupts only for the
 		 * current TC, using the TCStatus register.
 		 */
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	t0, CP0_TCSTATUS
 		/* Fortunately CU 0 is in the same place in both registers */
 		/* Set TCU0, TMX, TKSU (for later inversion) and IXMT */
@@ -500,12 +566,21 @@
 		/* Clear TKSU, leave IXMT */
 		xori	t0, 0x00001800
 		mtc0	t0, CP0_TCSTATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		_ehb
 		/* We need to leave the global IE bit set, but clear EXL...*/
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	t0, CP0_STATUS
 		ori	t0, ST0_EXL | ST0_ERL
 		xori	t0, ST0_EXL | ST0_ERL
 		mtc0	t0, CP0_STATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 #endif /* CONFIG_MIPS_MT_SMTC */
 		irq_disable_hazard
 		.endm
@@ -516,11 +591,17 @@
  */
 		.macro	STI
 #if !defined(CONFIG_MIPS_MT_SMTC)
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	t0, CP0_STATUS
 		li	t1, ST0_CU0 | STATMASK
 		or	t0, t1
 		xori	t0, STATMASK & ~1
 		mtc0	t0, CP0_STATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 #else /* CONFIG_MIPS_MT_SMTC */
 		/*
 		 * For SMTC, we need to set privilege
@@ -528,6 +609,9 @@
 		 * current TC, using the TCStatus register.
 		 */
 		_ehb
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	t0, CP0_TCSTATUS
 		/* Fortunately CU 0 is in the same place in both registers */
 		/* Set TCU0, TKSU (for later inversion) and IXMT */
@@ -536,12 +620,21 @@
 		/* Clear TKSU *and* IXMT */
 		xori	t0, 0x00001c00
 		mtc0	t0, CP0_TCSTATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		_ehb
 		/* We need to leave the global IE bit set, but clear EXL...*/
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	t0, CP0_STATUS
 		ori	t0, ST0_EXL
 		xori	t0, ST0_EXL
 		mtc0	t0, CP0_STATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		/* irq_enable_hazard below should expand to EHB for 24K/34K cpus */
 #endif /* CONFIG_MIPS_MT_SMTC */
 		irq_enable_hazard
@@ -565,10 +658,16 @@
 		.set	push
 		.set	mips32r2
 		.set	noreorder
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	v0, CP0_TCSTATUS
 		andi	v1, v0, TCSTATUS_IXMT
 		ori	v0, TCSTATUS_IXMT
 		mtc0	v0, CP0_TCSTATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		_ehb
 		DMT	2				# dmt	v0
 		/*
@@ -579,6 +678,9 @@
 		nop	/* delay slot */
 		move	ra, t0
 #endif /* CONFIG_MIPS_MT_SMTC */
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	t0, CP0_STATUS
 		li	t1, ST0_CU0 | (STATMASK & ~1)
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
@@ -589,6 +691,9 @@
 		or	t0, t1
 		xori	t0, STATMASK & ~1
 		mtc0	t0, CP0_STATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 #ifdef CONFIG_MIPS_MT_SMTC
 		_ehb
 		andi	v0, v0, VPECONTROL_TE
@@ -596,12 +701,18 @@
 		nop	/* delay slot */
 		emt
 2:
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		mfc0	v0, CP0_TCSTATUS
 		/* Clear IXMT, then OR in previous value */
 		ori	v0, TCSTATUS_IXMT
 		xori	v0, TCSTATUS_IXMT
 		or	v0, v1, v0
 		mtc0	v0, CP0_TCSTATUS
+#ifdef CONFIG_CPU_R5900
+		sync.p
+#endif
 		/*
 		 * irq_disable_hazard below should expand to EHB
 		 * on 24K/34K CPUS

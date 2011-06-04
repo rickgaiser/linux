@@ -455,6 +455,9 @@ static __cpuinit void build_restore_pagemask(u32 **p,
 		uasm_il_b(p, r, lid);
 		uasm_i_mtc0(p, 0, C0_PAGEMASK);
 	}
+#ifdef CONFIG_CPU_R5900
+	uasm_i_syncp(p);
+#endif
 }
 
 static __cpuinit void build_huge_tlb_write_entry(u32 **p,
@@ -467,6 +470,9 @@ static __cpuinit void build_huge_tlb_write_entry(u32 **p,
 	uasm_i_lui(p, tmp, PM_HUGE_MASK >> 16);
 	uasm_i_ori(p, tmp, tmp, PM_HUGE_MASK & 0xffff);
 	uasm_i_mtc0(p, tmp, C0_PAGEMASK);
+#ifdef CONFIG_CPU_R5900
+	uasm_i_syncp(p);
+#endif
 
 	build_tlb_write_entry(p, l, r, wmode);
 
@@ -553,6 +559,7 @@ build_get_pmde64(u32 **p, struct uasm_label **l, struct uasm_reloc **r,
 #ifndef CONFIG_CPU_R5900
 	uasm_i_dmfc0(p, tmp, C0_BADVADDR);
 #else
+	uasm_i_syncp(p);
 	uasm_i_mfc0(p, tmp, C0_BADVADDR);
 #endif
 
@@ -618,6 +625,7 @@ build_get_pmde64(u32 **p, struct uasm_label **l, struct uasm_reloc **r,
 #ifndef CONFIG_CPU_R5900
 	uasm_i_dmfc0(p, tmp, C0_BADVADDR); /* get faulting address */
 #else
+	uasm_i_syncp(p);
 	uasm_i_mfc0(p, tmp, C0_BADVADDR); /* get faulting address */
 #endif
 	uasm_i_ld(p, ptr, 0, ptr); /* get pmd pointer */
@@ -720,6 +728,7 @@ build_get_pgde32(u32 **p, unsigned int tmp, unsigned int ptr)
 #else
 	UASM_i_LA_mostly(p, ptr, pgdc);
 #endif
+	uasm_i_syncp(p);
 	uasm_i_mfc0(p, tmp, C0_BADVADDR); /* get faulting address */
 	uasm_i_lw(p, ptr, uasm_rel_lo(pgdc), ptr);
 	uasm_i_srl(p, tmp, tmp, PGDIR_SHIFT); /* get pgd only bits */
@@ -872,7 +881,9 @@ static void __cpuinit build_r4000_tlb_refill_handler(void)
 		uasm_i_dmfc0(&p, K0, C0_BADVADDR);
 		uasm_i_dmfc0(&p, K1, C0_ENTRYHI);
 #else
+		uasm_i_syncp(&p);
 		uasm_i_mfc0(&p, K0, C0_BADVADDR);
+		uasm_i_syncp(&p);
 		uasm_i_mfc0(&p, K1, C0_ENTRYHI);
 #endif
 		uasm_i_xor(&p, K0, K0, K1);
@@ -1403,7 +1414,9 @@ static void __cpuinit build_r4000_tlb_load_handler(void)
 		uasm_i_dmfc0(&p, K0, C0_BADVADDR);
 		uasm_i_dmfc0(&p, K1, C0_ENTRYHI);
 #else
+		uasm_i_syncp(&p);
 		uasm_i_mfc0(&p, K0, C0_BADVADDR);
+		uasm_i_syncp(&p);
 		uasm_i_mfc0(&p, K1, C0_ENTRYHI);
 #endif
 		uasm_i_xor(&p, K0, K0, K1);
