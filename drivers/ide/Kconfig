@@ -888,4 +888,14 @@ config BLK_DEV_IDEDMA
 		 BLK_DEV_IDEDMA_ICS || BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA
 	select IDE_XFER_MODE
 
+config BLK_DEV_PS2_IDE
+	tristate "Sony Playstation 2 IDE interface support"
+	depends on SONY_PS2
+	default y
+	help
+	  This is the IDE driver for the HDD/Ethernet adapter for the
+	  fat PS2.
+
+	  Say Y if you have a fat PS2.
+
 endif # IDE
