@@ -25,4 +25,9 @@ config PS2_ETHER_SMAPRPC
 
 	   If you don't know what to do here, say Y.
 
+config PS2_PAD
+	tristate "Support for PS2 game pad device"
+	default y
+	depends on SONY_PS2
+
 endmenu
