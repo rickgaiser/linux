@@ -1965,7 +1965,7 @@ validlink:
 static int smap_phy_fcscr_threshold = PHY_FCSCR_THRESHOLD;
 module_param(smap_phy_fcscr_threshold, int, 0);
 MODULE_PARM_DESC(smap_phy_fcscr_threshold,
-		"TBD: Some thrershold for detecting 10Mbs or 100Mbs.");
+		"TBD: Some threshold for detecting 10Mbs or 100Mbs.");
 
 static void
 smap_phy_set_dsp(struct smap_chan *smap)
