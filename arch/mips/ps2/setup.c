@@ -1,5 +1,22 @@
-/* Copyright 2010 Mega Man */
-/* TBD: Unfinished state. Rework code. */
+/*
+ *  PS2 system setup functions.
+ *
+ *  Copyright (C) 2010 - 2011 Mega Man
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
 #include <linux/console.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -36,7 +53,7 @@ static struct platform_device usb_ohci_device = {
 	.name		= "ps2_ohci",
 	.id		= -1,
 	.dev = {
-		/* TBD: DMA must be allocated from IOP heap. */
+		/* DMA memory is allocated from IOP heap. */
 		.dma_mask		= &usb_ohci_dma_mask,
 		.coherent_dma_mask	= 0xffffffff,
 	},
@@ -54,8 +71,7 @@ static struct platform_device smaprpc_device = {
 
 void __init plat_mem_setup(void)
 {
-	printk("plat_mem_setup: TBD: Memory initialisation incomplete.\n");
-#if 0
+#if 0 /* TBD: Add handling for system reboot and power off. */
 	_machine_restart = ps2_machine_restart;
 	_machine_halt = ps2_machine_halt;
 	pm_power_off = ps2_machine_power_off;
@@ -69,7 +85,7 @@ void __init plat_mem_setup(void)
 	iomem_resource.start = 0x00000000;
 	iomem_resource.end   = KSEG2 - 1;
 
-	/* Exeception vectors. */
+	/* Memory for exception vectors. */
 	add_memory_region(0x00000000, 0x00001000, BOOT_MEM_RAM);
 	/* Reserved for SBIOS. */
 	add_memory_region(0x00001000, 0x0000F000, BOOT_MEM_RESERVED);
