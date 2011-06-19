@@ -14,6 +14,8 @@
 #ifndef __ASM_PS2_SIFLOCK_H
 #define __ASM_PS2_SIFLOCK_H
 
+#include <linux/sched.h>
+
 #define PS2SIF_LOCK_QUEUING	(1<<0)
 
 #define PS2LOCK_CDVD	0

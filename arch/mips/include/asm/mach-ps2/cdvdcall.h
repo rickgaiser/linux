@@ -11,6 +11,8 @@
  * $Id$
  */
 
+#include <linux/sched.h>
+
 #include <asm/mach-ps2/sifdefs.h>
 #include <asm/mach-ps2/sbios.h>
 #include <asm/mach-ps2/cdrom.h>

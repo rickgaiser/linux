@@ -30,4 +30,8 @@ config PS2_PAD
 	default y
 	depends on SONY_PS2
 
+config PS2_CDVD
+	tristate "Support for PS2 CD/DVD ROM drive"
+	depends on SONY_PS2
+
 endmenu
