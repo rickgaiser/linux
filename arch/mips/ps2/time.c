@@ -1,15 +1,21 @@
-/* $Id$
+/*
+ *  PS2 timer functions.
  *
- *  Copyright (C) 1991, 1992, 1995  Linus Torvalds
- *  Copyright (C) 1996, 1997, 1998  Ralf Baechle
- *  Copyright (C) 2000, 2002  Sony Computer Entertainment Inc.
- *  Copyright (C) 2001  Paul Mundt <lethal@chaoticdreams.org>
- *  Copyright (C) 2010  Mega Man
+ *  Copyright (C) 2011 Mega Man
  *
- * This file contains the time handling details for PC-style clocks as
- * found in some MIPS systems.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/* TBD: Unfinished state. Rework code. */
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/kernel_stat.h>
@@ -39,53 +45,6 @@
 #define T0_MODE  (T0_BASE + 0x10)
 #define T0_COMP  (T0_BASE + 0x20)
 
-static uint32_t last_cycle_count;
-static uint32_t timer_intr_delay;
-
-/**
- * 	ps2_do_gettimeoffset - Get Time Offset
- *
- * 	Returns the time duration since the last timer
- * 	interrupt in usecs.
- */
-static unsigned long ps2_do_gettimeoffset(void)
-{
-	unsigned int count;
-	int delay;
-	unsigned long res;
-
-	count = read_c0_count();
-	count -= last_cycle_count;
-	count = (count * 1000 + (CPU_FREQ / 1000 / 2)) / (CPU_FREQ / 1000);
-	delay = (timer_intr_delay * 10000 + (TM_COMPARE_VALUE / 2)) / TM_COMPARE_VALUE;
-	res = delay + count;
-
-	/*
-	 * Due to possible jiffies inconsistencies, we need to check
-	 * the result so that we'll get a timer that is monotonic.
-	 */
-	if (res >= USECS_PER_JIFFY)
-		res = USECS_PER_JIFFY-1;
-
-	return res;
-}
-
-u32 arch_gettimeoffset(void)
-{
-	// TBD: Time seems to be too fast. "ping" on console has often 10.0 ms.
-	return ps2_do_gettimeoffset() * NSEC_PER_USEC;
-}
-
-unsigned long long sched_clock(void)
-{
-	unsigned long long rv;
-
-	rv = (unsigned long long) (jiffies - INITIAL_JIFFIES);
-	rv *= (unsigned long long) (NSEC_PER_SEC / HZ);
-	rv += ((unsigned long long) NSEC_PER_USEC) * ((unsigned long long) ps2_do_gettimeoffset());
-	return rv;
-}
-
 /**
  * 	ps2_timer_interrupt - Timer Interrupt Routine
  *
@@ -98,10 +57,6 @@ unsigned long long sched_clock(void)
 static irqreturn_t ps2_timer_interrupt(int irq, void *dev_id)
 {
 	struct clock_event_device *cd = dev_id;
-
-	/* Set the timer interrupt delay */
-	timer_intr_delay = inl(T0_COUNT);
-	last_cycle_count = read_c0_count();
 
 	/* Clear the interrupt */
 	outl(inl(T0_MODE), T0_MODE);
@@ -143,7 +98,7 @@ static struct irqaction timer0_irqaction = {
 
 static struct clock_event_device timer0_clockevent_device = {
 	.name		= "timer0",
-	.features	= CLOCK_EVT_FEAT_PERIODIC,
+	.features	= CLOCK_EVT_FEAT_PERIODIC, /* TBD: Timer is also able to provide CLOCK_EVT_FEAT_ONESHOT. */
 
 	/* .mult, .shift, .max_delta_ns and .min_delta_ns left uninitialized */
 
@@ -159,8 +114,14 @@ void __init plat_time_init(void)
 	struct irqaction *action = &timer0_irqaction;
 	unsigned int cpu = smp_processor_id();
 
+	/* Add timer 0 as clock event source. */
 	cd->cpumask = cpumask_of(cpu);
 	clockevents_register_device(cd);
 	action->dev_id = cd;
 	setup_irq(IRQ_INTC_TIMER0, &timer0_irqaction);
+
+	/* Timer 1 is free and can also be configured as clock event source. */
+
+	/* Setup frequency for IP7 timer interrupt. */
+	mips_hpt_frequency = CPU_FREQ;
 }
