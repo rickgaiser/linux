@@ -694,7 +694,8 @@ config SONY_PS2
 	select SYS_HAS_EARLY_PRINTK
 	select USB_ARCH_HAS_OHCI
 	select USB_OHCI_LITTLE_ENDIAN
-	select ARCH_USES_GETTIMEOFFSET
+	select CEVT_R4K
+	select CSRC_R4K
 	help
 	  This enables support for Sony Playstation 2.
 
@@ -1048,7 +1049,7 @@ config BOOT_ELF32
 config MIPS_L1_CACHE_SHIFT
 	int
 	default "4" if MACH_DECSTATION || MIKROTIK_RB532 || PMC_MSP4200_EVAL
-	default "6" if MIPS_CPU_SCACHE
+	default "6" if MIPS_CPU_SCACHE || CPU_R5900
 	default "7" if SGI_IP22 || SGI_IP27 || SGI_IP28 || SNI_RM || CPU_CAVIUM_OCTEON
 	default "5"
 
