@@ -382,16 +382,35 @@ static struct irq_chip sbus_irq_type = {
 	.end		= sbus_end_irq,
 };
 
+static struct irqaction cascade_gs_irqaction = {
+	.handler = no_action,
+	.name = "GS cascade",
+};
+
+static struct irqaction cascade_sbus_irqaction = {
+	.handler = no_action,
+	.name = "SBUS cascade",
+};
+
+static struct irqaction cascade_intc_irqaction = {
+	.handler = no_action,
+	.name = "INTC cascade",
+};
+
+static struct irqaction cascade_dmac_irqaction = {
+	.handler = no_action,
+	.name = "DMAC cascade",
+};
+
 void __init arch_init_irq(void)
 {
 	int i;
-
-	printk("arch_init_irq\n");
+	int rv;
 
 	/* init CPU irqs */
 	mips_cpu_irq_init();
 
-	for (i = 0; i < NR_IRQS; i++) {
+	for (i = 0; i < MIPS_CPU_IRQ_BASE; i++) {
 		struct irq_chip *handler;
 
 		if (i < IRQ_DMAC) {
@@ -418,12 +437,29 @@ void __init arch_init_irq(void)
 	sbus_mask = 0;
 	outl((1 << 8) | (1 << 10), SBUS_SMFLG);
 
-	/* enable cascaded irq */
-	intc_enable_irq(IRQ_INTC_GS);
-	intc_enable_irq(IRQ_INTC_SBUS);
+	/* Enable cascaded GS IRQ. */
+	rv = setup_irq(IRQ_INTC_GS, &cascade_gs_irqaction);
+	if (rv) {
+		printk("Failed to setup GS IRQ (rv = %d).\n", rv);
+	}
 
-	clear_c0_status(ST0_IM);
-	set_c0_status(IE_IRQ0 | IE_IRQ1);
+	/* Enable cascaded SBUS IRQ. */
+	rv = setup_irq(IRQ_INTC_SBUS, &cascade_sbus_irqaction);
+	if (rv) {
+		printk("Failed to setup SBUS IRQ (rv = %d).\n", rv);
+	}
+
+	/* Enable INTC interrupt. */
+	rv = setup_irq(IRQ_C0_INTC, &cascade_intc_irqaction);
+	if (rv) {
+		printk("Failed to setup INTC (rv = %d).\n", rv);
+	}
+
+	/* Enable DMAC interrupt. */
+	rv = setup_irq(IRQ_C0_DMAC, &cascade_dmac_irqaction);
+	if (rv) {
+		printk("Failed to setup DMAC (rv = %d).\n", rv);
+	}
 }
 
 static void gs_irqdispatch(void);
@@ -516,9 +552,14 @@ asmlinkage void plat_irq_dispatch(void)
 	 * First we check for r4k counter/timer IRQ.
 	 */
 	if (pending & CAUSEF_IP2) {
+		/* INTC interrupt. */
 		int0_irqdispatch();
 	} else if (pending & CAUSEF_IP3) {
+		/* DMAC interrupt. */
 		int1_irqdispatch();
+	} else if (pending & CAUSEF_IP7) {
+		/* Timer interrupt. */
+		do_IRQ(IRQ_C0_IRQ7);
 	} else {
 		printk("plat_irq_dispatch: unknown interrupt 0x%08x pending.\n", pending);
 	}
