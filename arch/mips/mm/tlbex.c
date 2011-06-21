@@ -264,6 +264,15 @@ static void __cpuinit __maybe_unused build_tlb_probe_entry(u32 **p)
 		uasm_i_tlbp(p);
 		break;
 
+	case CPU_R5900:
+		uasm_i_tlbp(p);
+		uasm_i_syncp(p);
+		uasm_i_nop(p);
+		uasm_i_nop(p);
+		uasm_i_nop(p);
+		uasm_i_nop(p);
+		break;
+
 	default:
 		uasm_i_tlbp(p);
 		break;
@@ -410,6 +419,7 @@ static void __cpuinit build_tlb_write_entry(u32 **p, struct uasm_label **l,
 		break;
 	case CPU_R5900:
 		tlbw(p);
+		uasm_i_syncp(p);
 		break;
 
 	default:
@@ -870,6 +880,11 @@ static void __cpuinit build_r4000_tlb_refill_handler(void)
 	memset(labels, 0, sizeof(labels));
 	memset(relocs, 0, sizeof(relocs));
 	memset(final_handler, 0, sizeof(final_handler));
+
+#ifdef CONFIG_CPU_R5900
+	uasm_i_nop(&p);
+	uasm_i_nop(&p);
+#endif
 
 	/*
 	 * create the plain linear handler
@@ -1443,6 +1458,14 @@ static void __cpuinit build_r4000_tlb_load_handler(void)
 		uasm_i_nop(&p);
 
 		uasm_i_tlbr(&p);
+#ifdef CONFIG_CPU_R5900
+		uasm_i_syncp(&p);
+		uasm_i_nop(&p);
+		uasm_i_nop(&p);
+		uasm_i_nop(&p);
+		uasm_i_nop(&p);
+#endif
+
 		/* Examine  entrylo 0 or 1 based on ptr. */
 		uasm_i_andi(&p, K0, K1, sizeof(pte_t));
 		uasm_i_beqz(&p, K0, 8);
@@ -1483,6 +1506,14 @@ static void __cpuinit build_r4000_tlb_load_handler(void)
 		uasm_i_nop(&p);
 
 		uasm_i_tlbr(&p);
+#ifdef CONFIG_CPU_R5900
+		uasm_i_syncp(p);
+		uasm_i_nop(&p);
+		uasm_i_nop(&p);
+		uasm_i_nop(&p);
+		uasm_i_nop(&p);
+#endif
+
 		/* Examine  entrylo 0 or 1 based on ptr. */
 		uasm_i_andi(&p, K0, K1, sizeof(pte_t));
 		uasm_i_beqz(&p, K0, 8);
