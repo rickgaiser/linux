@@ -68,5 +68,5 @@ void __init prom_free_prom_memory(void)
 	end = __pa(&_text);
 
 	/* TBD: Check if this is necessary or wrong. */
-	free_init_pages("unused PROM memory", 0x10000, end);
+	// TBD: free_init_pages("unused PROM memory", 0x10000, end);
 }
