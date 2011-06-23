@@ -23,5 +23,6 @@
 #define cpu_has_clo_clz			0
 #define cpu_has_ejtag			0
 /* TBD: Check define for cpu_has_dc_aliases */
+#define cpu_has_ic_fills_f_dc	0
 
 #endif
