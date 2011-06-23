@@ -1036,6 +1036,23 @@ static void __cpuinit probe_pcache(void)
 			c->dcache.flags |= MIPS_CACHE_PINDEX;
 			break;
 		}
+
+	case CPU_R5900:
+		if (c->dcache.waysize > 4096)
+			c->dcache.flags |= MIPS_CACHE_ALIASES;
+		/* Sony Playstation 2 has:
+		 * 8 KByte data cache, 2 ways
+		 * 16 KByte instruction cache, 2 ways
+		 * There can be cache aliases in instruction cache.
+		 * If MIPS_CACHE_ALIASES is not set, the CPU
+		 * may execute wrong code. There seems to be a
+		 * missing data cache flush which is fixed when
+		 * setting MIPS_CACHE_ALIASES.
+		 */
+		if (c->icache.waysize > 4096)
+			c->dcache.flags |= MIPS_CACHE_ALIASES;
+		break;
+
 	default:
 		if (c->dcache.waysize > PAGE_SIZE)
 			c->dcache.flags |= MIPS_CACHE_ALIASES;
