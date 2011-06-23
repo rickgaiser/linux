@@ -672,15 +672,21 @@ do {								\
 ({ int __res;								\
 	if (sel == 0)							\
 		__asm__ __volatile__(					\
+			".set push\n\t"					\
+			".set noreorder\n\t"				\
 			"sync.p\n\t"					\
 			"mfc0\t%0, " #source "\n\t"			\
+			".set pop\n\t"					\
 			: "=r" (__res));				\
 	else								\
 		__asm__ __volatile__(					\
+			".set push\n\t"					\
+			".set noreorder\n\t"				\
 			".set\tmips32\n\t"				\
 			"sync.p\n\t"					\
 			"mfc0\t%0, " #source ", " #sel "\n\t"		\
 			".set\tmips0\n\t"				\
+			".set pop\n\t"					\
 			: "=r" (__res));				\
 	__res;								\
 })
@@ -727,15 +733,21 @@ do {								\
 do {									\
 	if (sel == 0)							\
 		__asm__ __volatile__(					\
+			".set push\n\t"					\
+			".set noreorder\n\t"				\
 			"mtc0\t%z0, " #register "\n\t"			\
 			"sync.p\n\t"					\
+			".set pop\n\t"					\
 			: : "Jr" ((unsigned int)(value)));		\
 	else								\
 		__asm__ __volatile__(					\
+			".set push\n\t"					\
+			".set noreorder\n\t"				\
 			".set\tmips32\n\t"				\
 			"mtc0\t%z0, " #register ", " #sel "\n\t"	\
 			"sync.p\n\t"					\
-			".set\tmips0"					\
+			".set\tmips0\n\t"					\
+			".set pop\n\t"					\
 			: : "Jr" ((unsigned int)(value)));		\
 } while (0)
 #else
