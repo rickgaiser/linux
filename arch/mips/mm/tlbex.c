@@ -925,6 +925,14 @@ static void __cpuinit build_r4000_tlb_refill_handler(void)
 	build_tlb_write_entry(&p, &l, &r, tlb_random);
 	uasm_l_leave(&l, p);
 	uasm_i_eret(&p); /* return from trap */
+#ifdef CONFIG_CPU_R5900
+	/* There should be nothing which can be interpreted as cache instruction. */
+	uasm_i_nop(&p);
+	uasm_i_nop(&p);
+	uasm_i_nop(&p);
+	uasm_i_nop(&p);
+	uasm_i_nop(&p);
+#endif
 
 #ifdef CONFIG_HUGETLB_PAGE
 	uasm_l_tlb_huge_update(&l, p);
@@ -1404,6 +1412,14 @@ build_r4000_tlbchange_handler_tail(u32 **p, struct uasm_label **l,
 	build_tlb_write_entry(p, l, r, tlb_indexed);
 	uasm_l_leave(l, *p);
 	uasm_i_eret(p); /* return from trap */
+#ifdef CONFIG_CPU_R5900
+	/* There should be nothing which can be interpreted as cache instruction. */
+	uasm_i_nop(p);
+	uasm_i_nop(p);
+	uasm_i_nop(p);
+	uasm_i_nop(p);
+	uasm_i_nop(p);
+#endif
 
 #ifdef CONFIG_64BIT
 	build_get_pgd_vmalloc64(p, l, r, tmp, ptr, not_refill);
