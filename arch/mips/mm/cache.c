@@ -129,6 +129,15 @@ void __update_cache(struct vm_area_struct *vma, unsigned long address,
 		if (exec || pages_do_alias(addr, address & PAGE_MASK))
 			flush_data_cache_page(addr);
 		ClearPageDcacheDirty(page);
+	} else {
+		/* Cache can be dirty when page is not writeable, because
+		 * data is copied to page in kernel.
+		 */
+		addr = (unsigned long) page_address(page);
+		if (exec) {
+			flush_data_cache_page(addr);
+			/* TBD: Flush instruction cache also? */
+		}
 	}
 }
 
