@@ -150,7 +150,7 @@ static void show_stacktrace(struct task_struct *task,
 	const int field = 2 * sizeof(unsigned long);
 	long stackdata;
 	int i;
-	unsigned long __user *sp = (unsigned long __user *)regs->regs[29];
+	unsigned long __user *sp = (unsigned long __user *) MIPS_READ_REG_L(regs->regs[29]);
 
 	printk("Stack :");
 	i = 0;
@@ -249,7 +249,12 @@ static void __show_regs(const struct pt_regs *regs)
 		else if (i == 26 || i == 27)
 			printk(" %*s", field, "");
 		else
+#ifdef CONFIG_CPU_R5900
+			/* TBD: Support 128 bit registers. */
+			printk(" %0*llx", field, regs->regs[i]);
+#else
 			printk(" %0*lx", field, regs->regs[i]);
+#endif
 
 		i++;
 		if ((i % 4) == 0)
@@ -259,8 +264,15 @@ static void __show_regs(const struct pt_regs *regs)
 #ifdef CONFIG_CPU_HAS_SMARTMIPS
 	printk("Acx    : %0*lx\n", field, regs->acx);
 #endif
+#ifdef CONFIG_CPU_R5900
+	printk("Hi    : %0*llx\n", field, regs->hi);
+	printk("Hi1    : %0*llx\n", field, regs->hi1);
+	printk("Lo    : %0*llx\n", field, regs->lo);
+	printk("Lo1    : %0*llx\n", field, regs->lo1);
+#else
 	printk("Hi    : %0*lx\n", field, regs->hi);
 	printk("Lo    : %0*lx\n", field, regs->lo);
+#endif
 
 	/*
 	 * Saved cp0 registers
@@ -268,8 +280,8 @@ static void __show_regs(const struct pt_regs *regs)
 	printk("epc   : %0*lx %pS\n", field, regs->cp0_epc,
 	       (void *) regs->cp0_epc);
 	printk("    %s\n", print_tainted());
-	printk("ra    : %0*lx %pS\n", field, regs->regs[31],
-	       (void *) regs->regs[31]);
+	printk("ra    : %0*lx %pS\n", field, MIPS_READ_REG_L(regs->regs[31]),
+	       (void *) MIPS_READ_REG_L(regs->regs[31]));
 
 	printk("Status: %08x    ", (uint32_t) regs->cp0_status);
 
@@ -448,7 +460,7 @@ asmlinkage void do_be(struct pt_regs *regs)
 	 */
 	printk(KERN_ALERT "%s bus error, epc == %0*lx, ra == %0*lx\n",
 	       data ? "Data" : "Instruction",
-	       field, regs->cp0_epc, field, regs->regs[31]);
+	       field, regs->cp0_epc, field, MIPS_READ_REG_L(regs->regs[31]));
 	if (notify_die(DIE_OOPS, "bus error", regs, SIGBUS, 0, 0)
 	    == NOTIFY_STOP)
 		return;

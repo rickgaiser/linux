@@ -32,7 +32,7 @@
  * Return 0 for error
  */
 LEAF(__strlen_user_asm)
-	LONG_L		v0, TI_ADDR_LIMIT($28)	# pointer ok?
+	LONGI_L		v0, TI_ADDR_LIMIT($28)	# pointer ok?
 	and		v0, a0
 	bnez		v0, .Lfault
 

@@ -49,30 +49,30 @@
 	LEAF(resume)
 	sync.p
 	mfc0	t1, CP0_STATUS
-	LONG_S	t1, THREAD_STATUS(a0)
+	LONGI_S	t1, THREAD_STATUS(a0)
 	cpu_save_nonscratch a0
-	LONG_S	ra, THREAD_REG31(a0)
+	LONGD_S	ra, THREAD_REG31(a0)
 
 	/*
 	 * check if we need to save FPU registers
 	 */
 	PTR_L	t3, TASK_THREAD_INFO(a0)
-	LONG_L	t0, TI_FLAGS(t3)
+	LONGI_L	t0, TI_FLAGS(t3)
 	li	t1, _TIF_USEDFPU
 	and	t2, t0, t1
 	beqz	t2, 1f
 	nor	t1, zero, t1
 
 	and	t0, t0, t1
-	LONG_S	t0, TI_FLAGS(t3)
+	LONGI_S	t0, TI_FLAGS(t3)
 
 	/*
 	 * clear saved user stack CU1 bit
 	 */
-	LONG_L	t0, ST_OFF(t3)
+	LONGI_L	t0, ST_OFF(t3)
 	li	t1, ~ST0_CU1
 	and	t0, t0, t1
-	LONG_S	t0, ST_OFF(t3)
+	LONGI_S	t0, ST_OFF(t3)
 
 	fpu_save_double a0 t0 t1		# c0_status passed in t0
 						# clobbers t1
@@ -105,7 +105,7 @@
 	mfc0	t1, CP0_STATUS		/* Do we really need this? */
 	li	a3, 0xff01
 	and	t1, a3
-	LONG_L	a2, THREAD_STATUS(a1)
+	LONGI_L	a2, THREAD_STATUS(a1)
 	nor	a3, $0, a3
 	and	a2, a3
 	or	a2, t1

@@ -38,7 +38,7 @@
  */
 
 LEAF(__strncpy_from_user_asm)
-	LONG_L		v0, TI_ADDR_LIMIT($28)	# pointer ok?
+	LONGI_L		v0, TI_ADDR_LIMIT($28)	# pointer ok?
 	and		v0, a1
 	bnez		v0, .Lfault
 
