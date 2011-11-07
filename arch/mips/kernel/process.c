@@ -369,7 +369,7 @@ unsigned long thread_saved_pc(struct task_struct *tsk)
 		return t->reg31;
 	if (schedule_mfi.pc_offset < 0)
 		return 0;
-	return ((unsigned long *)t->reg29)[schedule_mfi.pc_offset];
+	return ((unsigned long *)MIPS_READ_REG_L(t->reg29))[schedule_mfi.pc_offset];
 }
 
 
@@ -465,7 +465,7 @@ unsigned long get_wchan(struct task_struct *task)
 	pc = thread_saved_pc(task);
 
 #ifdef CONFIG_KALLSYMS
-	sp = task->thread.reg29 + schedule_mfi.frame_size;
+	sp = MIPS_READ_REG_L(task->thread.reg29) + schedule_mfi.frame_size;
 
 	while (in_sched_functions(pc))
 		pc = unwind_stack(task, &sp, pc, &ra);

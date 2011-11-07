@@ -288,20 +288,75 @@ symbol		=	value
  * How to add/sub/load/store/shift C long variables.
  */
 #if (_MIPS_SZLONG == 32)
-#define LONG_ADD	add
-#define LONG_ADDU	addu
-#define LONG_ADDI	addi
-#define LONG_ADDIU	addiu
-#define LONG_SUB	sub
-#define LONG_SUBU	subu
-#define LONG_L		lw
-#define LONG_S		sw
-#define LONG_SLL	sll
-#define LONG_SLLV	sllv
-#define LONG_SRL	srl
-#define LONG_SRLV	srlv
-#define LONG_SRA	sra
-#define LONG_SRAV	srav
+#ifdef CONFIG_CPU_R5900
+#define LONGD_ADD	dadd
+#define LONGI_ADD	add
+#define LONGD_ADDU	daddu
+#define LONGI_ADDU	addu
+#define LONGD_ADDI	daddi
+#define LONGI_ADDI	addi
+#define LONGD_ADDIU	daddiu
+#define LONGI_ADDIU	addiu
+#define LONGD_SUB	dsub
+#define LONGI_SUB	sub
+#define LONGD_SUBU	dsubu
+#define LONGI_SUBU	subu
+/* Load data register. */
+#define LONGD_L		ld
+/* Load hi/lo register. */
+#define LONGH_L		ld
+/* Load instruction register. */
+#define LONGI_L		lw
+/* Save data register. */
+#define LONGD_S		sd
+/* Save hi/lo register. */
+#define LONGH_S		sd
+/* Save instruction register. */
+#define LONGI_S		sw
+#define LONGD_SLL	dsll
+#define LONGI_SLL	sll
+#define LONGD_SLLV	dsllv
+#define LONGI_SLLV	sllv
+#define LONGD_SRL	dsrl
+#define LONGI_SRL	srl
+#define LONGD_SRLV	dsrlv
+#define LONGI_SRLV	srlv
+#define LONGD_SRA	dsra
+#define LONGI_SRA	sra
+#define LONGD_SRAV	dsrav
+#define LONGI_SRAV	srav
+#else
+#define LONGD_ADD	add
+#define LONGI_ADD	add
+#define LONGD_ADDU	addu
+#define LONGI_ADDU	addu
+#define LONGD_ADDI	addi
+#define LONGI_ADDI	addi
+#define LONGD_ADDIU	addiu
+#define LONGI_ADDIU	addiu
+#define LONGD_SUB	sub
+#define LONGI_SUB	sub
+#define LONGD_SUBU	subu
+#define LONGI_SUBU	subu
+#define LONGD_L		lw
+#define LONGI_L		lw
+#define LONGH_L		lw
+#define LONGD_S		sw
+#define LONGH_S		sw
+#define LONGI_S		sw
+#define LONGD_SLL	sll
+#define LONGI_SLL	sll
+#define LONGD_SLLV	sllv
+#define LONGI_SLLV	sllv
+#define LONGD_SRL	srl
+#define LONGI_SRL	srl
+#define LONGD_SRLV	srlv
+#define LONGI_SRLV	srlv
+#define LONGD_SRA	sra
+#define LONGI_SRA	sra
+#define LONGD_SRAV	srav
+#define LONGI_SRAV	srav
+#endif
 
 #define LONG		.word
 #define LONGSIZE	4
@@ -310,20 +365,36 @@ symbol		=	value
 #endif
 
 #if (_MIPS_SZLONG == 64)
-#define LONG_ADD	dadd
-#define LONG_ADDU	daddu
-#define LONG_ADDI	daddi
-#define LONG_ADDIU	daddiu
-#define LONG_SUB	dsub
-#define LONG_SUBU	dsubu
-#define LONG_L		ld
-#define LONG_S		sd
-#define LONG_SLL	dsll
-#define LONG_SLLV	dsllv
-#define LONG_SRL	dsrl
-#define LONG_SRLV	dsrlv
-#define LONG_SRA	dsra
-#define LONG_SRAV	dsrav
+#define LONGD_ADD	dadd
+#define LONGI_ADD	dadd
+#define LONGD_ADDU	daddu
+#define LONGI_ADDU	daddu
+#define LONGD_ADDI	daddi
+#define LONGI_ADDI	daddi
+#define LONGD_ADDIU	daddiu
+#define LONGI_ADDIU	daddiu
+#define LONGD_SUB	dsub
+#define LONGI_SUB	dsub
+#define LONGD_SUBU	dsubu
+#define LONGI_SUBU	dsubu
+#define LONGD_L		ld
+#define LONGI_L		ld
+#define LONGH_L		ld
+#define LONGD_S		sd
+#define LONGI_S		sd
+#define LONGH_S		sd
+#define LONGD_SLL	dsll
+#define LONGI_SLL	dsll
+#define LONGD_SLLV	dsllv
+#define LONGI_SLLV	dsllv
+#define LONGD_SRL	dsrl
+#define LONGI_SRL	dsrl
+#define LONGD_SRLV	dsrlv
+#define LONGI_SRLV	dsrlv
+#define LONGD_SRA	dsra
+#define LONGI_SRA	dsra
+#define LONGD_SRAV	dsrav
+#define LONGI_SRAV	dsrav
 
 #define LONG		.dword
 #define LONGSIZE	8
