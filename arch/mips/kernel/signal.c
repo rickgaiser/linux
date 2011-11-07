@@ -36,6 +36,7 @@
 
 #include "signal-common.h"
 
+
 static int (*save_fp_context)(struct sigcontext __user *sc);
 static int (*restore_fp_context)(struct sigcontext __user *sc);
 
@@ -254,7 +255,7 @@ asmlinkage int sys_sigsuspend(nabi_no_regargs struct pt_regs regs)
 	sigset_t newset;
 	sigset_t __user *uset;
 
-	uset = (sigset_t __user *) regs.regs[4];
+	uset = (sigset_t __user *) MIPS_READ_REG_L(regs.regs[4]);
 	if (copy_from_user(&newset, uset, sizeof(sigset_t)))
 		return -EFAULT;
 	sigdelsetmask(&newset, ~_BLOCKABLE);
@@ -283,7 +284,7 @@ asmlinkage int sys_rt_sigsuspend(nabi_no_regargs struct pt_regs regs)
 	if (sigsetsize != sizeof(sigset_t))
 		return -EINVAL;
 
-	unewset = (sigset_t __user *) regs.regs[4];
+	unewset = (sigset_t __user *) MIPS_READ_REG_L(regs.regs[4]);
 	if (copy_from_user(&newset, unewset, sizeof(newset)))
 		return -EFAULT;
 	sigdelsetmask(&newset, ~_BLOCKABLE);
@@ -343,8 +344,8 @@ SYSCALL_DEFINE3(sigaction, int, sig, const struct sigaction __user *, act,
 
 asmlinkage int sys_sigaltstack(nabi_no_regargs struct pt_regs regs)
 {
-	const stack_t __user *uss = (const stack_t __user *) regs.regs[4];
-	stack_t __user *uoss = (stack_t __user *) regs.regs[5];
+	const stack_t __user *uss = (const stack_t __user *) MIPS_READ_REG_L(regs.regs[4]);
+	stack_t __user *uoss = (stack_t __user *) MIPS_READ_REG_L(regs.regs[5]);
 	unsigned long usp = regs.regs[29];
 
 	return do_sigaltstack(uss, uoss, usp);
@@ -357,7 +358,7 @@ asmlinkage void sys_sigreturn(nabi_no_regargs struct pt_regs regs)
 	sigset_t blocked;
 	int sig;
 
-	frame = (struct sigframe __user *) regs.regs[29];
+	frame = (struct sigframe __user *) MIPS_READ_REG_L(regs.regs[29]);
 	if (!access_ok(VERIFY_READ, frame, sizeof(*frame)))
 		goto badframe;
 	if (__copy_from_user(&blocked, &frame->sf_mask, sizeof(blocked)))
@@ -397,7 +398,7 @@ asmlinkage void sys_rt_sigreturn(nabi_no_regargs struct pt_regs regs)
 	stack_t st;
 	int sig;
 
-	frame = (struct rt_sigframe __user *) regs.regs[29];
+	frame = (struct rt_sigframe __user *) MIPS_READ_REG_L(regs.regs[29]);
 	if (!access_ok(VERIFY_READ, frame, sizeof(*frame)))
 		goto badframe;
 	if (__copy_from_user(&set, &frame->rs_uc.uc_sigmask, sizeof(set)))

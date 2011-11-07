@@ -39,23 +39,24 @@
 #endif
 
 	.macro	f_fill64 dst, offset, val, fixup
-	EX(LONG_S, \val, (\offset +  0 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset +  1 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset +  2 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset +  3 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset +  4 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset +  5 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset +  6 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset +  7 * LONGSIZE)(\dst), \fixup)
+	/* TBD: Optimze speed with 128 bit or 64 bit register. */
+	EX(LONGI_S, \val, (\offset +  0 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset +  1 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset +  2 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset +  3 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset +  4 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset +  5 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset +  6 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset +  7 * LONGSIZE)(\dst), \fixup)
 #if LONGSIZE == 4
-	EX(LONG_S, \val, (\offset +  8 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset +  9 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset + 10 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset + 11 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset + 12 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset + 13 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset + 14 * LONGSIZE)(\dst), \fixup)
-	EX(LONG_S, \val, (\offset + 15 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset +  8 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset +  9 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset + 10 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset + 11 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset + 12 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset + 13 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset + 14 * LONGSIZE)(\dst), \fixup)
+	EX(LONGI_S, \val, (\offset + 15 * LONGSIZE)(\dst), \fixup)
 #endif
 	.endm
 
@@ -73,12 +74,12 @@ LEAF(memset)
 	 move		v0, a0			/* result */
 
 	andi		a1, 0xff		/* spread fillword */
-	LONG_SLL		t1, a1, 8
+	LONGI_SLL		t1, a1, 8
 	or		a1, t1
-	LONG_SLL		t1, a1, 16
+	LONGI_SLL		t1, a1, 16
 #if LONGSIZE == 8
 	or		a1, t1
-	LONG_SLL		t1, a1, 32
+	LONGI_SLL		t1, a1, 32
 #endif
 	or		a1, t1
 1:
@@ -136,7 +137,7 @@ FEXPORT(__bzero)
 #if (LONGSIZE == 4)
 	.set		noat
 	// 2 instructions for 4 Byte.
-	LONG_SLL	AT, t0, 1
+	LONGI_SLL	AT, t0, 1
 	PTR_SUBU	t1, AT
 	.set		at
 #else
@@ -149,7 +150,7 @@ FEXPORT(__bzero)
 	PTR_SUBU	t1, t0
 #else
 	.set		noat
-	LONG_SRL		AT, t0, 1
+	LONGI_SRL		AT, t0, 1
 	PTR_SUBU	t1, AT
 	.set		at
 #endif
@@ -201,19 +202,19 @@ FEXPORT(__bzero)
 
 .Lfwd_fixup:
 	PTR_L		t0, TI_TASK($28)
-	LONG_L		t0, THREAD_BUADDR(t0)
+	LONGI_L		t0, THREAD_BUADDR(t0)
 	andi		a2, 0x3f
-	LONG_ADDU	a2, t1
+	LONGI_ADDU	a2, t1
 	jr		ra
-	 LONG_SUBU	a2, t0
+	 LONGI_SUBU	a2, t0
 
 .Lpartial_fixup:
 	PTR_L		t0, TI_TASK($28)
-	LONG_L		t0, THREAD_BUADDR(t0)
+	LONGI_L		t0, THREAD_BUADDR(t0)
 	andi		a2, LONGMASK
-	LONG_ADDU	a2, t1
+	LONGI_ADDU	a2, t1
 	jr		ra
-	 LONG_SUBU	a2, t0
+	 LONGI_SUBU	a2, t0
 
 .Llast_fixup:
 	jr		ra

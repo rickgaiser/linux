@@ -22,6 +22,14 @@
 #define DSP_CONTROL	77
 #define ACX		78
 
+#ifdef CONFIG_CPU_R5900
+/* Cast larger R5900 register to smaller 32 bit. */
+#define MIPS_READ_REG_L(reg) ((unsigned long)(reg))
+#else
+#define MIPS_READ_REG_L(reg) (reg)
+#endif
+
+
 /*
  * This struct defines the way the registers are stored on the stack during a
  * system call/exception. As usual the registers k0/k1 aren't being saved.
@@ -33,12 +41,24 @@ struct pt_regs {
 #endif
 
 	/* Saved main processor registers. */
+#ifdef CONFIG_CPU_R5900
+	/* TBD: Add support for 128 bit. */
+	unsigned long long regs[32];
+#else
 	unsigned long regs[32];
+#endif
 
 	/* Saved special registers. */
 	unsigned long cp0_status;
+#ifdef CONFIG_CPU_R5900
+	unsigned long long hi;
+	unsigned long long hi1;
+	unsigned long long lo;
+	unsigned long long lo1;
+#else
 	unsigned long hi;
 	unsigned long lo;
+#endif
 #ifdef CONFIG_CPU_HAS_SMARTMIPS
 	unsigned long acx;
 #endif

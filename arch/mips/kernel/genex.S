@@ -186,7 +186,7 @@ LEAF(r4k_wait)
 	.set	push
 	.set	noreorder
 	/* start of rollback region */
-	LONG_L	t0, TI_FLAGS($28)
+	LONGI_L	t0, TI_FLAGS($28)
 	nop
 	andi	t0, _TIF_NEED_RESCHED
 	bnez	t0, 1f
@@ -269,8 +269,8 @@ NESTED(handle_int, PT_SIZE, sp)
 	CLI
 	TRACE_IRQS_OFF
 
-	LONG_L	s0, TI_REGS($28)
-	LONG_S	sp, TI_REGS($28)
+	LONGI_L	s0, TI_REGS($28)
+	LONGI_S	sp, TI_REGS($28)
 	PTR_LA	ra, ret_from_irq
 	j	plat_irq_dispatch
 	END(handle_int)
@@ -388,8 +388,8 @@ NESTED(except_vec_vi_handler, 0, sp)
 	move	v0, s0
 #endif
 
-	LONG_L	s0, TI_REGS($28)
-	LONG_S	sp, TI_REGS($28)
+	LONGI_L	s0, TI_REGS($28)
+	LONGI_S	sp, TI_REGS($28)
 	PTR_LA	ra, ret_from_irq
 	jr	v0
 	END(except_vec_vi_handler)
@@ -410,13 +410,13 @@ NESTED(ejtag_debug_handler, PT_SIZE, sp)
 	bgez	k0, ejtag_return
 
 	PTR_LA	k0, ejtag_debug_buffer
-	LONG_S	k1, 0(k0)
+	LONGI_S	k1, 0(k0)
 	SAVE_ALL
 	move	a0, sp
 	jal	ejtag_exception_handler
 	RESTORE_ALL
 	PTR_LA	k0, ejtag_debug_buffer
-	LONG_L	k1, 0(k0)
+	LONGI_L	k1, 0(k0)
 
 ejtag_return:
 #ifdef CONFIG_CPU_R5900
@@ -506,7 +506,7 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	   recognize an unknown escape code.  So make the arguments
 	   start with an n and gas will believe \n is ok ...  */
 	.macro	__BUILD_verbose	nexception
-	LONG_L	a1, PT_EPC(sp)
+	LONGI_L	a1, PT_EPC(sp)
 #ifdef CONFIG_32BIT
 	PRINT("Got \nexception at %08lx\012")
 #endif
@@ -516,9 +516,9 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	.endm
 
 	.macro	__BUILD_count exception
-	LONG_L	t0,exception_count_\exception
+	LONGI_L	t0,exception_count_\exception
 	LONG_ADDIU t0, 1
-	LONG_S	t0,exception_count_\exception
+	LONGI_S	t0,exception_count_\exception
 	.comm	exception_count\exception, 8, 8
 	.endm
 
@@ -638,10 +638,10 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	 rfe
 #else
 #ifndef CONFIG_CPU_DADDI_WORKAROUNDS
-	LONG_ADDIU	k0, 4		/* stall on $k0 */
+	LONGI_ADDIU	k0, 4		/* stall on $k0 */
 #else
 	.set	at=v1
-	LONG_ADDIU	k0, 4
+	LONGI_ADDIU	k0, 4
 	.set	noat
 #endif
 	MTC0	k0, CP0_EPC
@@ -651,7 +651,7 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	/* I hope three instructions between MTC0 and ERET are enough... */
 	ori	k1, _THREAD_MASK
 	xori	k1, _THREAD_MASK
-	LONG_L	v1, TI_TP_VALUE(k1)
+	LONGI_L	v1, TI_TP_VALUE(k1)
 	.set	mips3
 	eret
 	.set	mips0

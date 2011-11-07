@@ -192,9 +192,16 @@ struct mips_abi;
  */
 struct thread_struct {
 	/* Saved main processor registers. */
+#ifdef CONFIG_CPU_R5900
+	/* TBD: extend to 128 bit. */
+	unsigned long long reg16;
+	unsigned long long reg17, reg18, reg19, reg20, reg21, reg22, reg23;
+	unsigned long long reg29, reg30, reg31;
+#else
 	unsigned long reg16;
 	unsigned long reg17, reg18, reg19, reg20, reg21, reg22, reg23;
 	unsigned long reg29, reg30, reg31;
+#endif
 
 	/* Saved cp0 stuff. */
 	unsigned long cp0_status;
