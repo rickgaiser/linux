@@ -27,7 +27,9 @@ static inline void __init_dsp(void)
 {
 	mthi1(0);
 	mtlo1(0);
-#ifndef CONFIG_CPU_R5900
+#ifdef CONFIG_CPU_R5900
+	mtsa(0);
+#else
 	mthi2(0);
 	mtlo2(0);
 	mthi3(0);
@@ -47,6 +49,7 @@ static inline void init_dsp(void)
 do {									\
 	tsk->thread.dsp.dspr[0] = mfhi1();				\
 	tsk->thread.dsp.dspr[1] = mflo1();				\
+	tsk->thread.sa = mfsa();						\
 } while (0)
 #else
 #define __save_dsp(tsk)							\
@@ -72,6 +75,7 @@ do {									\
 do {									\
 	mthi1(tsk->thread.dsp.dspr[0]);					\
 	mtlo1(tsk->thread.dsp.dspr[1]);					\
+	mtsa(tsk->thread.sa);							\
 } while (0)
 #else
 #define __restore_dsp(tsk)						\

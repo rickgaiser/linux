@@ -118,6 +118,8 @@ NESTED(except_vec3_r4000, 0, sp)
 	.set	mips3
 	.set	noat
 #ifdef CONFIG_CPU_R5900
+	nop
+	nop
 	sync.p
 #endif
 	mfc0	k1, CP0_CAUSE
@@ -309,14 +311,14 @@ NESTED(except_vec_ejtag_debug, 0, sp)
  */
 BUILD_ROLLBACK_PROLOGUE except_vec_vi
 NESTED(except_vec_vi, 0, sp)
-	SAVE_SOME
-	SAVE_AT
-	.set	push
-	.set	noreorder
 #ifdef CONFIG_CPU_R5900
 	nop
 	nop
 #endif
+	SAVE_SOME
+	SAVE_AT
+	.set	push
+	.set	noreorder
 #ifdef CONFIG_MIPS_MT_SMTC
 	/*
 	 * To keep from blindly blocking *all* interrupts

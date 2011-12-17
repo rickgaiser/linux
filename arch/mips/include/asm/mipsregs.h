@@ -1219,6 +1219,28 @@ do {									\
 
 #else
 
+#ifdef CONFIG_CPU_R5900
+#define mfsa()								\
+({									\
+	unsigned long __treg;						\
+									\
+	__asm__ __volatile__(						\
+	"	mfsa	%0\n"			\
+	: "=r" (__treg));						\
+	__treg;								\
+})
+
+#define mtsa(x)							\
+do {									\
+	unsigned long __treg = (x);						\
+									\
+	__asm__ __volatile__(						\
+	"	mtsa	%0\n"	\
+	:								\
+	: "r" (__treg));							\
+} while (0)
+#endif
+
 #define mfhi0()								\
 ({									\
 	unsigned long __treg;						\
