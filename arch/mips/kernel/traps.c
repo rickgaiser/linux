@@ -266,9 +266,9 @@ static void __show_regs(const struct pt_regs *regs)
 #endif
 #ifdef CONFIG_CPU_R5900
 	printk("Hi    : %0*llx\n", field, regs->hi);
-	printk("Hi1    : %0*llx\n", field, regs->hi1);
+	// TBD: printk("Hi1    : %0*llx\n", field, regs->hi1);
 	printk("Lo    : %0*llx\n", field, regs->lo);
-	printk("Lo1    : %0*llx\n", field, regs->lo1);
+	// TBD: printk("Lo1    : %0*llx\n", field, regs->lo1);
 #else
 	printk("Hi    : %0*lx\n", field, regs->hi);
 	printk("Lo    : %0*lx\n", field, regs->lo);

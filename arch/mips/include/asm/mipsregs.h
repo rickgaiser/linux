@@ -1234,6 +1234,33 @@ do {									\
 	__treg;								\
 })
 
+#ifdef CONFIG_CPU_R5900
+#ifdef CONFIG_32BIT
+#define mfhi1()								\
+({									\
+	unsigned long long __treg;						\
+									\
+	__asm__ __volatile__(						\
+	"	.set	push			\n"			\
+	"	.set	noat			\n"			\
+	"	mfhi1	$1\n"					\
+	"	sd		$1, %0\n"					\
+	"	.set	pop\n"					\
+	: "=m" (__treg));						\
+	__treg;								\
+})
+#else
+#define mfhi1()								\
+({									\
+	unsigned long long __treg;						\
+									\
+	__asm__ __volatile__(						\
+	"	mfhi1	%0\n"					\
+	: "=r" (__treg));						\
+	__treg;								\
+})
+#endif
+#else
 #define mfhi1()								\
 ({									\
 	unsigned long __treg;						\
@@ -1248,6 +1275,7 @@ do {									\
 	: "=r" (__treg));						\
 	__treg;								\
 })
+#endif
 
 #define mfhi2()								\
 ({									\
@@ -1294,6 +1322,33 @@ do {									\
 	__treg;								\
 })
 
+#ifdef CONFIG_CPU_R5900
+#ifdef CONFIG_32BIT
+#define mflo1()								\
+({									\
+	unsigned long long __treg;						\
+									\
+	__asm__ __volatile__(						\
+	"	.set	push			\n"			\
+	"	.set	noat			\n"			\
+	"	mflo1	$1\n"			\
+	"	sd		$1, %0\n"			\
+	"	.set	pop			\n"			\
+	: "=m" (__treg));						\
+	__treg;								\
+})
+#else
+#define mflo1()								\
+({									\
+	unsigned long long __treg;						\
+									\
+	__asm__ __volatile__(						\
+	"	mflo1	%0\n"			\
+	: "=r" (__treg));						\
+	__treg;								\
+})
+#endif
+#else
 #define mflo1()								\
 ({									\
 	unsigned long __treg;						\
@@ -1308,6 +1363,7 @@ do {									\
 	: "=r" (__treg));						\
 	__treg;								\
 })
+#endif
 
 #define mflo2()								\
 ({									\
@@ -1352,6 +1408,33 @@ do {									\
 	: "r" (x));							\
 } while (0)
 
+#ifdef CONFIG_CPU_R5900
+#ifdef CONFIG_32BIT
+#define mthi1(x)							\
+do {									\
+	unsigned long long __treg = (x);						\
+									\
+	__asm__ __volatile__(						\
+	"	.set	push			\n"			\
+	"	.set	noat			\n"			\
+	"	ld		$1, %0\n"	\
+	"	mthi1	$1\n"	\
+	"	.set	pop\n"			\
+	:								\
+	: "m" (__treg));							\
+} while (0)
+#else
+#define mthi1(x)							\
+do {									\
+	unsigned long long __treg = (x);						\
+									\
+	__asm__ __volatile__(						\
+	"	mthi1	%0\n"	\
+	:								\
+	: "r" (__treg));							\
+} while (0)
+#endif
+#else
 #define mthi1(x)							\
 do {									\
 	__asm__ __volatile__(						\
@@ -1364,6 +1447,7 @@ do {									\
 	:								\
 	: "r" (x));							\
 } while (0)
+#endif
 
 #define mthi2(x)							\
 do {									\
@@ -1404,6 +1488,33 @@ do {									\
 	: "r" (x));							\
 } while (0)
 
+#ifdef CONFIG_CPU_R5900
+#ifdef CONFIG_32BIT
+#define mtlo1(x)							\
+do {									\
+	unsigned long long __treg = (x);						\
+									\
+	__asm__ __volatile__(						\
+	"	.set	push			\n"			\
+	"	.set	noat			\n"			\
+	"	ld		$1, %0\n"	\
+	"	mtlo1	$1\n"	\
+	"	.set	pop					\n"	\
+	:								\
+	: "m" (__treg));							\
+} while (0)
+#else
+#define mtlo1(x)							\
+do {									\
+	unsigned long long __treg = (x);						\
+									\
+	__asm__ __volatile__(						\
+	"	mtlo1	%0\n"	\
+	:								\
+	: "r" (__treg));							\
+} while (0)
+#endif
+#else
 #define mtlo1(x)							\
 do {									\
 	__asm__ __volatile__(						\
@@ -1416,6 +1527,7 @@ do {									\
 	:								\
 	: "r" (x));							\
 } while (0)
+#endif
 
 #define mtlo2(x)							\
 do {									\
