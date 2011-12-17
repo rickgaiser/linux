@@ -52,9 +52,7 @@ struct pt_regs {
 	unsigned long cp0_status;
 #ifdef CONFIG_CPU_R5900
 	unsigned long long hi;
-	unsigned long long hi1;
 	unsigned long long lo;
-	unsigned long long lo1;
 #else
 	unsigned long hi;
 	unsigned long lo;
