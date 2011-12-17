@@ -225,6 +225,9 @@ struct thread_struct {
 
 	/* Saved state of the DSP ASE, if available. */
 	struct mips_dsp_state dsp;
+#ifdef CONFIG_CPU_R5900
+	unsigned int sa;
+#endif
 
 	/* Saved watch register state, if available. */
 	union mips_watch_reg_state watch;
