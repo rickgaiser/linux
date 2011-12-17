@@ -23,7 +23,10 @@
 int __compute_return_epc(struct pt_regs *regs)
 {
 	unsigned int __user *addr;
-	unsigned int bit, fcr31, dspcontrol;
+	unsigned int bit, fcr31;
+#ifndef CONFIG_CPU_R5900
+	unsigned int dspcontrol;
+#endif
 	long epc;
 	union mips_instruction insn;
 
@@ -106,6 +109,7 @@ int __compute_return_epc(struct pt_regs *regs)
 #endif
 				goto sigill;
 
+#ifndef CONFIG_CPU_R5900
 			dspcontrol = rddsp(0x01);
 
 			if (dspcontrol >= 32) {
@@ -113,6 +117,7 @@ int __compute_return_epc(struct pt_regs *regs)
 			} else
 				epc += 8;
 			regs->cp0_epc = epc;
+#endif
 			break;
 		}
 		break;

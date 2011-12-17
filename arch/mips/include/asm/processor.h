@@ -99,13 +99,21 @@ struct mips_fpu_struct {
 	unsigned int	fcr31;
 };
 
+#ifdef CONFIG_CPU_R5900
+#define NUM_DSP_REGS   2
+
+typedef __u64 dspreg_t;
+#else
 #define NUM_DSP_REGS   6
 
 typedef __u32 dspreg_t;
+#endif
 
 struct mips_dsp_state {
 	dspreg_t        dspr[NUM_DSP_REGS];
+#ifndef CONFIG_CPU_R5900
 	unsigned int    dspcontrol;
+#endif
 };
 
 #define INIT_CPUMASK { \
@@ -250,6 +258,19 @@ struct thread_struct {
 #define OCTEON_INIT
 #endif /* CONFIG_CPU_CAVIUM_OCTEON */
 
+#ifdef CONFIG_CPU_R5900
+#define DSP_INIT \
+	.dsp			= {				\
+		.dspr		= {0, },			\
+	},
+#else
+#define DSP_INIT \
+	.dsp			= {				\
+		.dspr		= {0, },			\
+		.dspcontrol	= 0,				\
+	},
+#endif
+
 #define INIT_THREAD  {						\
         /*							\
          * Saved main processor registers			\
@@ -283,10 +304,7 @@ struct thread_struct {
 	/*							\
 	 * Saved DSP stuff					\
 	 */							\
-	.dsp			= {				\
-		.dspr		= {0, },			\
-		.dspcontrol	= 0,				\
-	},							\
+	DSP_INIT					\
 	/*							\
 	 * saved watch register stuff				\
 	 */							\

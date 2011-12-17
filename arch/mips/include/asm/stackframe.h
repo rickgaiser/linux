@@ -69,12 +69,6 @@
 		LONGD_S	$24, PT_R24(sp)
 #ifndef CONFIG_CPU_HAS_SMARTMIPS
 		LONGH_S	v1, PT_LO(sp)
-#if 0 /* TBD: Add support for lo1 and hi1. */
-		mflo1	v1
-		LONGH_S	v1, PT_LO1(sp)
-		mfhi1	v1
-		LONGH_S	v1, PT_HI1(sp)
-#endif
 #endif
 		.endm
 
@@ -290,12 +284,6 @@
 		mtlo	$24
 		LONGH_L	$24, PT_HI(sp)
 		mthi	$24
-#if 0 /* TBD: Add support for lo1 and hi1. */
-		LONGH_L	$24, PT_LO2(sp)
-		mtlo1	$24
-		LONGH_L	$24, PT_HI2(sp)
-		mthi1	$24
-#endif
 #endif
 #ifdef CONFIG_32BIT
 		LONGD_L	$8, PT_R8(sp)
