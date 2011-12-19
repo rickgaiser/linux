@@ -325,29 +325,31 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_struct *ctx)
 			/* TBD: Check for 64 bit support on R5900. */
 			/* copregister fs -> gpr[rt] */
 			if (MIPSInst_RT(ir) != 0) {
-				DIFROMREG(xcp->regs[MIPSInst_RT(ir)],
-					MIPSInst_RD(ir));
+				MIPS_REG_T tmp;
+				DIFROMREG(tmp, MIPSInst_RD(ir));
+				MIPS_WRITE_REG(xcp->regs[MIPSInst_RT(ir)]) = tmp;
 			}
 			break;
 
 		case dmtc_op:
 			/* TBD: Check for 64 bit support on R5900. */
 			/* copregister fs <- rt */
-			DITOREG(xcp->regs[MIPSInst_RT(ir)], MIPSInst_RD(ir));
+			DITOREG(MIPS_READ_REG(xcp->regs[MIPSInst_RT(ir)]), MIPSInst_RD(ir));
 			break;
 #endif
 
 		case mfc_op:
 			/* copregister rd -> gpr[rt] */
 			if (MIPSInst_RT(ir) != 0) {
-				SIFROMREG(xcp->regs[MIPSInst_RT(ir)],
-					MIPSInst_RD(ir));
+				MIPS_REG_T tmp;
+				SIFROMREG(tmp, MIPSInst_RD(ir));
+				MIPS_WRITE_REG(xcp->regs[MIPSInst_RT(ir)]) = tmp;
 			}
 			break;
 
 		case mtc_op:
 			/* copregister rd <- rt */
-			SITOREG(xcp->regs[MIPSInst_RT(ir)], MIPSInst_RD(ir));
+			SITOREG(MIPS_READ_REG(xcp->regs[MIPSInst_RT(ir)]), MIPSInst_RD(ir));
 			break;
 
 		case cfc_op:{
@@ -369,7 +371,7 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_struct *ctx)
 			else
 				value = 0;
 			if (MIPSInst_RT(ir))
-				xcp->regs[MIPSInst_RT(ir)] = value;
+				MIPS_WRITE_REG(xcp->regs[MIPSInst_RT(ir)]) = value;
 			break;
 		}
 
@@ -380,7 +382,7 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_struct *ctx)
 			if (MIPSInst_RT(ir) == 0)
 				value = 0;
 			else
-				value = xcp->regs[MIPSInst_RT(ir)];
+				value = MIPS_READ_REG(xcp->regs[MIPSInst_RT(ir)]);
 
 			/* we only have one writable control reg
 			 */
@@ -520,8 +522,8 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_struct *ctx)
 			return SIGILL;
 		cond = fpucondbit[MIPSInst_RT(ir) >> 2];
 		if (((ctx->fcr31 & cond) != 0) == ((MIPSInst_RT(ir) & 1) != 0))
-			xcp->regs[MIPSInst_RD(ir)] =
-				xcp->regs[MIPSInst_RS(ir)];
+			MIPS_WRITE_REG(xcp->regs[MIPSInst_RD(ir)]) =
+				MIPS_READ_REG(xcp->regs[MIPSInst_RS(ir)]);
 		break;
 #endif
 
@@ -829,13 +831,13 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 			break;
 		case fmovz_op:
 			/* TBD: Check for 64 bit registers. */
-			if (xcp->regs[MIPSInst_FT(ir)] != 0)
+			if (MIPS_READ_REG(xcp->regs[MIPSInst_FT(ir)]) != 0)
 				return 0;
 			SPFROMREG(rv.s, MIPSInst_FS(ir));
 			break;
 		case fmovn_op:
 			/* TBD: Check for 64 bit registers. */
-			if (xcp->regs[MIPSInst_FT(ir)] == 0)
+			if (MIPS_READ_REG(xcp->regs[MIPSInst_FT(ir)]) == 0)
 				return 0;
 			SPFROMREG(rv.s, MIPSInst_FS(ir));
 			break;
@@ -1016,13 +1018,13 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 			break;
 		case fmovz_op:
 			/* TBD: Check for 64 bit registers. */
-			if (xcp->regs[MIPSInst_FT(ir)] != 0)
+			if (MIPS_READ_REG(xcp->regs[MIPSInst_FT(ir)]) != 0)
 				return 0;
 			DPFROMREG(rv.d, MIPSInst_FS(ir));
 			break;
 		case fmovn_op:
 			/* TBD: Check for 64 bit registers. */
-			if (xcp->regs[MIPSInst_FT(ir)] == 0)
+			if (MIPS_READ_REG(xcp->regs[MIPSInst_FT(ir)]) == 0)
 				return 0;
 			DPFROMREG(rv.d, MIPSInst_FS(ir));
 			break;

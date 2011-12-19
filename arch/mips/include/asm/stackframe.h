@@ -181,12 +181,18 @@
 		.set	reorder
 		/* Called from user mode, new stack. */
 		get_saved_sp
+8:
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+		/* Align stack to 16 byte. */
+		ori		k1, k1, 16 - 1
+		xori	k1, k1, 16 - 1
+#endif
 #ifndef CONFIG_CPU_DADDI_WORKAROUNDS
-8:		move	k0, sp
+		move	k0, sp
 		PTR_SUBU sp, k1, PT_SIZE
 #else
 		.set	at=k0
-8:		PTR_SUBU k1, PT_SIZE
+		PTR_SUBU k1, PT_SIZE
 		.set	noat
 		move	k0, sp
 		move	sp, k1
