@@ -288,7 +288,7 @@ symbol		=	value
  * How to add/sub/load/store/shift C long variables.
  */
 #if (_MIPS_SZLONG == 32)
-#ifdef CONFIG_CPU_R5900
+#ifdef CONFIG_R5900_128BIT_SUPPORT
 #define LONGD_ADD	dadd
 #define LONGI_ADD	add
 #define LONGD_ADDU	daddu
@@ -302,13 +302,13 @@ symbol		=	value
 #define LONGD_SUBU	dsubu
 #define LONGI_SUBU	subu
 /* Load data register. */
-#define LONGD_L		ld
+#define LONGD_L		lq
 /* Load hi/lo register. */
 #define LONGH_L		ld
 /* Load instruction register. */
 #define LONGI_L		lw
 /* Save data register. */
-#define LONGD_S		sd
+#define LONGD_S		sq
 /* Save hi/lo register. */
 #define LONGH_S		sd
 /* Save instruction register. */
@@ -377,10 +377,18 @@ symbol		=	value
 #define LONGI_SUB	dsub
 #define LONGD_SUBU	dsubu
 #define LONGI_SUBU	dsubu
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+#define LONGD_L		lq
+#else
 #define LONGD_L		ld
+#endif
 #define LONGI_L		ld
 #define LONGH_L		ld
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+#define LONGD_S		sq
+#else
 #define LONGD_S		sd
+#endif
 #define LONGI_S		sd
 #define LONGH_S		sd
 #define LONGD_SLL	dsll

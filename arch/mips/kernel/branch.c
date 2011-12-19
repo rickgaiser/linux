@@ -43,7 +43,7 @@ int __compute_return_epc(struct pt_regs *regs)
 		return -EFAULT;
 	}
 
-	regs->regs[0] = 0;
+	MIPS_WRITE_REG(regs->regs[0]) = 0;
 	switch (insn.i_format.opcode) {
 	/*
 	 * jr and jalr are in r_format format.
@@ -51,10 +51,10 @@ int __compute_return_epc(struct pt_regs *regs)
 	case spec_op:
 		switch (insn.r_format.func) {
 		case jalr_op:
-			regs->regs[insn.r_format.rd] = epc + 8;
+			MIPS_WRITE_REG(regs->regs[insn.r_format.rd]) = epc + 8;
 			/* Fall through */
 		case jr_op:
-			regs->cp0_epc = regs->regs[insn.r_format.rs];
+			regs->cp0_epc = MIPS_READ_REG_L(regs->regs[insn.r_format.rs]);
 			break;
 		}
 		break;
@@ -68,7 +68,7 @@ int __compute_return_epc(struct pt_regs *regs)
 		switch (insn.i_format.rt) {
 	 	case bltz_op:
 		case bltzl_op:
-			if ((long)regs->regs[insn.i_format.rs] < 0)
+			if (MIPS_READ_REG_S(regs->regs[insn.i_format.rs]) < 0)
 				epc = epc + 4 + (insn.i_format.simmediate << 2);
 			else
 				epc += 8;
@@ -77,7 +77,7 @@ int __compute_return_epc(struct pt_regs *regs)
 
 		case bgez_op:
 		case bgezl_op:
-			if ((long)regs->regs[insn.i_format.rs] >= 0)
+			if (MIPS_READ_REG_S(regs->regs[insn.i_format.rs]) >= 0)
 				epc = epc + 4 + (insn.i_format.simmediate << 2);
 			else
 				epc += 8;
@@ -86,8 +86,8 @@ int __compute_return_epc(struct pt_regs *regs)
 
 		case bltzal_op:
 		case bltzall_op:
-			regs->regs[31] = epc + 8;
-			if ((long)regs->regs[insn.i_format.rs] < 0)
+			MIPS_WRITE_REG(regs->regs[31]) = epc + 8;
+			if (MIPS_READ_REG_S(regs->regs[insn.i_format.rs]) < 0)
 				epc = epc + 4 + (insn.i_format.simmediate << 2);
 			else
 				epc += 8;
@@ -96,8 +96,8 @@ int __compute_return_epc(struct pt_regs *regs)
 
 		case bgezal_op:
 		case bgezall_op:
-			regs->regs[31] = epc + 8;
-			if ((long)regs->regs[insn.i_format.rs] >= 0)
+			MIPS_WRITE_REG(regs->regs[31]) = epc + 8;
+			if (MIPS_READ_REG_S(regs->regs[insn.i_format.rs]) >= 0)
 				epc = epc + 4 + (insn.i_format.simmediate << 2);
 			else
 				epc += 8;
@@ -126,7 +126,7 @@ int __compute_return_epc(struct pt_regs *regs)
 	 * These are unconditional and in j_format.
 	 */
 	case jal_op:
-		regs->regs[31] = regs->cp0_epc + 8;
+		MIPS_WRITE_REG(regs->regs[31]) = regs->cp0_epc + 8;
 	case j_op:
 		epc += 4;
 		epc >>= 28;
@@ -140,8 +140,8 @@ int __compute_return_epc(struct pt_regs *regs)
 	 */
 	case beq_op:
 	case beql_op:
-		if (regs->regs[insn.i_format.rs] ==
-		    regs->regs[insn.i_format.rt])
+		if (MIPS_READ_REG(regs->regs[insn.i_format.rs]) ==
+		    MIPS_READ_REG(regs->regs[insn.i_format.rt]))
 			epc = epc + 4 + (insn.i_format.simmediate << 2);
 		else
 			epc += 8;
@@ -150,8 +150,8 @@ int __compute_return_epc(struct pt_regs *regs)
 
 	case bne_op:
 	case bnel_op:
-		if (regs->regs[insn.i_format.rs] !=
-		    regs->regs[insn.i_format.rt])
+		if (MIPS_READ_REG(regs->regs[insn.i_format.rs]) !=
+		    MIPS_READ_REG(regs->regs[insn.i_format.rt]))
 			epc = epc + 4 + (insn.i_format.simmediate << 2);
 		else
 			epc += 8;
@@ -161,7 +161,7 @@ int __compute_return_epc(struct pt_regs *regs)
 	case blez_op: /* not really i_format */
 	case blezl_op:
 		/* rt field assumed to be zero */
-		if ((long)regs->regs[insn.i_format.rs] <= 0)
+		if (MIPS_READ_REG_S(regs->regs[insn.i_format.rs]) <= 0)
 			epc = epc + 4 + (insn.i_format.simmediate << 2);
 		else
 			epc += 8;
@@ -171,7 +171,7 @@ int __compute_return_epc(struct pt_regs *regs)
 	case bgtz_op:
 	case bgtzl_op:
 		/* rt field assumed to be zero */
-		if ((long)regs->regs[insn.i_format.rs] > 0)
+		if (MIPS_READ_REG_S(regs->regs[insn.i_format.rs]) > 0)
 			epc = epc + 4 + (insn.i_format.simmediate << 2);
 		else
 			epc += 8;
@@ -214,7 +214,7 @@ int __compute_return_epc(struct pt_regs *regs)
 		break;
 #ifdef CONFIG_CPU_CAVIUM_OCTEON
 	case lwc2_op: /* This is bbit0 on Octeon */
-		if ((regs->regs[insn.i_format.rs] & (1ull<<insn.i_format.rt))
+		if ((MIPS_READ_REG(regs->regs[insn.i_format.rs]) & (1ull<<insn.i_format.rt))
 		     == 0)
 			epc = epc + 4 + (insn.i_format.simmediate << 2);
 		else
@@ -222,7 +222,7 @@ int __compute_return_epc(struct pt_regs *regs)
 		regs->cp0_epc = epc;
 		break;
 	case ldc2_op: /* This is bbit032 on Octeon */
-		if ((regs->regs[insn.i_format.rs] &
+		if ((MIPS_READ_REG(regs->regs[insn.i_format.rs]) &
 		    (1ull<<(insn.i_format.rt+32))) == 0)
 			epc = epc + 4 + (insn.i_format.simmediate << 2);
 		else
@@ -230,14 +230,14 @@ int __compute_return_epc(struct pt_regs *regs)
 		regs->cp0_epc = epc;
 		break;
 	case swc2_op: /* This is bbit1 on Octeon */
-		if (regs->regs[insn.i_format.rs] & (1ull<<insn.i_format.rt))
+		if (MIPS_READ_REG(regs->regs[insn.i_format.rs]) & (1ull<<insn.i_format.rt))
 			epc = epc + 4 + (insn.i_format.simmediate << 2);
 		else
 			epc += 8;
 		regs->cp0_epc = epc;
 		break;
 	case sdc2_op: /* This is bbit132 on Octeon */
-		if (regs->regs[insn.i_format.rs] &
+		if (MIPS_READ_REG(regs->regs[insn.i_format.rs]) &
 		    (1ull<<(insn.i_format.rt+32)))
 			epc = epc + 4 + (insn.i_format.simmediate << 2);
 		else

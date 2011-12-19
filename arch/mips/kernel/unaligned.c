@@ -112,7 +112,7 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 	unsigned long value;
 	unsigned int res;
 
-	regs->regs[0] = 0;
+	MIPS_WRITE_REG(regs->regs[0]) = 0;
 
 	/*
 	 * This load never faults.
@@ -189,7 +189,7 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 		if (res)
 			goto fault;
 		compute_return_epc(regs);
-		regs->regs[insn.i_format.rt] = value;
+		MIPS_WRITE_REG(regs->regs[insn.i_format.rt]) = value;
 		break;
 
 	case lw_op:
@@ -226,7 +226,7 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 		if (res)
 			goto fault;
 		compute_return_epc(regs);
-		regs->regs[insn.i_format.rt] = value;
+		MIPS_WRITE_REG(regs->regs[insn.i_format.rt]) = value;
 		break;
 
 	case lhu_op:
@@ -267,7 +267,7 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 		if (res)
 			goto fault;
 		compute_return_epc(regs);
-		regs->regs[insn.i_format.rt] = value;
+		MIPS_WRITE_REG(regs->regs[insn.i_format.rt]) = value;
 		break;
 
 	case lwu_op:
@@ -374,7 +374,7 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 		if (!access_ok(VERIFY_WRITE, addr, 2))
 			goto sigbus;
 
-		value = regs->regs[insn.i_format.rt];
+		value = MIPS_READ_REG(regs->regs[insn.i_format.rt]);
 		__asm__ __volatile__ (
 #ifdef __BIG_ENDIAN
 			".set\tnoat\n"
@@ -418,7 +418,7 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 		if (!access_ok(VERIFY_WRITE, addr, 4))
 			goto sigbus;
 
-		value = regs->regs[insn.i_format.rt];
+		value = MIPS_READ_REG(regs->regs[insn.i_format.rt]);
 		__asm__ __volatile__ (
 #ifdef __BIG_ENDIAN
 			"1:\tswl\t%1,(%2)\n"

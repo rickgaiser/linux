@@ -53,6 +53,12 @@
 #include <asm/irq.h>
 #include <asm/uasm.h>
 
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+#define SHOW_REG_MOD 2
+#else
+#define SHOW_REG_MOD 4
+#endif
+
 extern void check_wait(void);
 extern asmlinkage void r4k_wait(void);
 extern asmlinkage void rollback_handle_int(void);
@@ -124,8 +130,8 @@ __setup("raw_show_trace", set_raw_show_trace);
 
 static void show_backtrace(struct task_struct *task, const struct pt_regs *regs)
 {
-	unsigned long sp = regs->regs[29];
-	unsigned long ra = regs->regs[31];
+	unsigned long sp = MIPS_READ_REG_L(regs->regs[29]);
+	unsigned long ra = MIPS_READ_REG_L(regs->regs[31]);
 	unsigned long pc = regs->cp0_epc;
 
 	if (raw_show_trace || !__kernel_text_address(pc)) {
@@ -178,14 +184,14 @@ void show_stack(struct task_struct *task, unsigned long *sp)
 {
 	struct pt_regs regs;
 	if (sp) {
-		regs.regs[29] = (unsigned long)sp;
-		regs.regs[31] = 0;
+		MIPS_WRITE_REG(regs.regs[29]) = (unsigned long)sp;
+		MIPS_WRITE_REG(regs.regs[31]) = 0;
 		regs.cp0_epc = 0;
 	} else {
 		if (task && task != current) {
-			regs.regs[29] = task->thread.reg29;
-			regs.regs[31] = 0;
-			regs.cp0_epc = task->thread.reg31;
+			MIPS_WRITE_REG(regs.regs[29]) = MIPS_READ_REG(task->thread.reg29);
+			MIPS_WRITE_REG(regs.regs[31]) = 0;
+			regs.cp0_epc = MIPS_READ_REG_L(task->thread.reg31);
 #ifdef CONFIG_KGDB_KDB
 		} else if (atomic_read(&kgdb_active) != -1 &&
 			   kdb_current_regs) {
@@ -232,9 +238,14 @@ static void show_code(unsigned int __user *pc)
 
 static void __show_regs(const struct pt_regs *regs)
 {
+#ifdef CONFIG_R5900_128BIT_SUPPORT
 	const int field = 2 * sizeof(unsigned long);
+#else
+	const int field = 32;
+#endif
 	unsigned int cause = regs->cp0_cause;
 	int i;
+
 
 	printk("Cpu %d\n", smp_processor_id());
 
@@ -242,22 +253,21 @@ static void __show_regs(const struct pt_regs *regs)
 	 * Saved main processor registers
 	 */
 	for (i = 0; i < 32; ) {
-		if ((i % 4) == 0)
+		if ((i % SHOW_REG_MOD) == 0)
 			printk("$%2d   :", i);
 		if (i == 0)
 			printk(" %0*lx", field, 0UL);
 		else if (i == 26 || i == 27)
 			printk(" %*s", field, "");
 		else
-#ifdef CONFIG_CPU_R5900
-			/* TBD: Support 128 bit registers. */
-			printk(" %0*llx", field, regs->regs[i]);
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+			printk(" %016llx%016llx", MIPS_READ_REG_HIGH(regs->regs[i]), MIPS_READ_REG(regs->regs[i]));
 #else
-			printk(" %0*lx", field, regs->regs[i]);
+			printk(" %0*lx", field, MIPS_READ_REG_L(regs->regs[i]));
 #endif
 
 		i++;
-		if ((i % 4) == 0)
+		if ((i % SHOW_REG_MOD) == 0)
 			printk("\n");
 	}
 
@@ -266,9 +276,8 @@ static void __show_regs(const struct pt_regs *regs)
 #endif
 #ifdef CONFIG_CPU_R5900
 	printk("Hi    : %0*llx\n", field, regs->hi);
-	// TBD: printk("Hi1    : %0*llx\n", field, regs->hi1);
 	printk("Lo    : %0*llx\n", field, regs->lo);
-	// TBD: printk("Lo1    : %0*llx\n", field, regs->lo1);
+	/* TBD: Print hi1 and lo1. */
 #else
 	printk("Hi    : %0*lx\n", field, regs->hi);
 	printk("Lo    : %0*lx\n", field, regs->lo);
@@ -509,7 +518,7 @@ static inline int simulate_ll(struct pt_regs *regs, unsigned int opcode)
 	offset >>= 16;
 
 	vaddr = (unsigned long __user *)
-	        ((unsigned long)(regs->regs[(opcode & BASE) >> 21]) + offset);
+	        ((unsigned long)(MIPS_READ_REG_L(regs->regs[(opcode & BASE) >> 21])) + offset);
 
 	if ((unsigned long)vaddr & 3)
 		return SIGBUS;
@@ -527,7 +536,7 @@ static inline int simulate_ll(struct pt_regs *regs, unsigned int opcode)
 
 	preempt_enable();
 
-	regs->regs[(opcode & RT) >> 16] = value;
+	MIPS_WRITE_REG(regs->regs[(opcode & RT) >> 16]) = value;
 
 	return 0;
 }
@@ -549,7 +558,7 @@ static inline int simulate_sc(struct pt_regs *regs, unsigned int opcode)
 	offset >>= 16;
 
 	vaddr = (unsigned long __user *)
-	        ((unsigned long)(regs->regs[(opcode & BASE) >> 21]) + offset);
+	        ((unsigned long)(MIPS_READ_REG_L(regs->regs[(opcode & BASE) >> 21])) + offset);
 	reg = (opcode & RT) >> 16;
 
 	if ((unsigned long)vaddr & 3)
@@ -558,17 +567,17 @@ static inline int simulate_sc(struct pt_regs *regs, unsigned int opcode)
 	preempt_disable();
 
 	if (ll_bit == 0 || ll_task != current) {
-		regs->regs[reg] = 0;
+		MIPS_WRITE_REG(regs->regs[reg]) = 0;
 		preempt_enable();
 		return 0;
 	}
 
 	preempt_enable();
 
-	if (put_user(regs->regs[reg], vaddr))
+	if (put_user(MIPS_READ_REG(regs->regs[reg]), vaddr))
 		return SIGSEGV;
 
-	regs->regs[reg] = 1;
+	MIPS_WRITE_REG(regs->regs[reg]) = 1;
 
 	return 0;
 }
@@ -603,27 +612,27 @@ static int simulate_rdhwr(struct pt_regs *regs, unsigned int opcode)
 		int rt = (opcode & RT) >> 16;
 		switch (rd) {
 		case 0:		/* CPU number */
-			regs->regs[rt] = smp_processor_id();
+			MIPS_WRITE_REG(regs->regs[rt]) = smp_processor_id();
 			return 0;
 		case 1:		/* SYNCI length */
-			regs->regs[rt] = min(current_cpu_data.dcache.linesz,
+			MIPS_WRITE_REG(regs->regs[rt]) = min(current_cpu_data.dcache.linesz,
 					     current_cpu_data.icache.linesz);
 			return 0;
 		case 2:		/* Read count register */
-			regs->regs[rt] = read_c0_count();
+			MIPS_WRITE_REG(regs->regs[rt]) = read_c0_count();
 			return 0;
 		case 3:		/* Count register resolution */
 			switch (current_cpu_data.cputype) {
 			case CPU_20KC:
 			case CPU_25KF:
-				regs->regs[rt] = 1;
+				MIPS_WRITE_REG(regs->regs[rt]) = 1;
 				break;
 			default:
-				regs->regs[rt] = 2;
+				MIPS_WRITE_REG(regs->regs[rt]) = 2;
 			}
 			return 0;
 		case 29:
-			regs->regs[rt] = ti->tp_value;
+			MIPS_WRITE_REG(regs->regs[rt]) = ti->tp_value;
 			return 0;
 		default:
 			return -1;
