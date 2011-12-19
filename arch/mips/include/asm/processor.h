@@ -20,6 +20,7 @@
 #include <asm/mipsregs.h>
 #include <asm/prefetch.h>
 #include <asm/system.h>
+#include <asm/ptrace.h>
 
 /*
  * Return current * instruction pointer ("program counter").
@@ -200,11 +201,10 @@ struct mips_abi;
  */
 struct thread_struct {
 	/* Saved main processor registers. */
-#ifdef CONFIG_CPU_R5900
-	/* TBD: extend to 128 bit. */
-	unsigned long long reg16;
-	unsigned long long reg17, reg18, reg19, reg20, reg21, reg22, reg23;
-	unsigned long long reg29, reg30, reg31;
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+	r5900_reg_t reg16;
+	r5900_reg_t reg17, reg18, reg19, reg20, reg21, reg22, reg23;
+	r5900_reg_t reg29, reg30, reg31;
 #else
 	unsigned long reg16;
 	unsigned long reg17, reg18, reg19, reg20, reg21, reg22, reg23;
@@ -265,7 +265,8 @@ struct thread_struct {
 #define DSP_INIT \
 	.dsp			= {				\
 		.dspr		= {0, },			\
-	},
+	},								\
+	.sa				= 0,
 #else
 #define DSP_INIT \
 	.dsp			= {				\
@@ -274,10 +275,23 @@ struct thread_struct {
 	},
 #endif
 
-#define INIT_THREAD  {						\
-        /*							\
-         * Saved main processor registers			\
-         */							\
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+#define REGS_INIT \
+	.reg16 = { .lo = 0, .hi = 0, },				\
+	.reg17 = { .lo = 0, .hi = 0, },				\
+	.reg18 = { .lo = 0, .hi = 0, },				\
+	.reg19 = { .lo = 0, .hi = 0, },				\
+	.reg20 = { .lo = 0, .hi = 0, },				\
+	.reg21 = { .lo = 0, .hi = 0, },				\
+	.reg22 = { .lo = 0, .hi = 0, },				\
+	.reg23 = { .lo = 0, .hi = 0, },				\
+	.reg29 = { .lo = 0, .hi = 0, },				\
+	.reg30 = { .lo = 0, .hi = 0, },				\
+	.reg31 = { .lo = 0, .hi = 0, },
+
+#else
+
+#define REGS_INIT \
 	.reg16			= 0,				\
 	.reg17			= 0,				\
 	.reg18			= 0,				\
@@ -288,7 +302,15 @@ struct thread_struct {
 	.reg23			= 0,				\
 	.reg29			= 0,				\
 	.reg30			= 0,				\
-	.reg31			= 0,				\
+	.reg31			= 0,
+
+#endif
+
+#define INIT_THREAD  {						\
+        /*							\
+         * Saved main processor registers			\
+         */							\
+	REGS_INIT						\
 	/*							\
 	 * Saved cp0 stuff					\
 	 */							\
@@ -350,7 +372,7 @@ unsigned long get_wchan(struct task_struct *p);
 			 THREAD_SIZE - 32 - sizeof(struct pt_regs))
 #define task_pt_regs(tsk) ((struct pt_regs *)__KSTK_TOS(tsk))
 #define KSTK_EIP(tsk) (task_pt_regs(tsk)->cp0_epc)
-#define KSTK_ESP(tsk) (task_pt_regs(tsk)->regs[29])
+#define KSTK_ESP(tsk) (MIPS_READ_REG_L(task_pt_regs(tsk)->regs[29]))
 #define KSTK_STATUS(tsk) (task_pt_regs(tsk)->cp0_status)
 
 #define cpu_relax()	barrier()

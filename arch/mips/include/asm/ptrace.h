@@ -22,11 +22,32 @@
 #define DSP_CONTROL	77
 #define ACX		78
 
-#ifdef CONFIG_CPU_R5900
+#ifdef CONFIG_R5900_128BIT_SUPPORT
 /* Cast larger R5900 register to smaller 32 bit. */
-#define MIPS_READ_REG_L(reg) ((unsigned long)(reg))
+#define MIPS_READ_REG_L(reg) ((unsigned long)((reg).lo))
+/* TBD: check. */
+#if 1
+#define MIPS_READ_REG(reg) ((reg).lo)
+#define MIPS_READ_REG_HIGH(reg) ((reg).hi)
+#define MIPS_READ_REG_S(reg) ((long long)(reg).lo)
+#else
+#define MIPS_READ_REG(reg) ((unsigned long)(reg).lo)
+#define MIPS_READ_REG_HIGH(reg) 0
+#define MIPS_READ_REG_S(reg) ((long long)((unsigned long)(reg).lo))
+#endif
+#define MIPS_WRITE_REG(reg) ; ((reg).lo)
+#define MIPS_REG_T unsigned long long
+
+typedef struct __attribute__((aligned(16))) {
+	unsigned long long lo;
+	unsigned long long hi;
+} r5900_reg_t;
 #else
 #define MIPS_READ_REG_L(reg) (reg)
+#define MIPS_READ_REG(reg) (reg)
+#define MIPS_READ_REG_S(reg) ((long) (reg))
+#define MIPS_WRITE_REG(reg) (reg)
+#define MIPS_REG_T unsigned long
 #endif
 
 
@@ -41,9 +62,9 @@ struct pt_regs {
 #endif
 
 	/* Saved main processor registers. */
-#ifdef CONFIG_CPU_R5900
+#ifdef CONFIG_R5900_128BIT_SUPPORT
 	/* TBD: Add support for 128 bit. */
-	unsigned long long regs[32];
+	r5900_reg_t regs[32];
 #else
 	unsigned long regs[32];
 #endif

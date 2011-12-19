@@ -714,6 +714,14 @@ source "arch/mips/vr41xx/Kconfig"
 source "arch/mips/cavium-octeon/Kconfig"
 source "arch/mips/loongson/Kconfig"
 
+config R5900_128BIT_SUPPORT
+	bool "Support for 128 bit general purpose registers"
+	default n
+	depends on SYS_HAS_CPU_R5900
+	help
+	  Say Y here to support applications which use 64 bit and
+	  128 bit general purpose registers.
+
 endmenu
 
 config RWSEM_GENERIC_SPINLOCK

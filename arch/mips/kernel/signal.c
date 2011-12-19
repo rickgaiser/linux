@@ -113,7 +113,7 @@ int setup_sigcontext(struct pt_regs *regs, struct sigcontext __user *sc)
 
 	err |= __put_user(0, &sc->sc_regs[0]);
 	for (i = 1; i < 32; i++)
-		err |= __put_user(regs->regs[i], &sc->sc_regs[i]);
+		err |= __put_user(MIPS_READ_REG(regs->regs[i]), &sc->sc_regs[i]);
 
 #ifdef CONFIG_CPU_HAS_SMARTMIPS
 	err |= __put_user(regs->acx, &sc->sc_acx);
@@ -209,8 +209,16 @@ int restore_sigcontext(struct pt_regs *regs, struct sigcontext __user *sc)
 #endif
 	}
 
-	for (i = 1; i < 32; i++)
-		err |= __get_user(regs->regs[i], &sc->sc_regs[i]);
+	for (i = 1; i < 32; i++) {
+		MIPS_REG_T tmp;
+		int rv;
+
+		rv = __get_user(tmp, &sc->sc_regs[i]);
+		err |= rv;
+		if (rv == 0) {
+			MIPS_WRITE_REG(regs->regs[i]) = tmp;
+		}
+	}
 
 	err |= __get_user(used_math, &sc->sc_used_math);
 	conditional_used_math(used_math);
@@ -233,7 +241,7 @@ void __user *get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
 	unsigned long sp;
 
 	/* Default to using normal stack */
-	sp = regs->regs[29];
+	sp = MIPS_READ_REG_L(regs->regs[29]);
 
 	/*
 	 * FPU emulator may have it's own trampoline active just
@@ -284,7 +292,7 @@ asmlinkage int sys_rt_sigsuspend(nabi_no_regargs struct pt_regs regs)
 	size_t sigsetsize;
 
 	/* XXX Don't preclude handling different sized sigset_t's.  */
-	sigsetsize = regs.regs[5];
+	sigsetsize = MIPS_READ_REG(regs.regs[5]);
 	if (sigsetsize != sizeof(sigset_t))
 		return -EINVAL;
 
@@ -350,7 +358,7 @@ asmlinkage int sys_sigaltstack(nabi_no_regargs struct pt_regs regs)
 {
 	const stack_t __user *uss = (const stack_t __user *) MIPS_READ_REG_L(regs.regs[4]);
 	stack_t __user *uoss = (stack_t __user *) MIPS_READ_REG_L(regs.regs[5]);
-	unsigned long usp = regs.regs[29];
+	unsigned long usp = MIPS_READ_REG_L(regs.regs[29]);
 
 	return do_sigaltstack(uss, uoss, usp);
 }
@@ -424,7 +432,7 @@ asmlinkage void sys_rt_sigreturn(nabi_no_regargs struct pt_regs regs)
 		goto badframe;
 	/* It is more difficult to avoid calling this function than to
 	   call it and ignore errors.  */
-	do_sigaltstack((stack_t __user *)&st, NULL, regs.regs[29]);
+	do_sigaltstack((stack_t __user *)&st, NULL, MIPS_READ_REG_L(regs.regs[29]));
 
 	/*
 	 * Don't let your children do this ...
@@ -466,16 +474,17 @@ static int setup_frame(void *sig_return, struct k_sigaction *ka,
 	 * $25 and c0_epc point to the signal handler, $29 points to the
 	 * struct sigframe.
 	 */
-	regs->regs[ 4] = signr;
-	regs->regs[ 5] = 0;
-	regs->regs[ 6] = (unsigned long) &frame->sf_sc;
-	regs->regs[29] = (unsigned long) frame;
-	regs->regs[31] = (unsigned long) sig_return;
-	regs->cp0_epc = regs->regs[25] = (unsigned long) ka->sa.sa_handler;
+	MIPS_WRITE_REG(regs->regs[ 4]) = signr;
+	MIPS_WRITE_REG(regs->regs[ 5]) = 0;
+	MIPS_WRITE_REG(regs->regs[ 6]) = (unsigned long) &frame->sf_sc;
+	MIPS_WRITE_REG(regs->regs[29]) = (unsigned long) frame;
+	MIPS_WRITE_REG(regs->regs[31]) = (unsigned long) sig_return;
+	MIPS_WRITE_REG(regs->regs[25]) = (unsigned long) ka->sa.sa_handler;
+	regs->cp0_epc = MIPS_READ_REG_L(regs->regs[25]);
 
 	DEBUGP("SIG deliver (%s:%d): sp=0x%p pc=0x%lx ra=0x%lx\n",
 	       current->comm, current->pid,
-	       frame, regs->cp0_epc, regs->regs[31]);
+	       frame, regs->cp0_epc, MIPS_READ_REG_L(regs->regs[31]));
 	return 0;
 
 give_sigsegv:
@@ -503,7 +512,7 @@ static int setup_rt_frame(void *sig_return, struct k_sigaction *ka,
 	err |= __put_user(NULL, &frame->rs_uc.uc_link);
 	err |= __put_user((void __user *)current->sas_ss_sp,
 	                  &frame->rs_uc.uc_stack.ss_sp);
-	err |= __put_user(sas_ss_flags(regs->regs[29]),
+	err |= __put_user(sas_ss_flags(MIPS_READ_REG_L(regs->regs[29])),
 	                  &frame->rs_uc.uc_stack.ss_flags);
 	err |= __put_user(current->sas_ss_size,
 	                  &frame->rs_uc.uc_stack.ss_size);
@@ -523,12 +532,13 @@ static int setup_rt_frame(void *sig_return, struct k_sigaction *ka,
 	 * $25 and c0_epc point to the signal handler, $29 points to
 	 * the struct rt_sigframe.
 	 */
-	regs->regs[ 4] = signr;
-	regs->regs[ 5] = (unsigned long) &frame->rs_info;
-	regs->regs[ 6] = (unsigned long) &frame->rs_uc;
-	regs->regs[29] = (unsigned long) frame;
-	regs->regs[31] = (unsigned long) sig_return;
-	regs->cp0_epc = regs->regs[25] = (unsigned long) ka->sa.sa_handler;
+	MIPS_WRITE_REG(regs->regs[ 4]) = signr;
+	MIPS_WRITE_REG(regs->regs[ 5]) = (unsigned long) &frame->rs_info;
+	MIPS_WRITE_REG(regs->regs[ 6]) = (unsigned long) &frame->rs_uc;
+	MIPS_WRITE_REG(regs->regs[29]) = (unsigned long) frame;
+	MIPS_WRITE_REG(regs->regs[31]) = (unsigned long) sig_return;
+	MIPS_WRITE_REG(regs->regs[25]) = (unsigned long) ka->sa.sa_handler;
+	regs->cp0_epc = MIPS_READ_REG_L(regs->regs[25]);
 
 	DEBUGP("SIG deliver (%s:%d): sp=0x%p pc=0x%lx ra=0x%lx\n",
 	       current->comm, current->pid,
@@ -559,23 +569,23 @@ static int handle_signal(unsigned long sig, siginfo_t *info,
 	struct mips_abi *abi = current->thread.abi;
 	void *vdso = current->mm->context.vdso;
 
-	switch(regs->regs[0]) {
+	switch(MIPS_READ_REG(regs->regs[0])) {
 	case ERESTART_RESTARTBLOCK:
 	case ERESTARTNOHAND:
-		regs->regs[2] = EINTR;
+		MIPS_WRITE_REG(regs->regs[2]) = EINTR;
 		break;
 	case ERESTARTSYS:
 		if (!(ka->sa.sa_flags & SA_RESTART)) {
-			regs->regs[2] = EINTR;
+			MIPS_WRITE_REG(regs->regs[2]) = EINTR;
 			break;
 		}
 	/* fallthrough */
 	case ERESTARTNOINTR:		/* Userland will reload $v0.  */
-		regs->regs[7] = regs->regs[26];
+		MIPS_WRITE_REG(regs->regs[7]) = MIPS_READ_REG(regs->regs[26]);
 		regs->cp0_epc -= 8;
 	}
 
-	regs->regs[0] = 0;		/* Don't deal with this again.  */
+	MIPS_WRITE_REG(regs->regs[0]) = 0;		/* Don't deal with this again.  */
 
 	if (sig_uses_siginfo(ka))
 		ret = abi->setup_rt_frame(vdso + abi->rt_signal_return_offset,
@@ -636,19 +646,19 @@ static void do_signal(struct pt_regs *regs)
 	 * dies here!!!  The li instruction, a single machine instruction,
 	 * must directly be followed by the syscall instruction.
 	 */
-	if (regs->regs[0]) {
-		if (regs->regs[2] == ERESTARTNOHAND ||
-		    regs->regs[2] == ERESTARTSYS ||
-		    regs->regs[2] == ERESTARTNOINTR) {
-			regs->regs[7] = regs->regs[26];
+	if (MIPS_READ_REG(regs->regs[0])) {
+		if (MIPS_READ_REG(regs->regs[2]) == ERESTARTNOHAND ||
+		    MIPS_READ_REG(regs->regs[2]) == ERESTARTSYS ||
+		    MIPS_READ_REG(regs->regs[2]) == ERESTARTNOINTR) {
+			MIPS_WRITE_REG(regs->regs[7]) = MIPS_READ_REG(regs->regs[26]);
 			regs->cp0_epc -= 8;
 		}
-		if (regs->regs[2] == ERESTART_RESTARTBLOCK) {
-			regs->regs[2] = current->thread.abi->restart;
-			regs->regs[7] = regs->regs[26];
+		if (MIPS_READ_REG(regs->regs[2]) == ERESTART_RESTARTBLOCK) {
+			MIPS_WRITE_REG(regs->regs[2]) = current->thread.abi->restart;
+			MIPS_WRITE_REG(regs->regs[7]) = MIPS_READ_REG(regs->regs[26]);
 			regs->cp0_epc -= 4;
 		}
-		regs->regs[0] = 0;	/* Don't deal with this again.  */
+		MIPS_WRITE_REG(regs->regs[0]) = 0;	/* Don't deal with this again.  */
 	}
 
 	/*

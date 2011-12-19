@@ -348,6 +348,40 @@ extern const char *__elf_platform;
  * See comments in asm-alpha/elf.h, this is the same thing
  * on the MIPS.
  */
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+#define ELF_PLAT_INIT(_r, load_addr)	do { \
+	_r->regs[1].lo = _r->regs[1].hi = \
+	_r->regs[2].lo = _r->regs[2].hi = \
+	_r->regs[3].lo = _r->regs[3].hi = \
+	_r->regs[4].lo = _r->regs[4].hi = \
+	_r->regs[5].lo = _r->regs[5].hi = \
+	_r->regs[6].lo = _r->regs[6].hi = \
+	_r->regs[7].lo = _r->regs[7].hi = \
+	_r->regs[8].lo = _r->regs[8].hi = \
+	_r->regs[9].lo = _r->regs[9].hi = \
+	_r->regs[10].lo = _r->regs[10].hi = \
+	_r->regs[11].lo = _r->regs[11].hi = \
+	_r->regs[12].lo = _r->regs[12].hi = \
+	_r->regs[13].lo = _r->regs[13].hi = \
+	_r->regs[14].lo = _r->regs[14].hi = \
+	_r->regs[15].lo = _r->regs[15].hi = \
+	_r->regs[16].lo = _r->regs[16].hi = \
+	_r->regs[17].lo = _r->regs[17].hi = \
+	_r->regs[18].lo = _r->regs[18].hi = \
+	_r->regs[19].lo = _r->regs[19].hi = \
+	_r->regs[20].lo = _r->regs[20].hi = \
+	_r->regs[21].lo = _r->regs[21].hi = \
+	_r->regs[22].lo = _r->regs[22].hi = \
+	_r->regs[23].lo = _r->regs[23].hi = \
+	_r->regs[24].lo = _r->regs[24].hi = \
+	_r->regs[25].lo = _r->regs[25].hi = \
+	_r->regs[26].lo = _r->regs[26].hi = \
+	_r->regs[27].lo = _r->regs[27].hi = \
+	_r->regs[28].lo = _r->regs[28].hi = \
+	_r->regs[30].lo = _r->regs[30].hi = \
+	_r->regs[31].lo = _r->regs[31].hi = 0; \
+} while (0)
+#else
 #define ELF_PLAT_INIT(_r, load_addr)	do { \
 	_r->regs[1] = _r->regs[2] = _r->regs[3] = _r->regs[4] = 0;	\
 	_r->regs[5] = _r->regs[6] = _r->regs[7] = _r->regs[8] = 0;	\
@@ -358,6 +392,7 @@ extern const char *__elf_platform;
 	_r->regs[25] = _r->regs[26] = _r->regs[27] = _r->regs[28] = 0;	\
 	_r->regs[30] = _r->regs[31] = 0;				\
 } while (0)
+#endif
 
 /* This is the location that an ET_DYN program is loaded if exec'ed.  Typical
    use of this is to invoke "./ld.so someprog" to test out a new version of
