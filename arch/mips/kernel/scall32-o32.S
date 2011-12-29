@@ -60,7 +60,15 @@ stack_done:
 	and	t0, t1
 	bnez	t0, syscall_trace_entry	# -> yes
 
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+	SAVE_STATIC
+#endif
+
 	jalr	t2			# Do The Real Thing (TM)
+
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+	RESTORE_STATIC
+#endif
 
 	li	t0, -EMAXERRNO - 1	# error?
 	sltu	t0, t0, v0
@@ -102,6 +110,10 @@ syscall_trace_entry:
 	LONGD_L	a2, PT_R6(sp)
 	LONGD_L	a3, PT_R7(sp)
 	jalr	t0
+
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+	RESTORE_STATIC
+#endif
 
 	li	t0, -EMAXERRNO - 1	# error?
 	sltu	t0, t0, v0
