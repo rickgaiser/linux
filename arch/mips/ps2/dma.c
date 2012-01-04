@@ -80,7 +80,21 @@ void ps2dma_add_queue(struct dma_request *req, struct dma_channel *ch)
 {
     unsigned long flags;
 
+#if 0
+	/* This flushes data and instruction cache. */
     __flush_cache_all();
+#else
+	/* This functions is only used by graphical routines,
+	 * so only flushing of data cache is needed. This will heavily
+	 * increase the performance.
+	 * TBD: When updating kernel, check if __flush_cache_vmap()
+	 * always flushes the complete data cache and never flushes
+	 * the instruction cache because of the performance penalty.
+	 * TBD: Function would be faster if only the required area is
+	 * flushed.
+	 */
+	__flush_cache_vmap();
+#endif
 
     spin_lock_irqsave(&ch->lock, flags);
 
