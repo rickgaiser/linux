@@ -30,6 +30,11 @@ EXPORT_SYMBOL(ps2_pccard_present);
 static struct ps2_bootinfo ps2_bootinfox;
 struct ps2_bootinfo *ps2_bootinfo = &ps2_bootinfox;
 
+static void sbios_prints(const char *text)
+{
+	printk("SBIOS: %s", text);
+}
+
 void __init prom_init(void)
 {
 	struct ps2_bootinfo *bootinfo;
@@ -53,6 +58,8 @@ void __init prom_init(void)
 	ps2_sysconf = &ps2_bootinfo->sysconf;
 
 	printk("PlayStation 2 SIF BIOS: %04x\n", sbios(SB_GETVER, 0));
+
+	sbios(SB_SET_PRINTS_CALLBACK, sbios_prints);
 }
 
 void __init prom_free_prom_memory(void)

@@ -66,7 +66,7 @@ static void kdma_send_start(struct dma_request *req, struct dma_channel *ch)
     while ((GIFREG(PS2_GIFREG_STAT) & 0x1f000c00) == 0x00000c00) {
 	if (--count <= 0) {
 	    GIFREG(PS2_GIFREG_CTRL) = 1;	/* reset GIF */
-	    printk("ps2dma: GS packet is not terminated\n");
+	    ps2_printf("ps2dma: GS packet is not terminated\n");
 	    break;
 	}
     }
@@ -111,16 +111,11 @@ static void *ps2kdma_alloc(struct kdma_buffer *kdb, int min, int max, int *size)
     int free, amin;
     int poll;
 
-    local_save_flags(flags);
-#ifdef __mips__
     /* polling wait is used when
      *  - called from interrupt handler
      *  - interrupt is already disabled (in printk()) 
      */
-    poll = in_interrupt() | !(flags & ST0_IE); // TBD: Interrupt is different in Linux 2.6
-#else
-#error "for MIPS CPU only"
-#endif
+    poll = in_interrupt() || !irqs_disabled();
 
     if (down_trylock(&kdb->sem) != 0) {
 	if (poll)
@@ -195,7 +190,7 @@ static void ps2kdma_send(struct kdma_buffer *kdb, int len)
 
     if (kdb->error) {
 	kdb->error = 0;
-	printk("ps2dma: %s timeout\n", kdb->channel->device);
+	ps2_printf("ps2dma: %s timeout\n", kdb->channel->device);
     }
 }
 
