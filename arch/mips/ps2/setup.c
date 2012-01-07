@@ -34,6 +34,10 @@
 #include <asm/mach-ps2/dma.h>
 #include <asm/mach-ps2/sifdefs.h>
 
+void (*__wbflush)(void);
+
+EXPORT_SYMBOL(__wbflush);
+
 static struct resource usb_ohci_resources[] = {
 	[0] = {
 		.start	= 0xbf801600,
@@ -69,6 +73,18 @@ static struct platform_device smaprpc_device = {
 	.name           = "ps2smaprpc",
 };
 
+static struct platform_device gs_device = {
+	.name           = "ps2fb",
+};
+
+static void ps2_wbflush(void)
+{
+	__asm__ __volatile__("sync.l":::"memory");
+
+	/* flush write buffer to bus */
+	*((volatile unsigned int *) ps2sif_bustovirt(0));
+}
+
 void __init plat_mem_setup(void)
 {
 #if 0 /* TBD: Add handling for system reboot and power off. */
@@ -76,6 +92,8 @@ void __init plat_mem_setup(void)
 	_machine_halt = ps2_machine_halt;
 	pm_power_off = ps2_machine_power_off;
 #endif
+
+	__wbflush = ps2_wbflush;
 
 	/* IO port (out and in functions). */
 	ioport_resource.start = 0x10000000;
@@ -122,4 +140,5 @@ void ps2_dev_init(void)
 		printk("No SMAP network device found.");
 		break;
 	}
+	platform_device_register(&gs_device);
 }
