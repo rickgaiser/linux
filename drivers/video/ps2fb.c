@@ -44,6 +44,7 @@ void ps2con_gsp_send(int len);
 struct ps2fb_par
 {
 	u32 pseudo_palette[256];
+	u32 opencnt;
 	/* TBD: add members. */
 };
 
@@ -79,12 +80,19 @@ static struct timer_list redraw_timer = {
  */
 static int ps2fb_open(struct fb_info *info, int user)
 {
+    struct ps2fb_par *par;
+
 	DPRINTK("ps2fb_open: user %d\n", user);
+
+    par = info->par;
 	if (user) {
-		/* Start timer for redrawing screen, because application could use mmap. */
-		redraw_timer.data = (unsigned long) info;
-    	redraw_timer.expires = jiffies + HZ / 50;
-    	add_timer(&redraw_timer);
+		if (par->opencnt == 0) {
+			/* Start timer for redrawing screen, because application could use mmap. */
+			redraw_timer.data = (unsigned long) info;
+    		redraw_timer.expires = jiffies + HZ / 50;
+    		add_timer(&redraw_timer);
+		}
+		par->opencnt++;
 	}
     return 0;
 }
@@ -105,11 +113,18 @@ static int ps2fb_open(struct fb_info *info, int user)
  */
 static int ps2fb_release(struct fb_info *info, int user)
 {
+    struct ps2fb_par *par;
+
 	DPRINTK("ps2fb_release: user %d\n", user);
+
+    par = info->par;
 	if (user) {
-		/* Redrawing shouldn't be needed after closing by application. */
 		/* TBD: Check if mmap is also removed. */
-		del_timer(&redraw_timer);
+		par->opencnt--;
+		if (par->opencnt == 0) {
+			/* Redrawing shouldn't be needed after closing by application. */
+			del_timer(&redraw_timer);
+		}
 	}
     return 0;
 }
@@ -840,6 +855,7 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 
     par = info->par;
 	info->pseudo_palette = par->pseudo_palette;
+	par->opencnt = 0;
 
     /* 
      * Here we set the screen_base to the virtual memory address
