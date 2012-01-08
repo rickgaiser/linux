@@ -9,13 +9,16 @@
 #include <linux/delay.h>
 #include <linux/fb.h>
 #include <linux/init.h>
+#include <linux/vmalloc.h>
 #include <linux/platform_device.h>
+
+#include <asm/page.h>
 
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/gsfunc.h>
 #include <asm/mach-ps2/eedev.h>
 
-/* TBD: Test with X and large resolution. */
+/* TBD: Seems not to be needed, because this is not used by xorg. */
 #define PIXMAP_SIZE (4 * 2048 * 32/8)
 
 /** Bigger 1 bit color images will be devided into smaller images with the following maximum width. */
@@ -30,6 +33,7 @@
 #endif
 
 static int ps2fb_init(void);
+static void ps2fb_redraw_timer_handler(unsigned long dev_addr);
 
 /* TBD: Move functions declarations to header file. */
 void ps2con_initinfo(struct ps2_screeninfo *info);
@@ -54,6 +58,61 @@ static struct fb_fix_screeninfo ps2fb_fix /* TBD: __devinitdata */ = {
 };
 
 static struct ps2_screeninfo defaultinfo;
+
+static struct timer_list redraw_timer = {
+    function: ps2fb_redraw_timer_handler
+};
+
+/**
+ *	ps2fb_open - Optional function. Called when the framebuffer is
+ *		     first accessed.
+ *	@info: frame buffer structure that represents a single frame buffer
+ *	@user: tell us if the userland (value=1) or the console is accessing
+ *	       the framebuffer. 
+ *
+ *	This function is the first function called in the framebuffer api.
+ *	Usually you don't need to provide this function. The case where it 
+ *	is used is to change from a text mode hardware state to a graphics
+ * 	mode state. 
+ *
+ *	Returns negative errno on error, or zero on success.
+ */
+static int ps2fb_open(struct fb_info *info, int user)
+{
+	DPRINTK("ps2fb_open: user %d\n", user);
+	if (user) {
+		/* Start timer for redrawing screen, because application could use mmap. */
+		redraw_timer.data = (unsigned long) info;
+    	redraw_timer.expires = jiffies + HZ / 50;
+    	add_timer(&redraw_timer);
+	}
+    return 0;
+}
+
+/**
+ *	ps2fb_release - Optional function. Called when the framebuffer 
+ *			device is closed. 
+ *	@info: frame buffer structure that represents a single frame buffer
+ *	@user: tell us if the userland (value=1) or the console is accessing
+ *	       the framebuffer. 
+ *	
+ *	Thus function is called when we close /dev/fb or the framebuffer 
+ *	console system is released. Usually you don't need this function.
+ *	The case where it is usually used is to go from a graphics state
+ *	to a text mode state.
+ *
+ *	Returns negative errno on error, or zero on success.
+ */
+static int ps2fb_release(struct fb_info *info, int user)
+{
+	DPRINTK("ps2fb_release: user %d\n", user);
+	if (user) {
+		/* Redrawing shouldn't be needed after closing by application. */
+		/* TBD: Check if mmap is also removed. */
+		del_timer(&redraw_timer);
+	}
+    return 0;
+}
 
 /**
  * Paints a filled rectangle.
@@ -202,7 +261,99 @@ static void ps2_paintsimg8(int sx, int sy, int width, int height, uint32_t *pale
 	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(sizeof(palette[0]) * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
 	*gsp++ = 0;
 
+	/* TBD: Optimize, don't copy pixel data, use DMA instead. */
 	ps2con_gsp_send(ALIGN16(ps2_addpattern8(gsp, data, width, height, palette, lineoffset) - gsp_h));
+}
+
+/* Paint image from data with 8 bit per pixel. */
+static void *ps2_addpattern32(void *gsp, const uint32_t *data, int width, int height, int lineoffset)
+{
+	int y;
+	int x;
+	int offset;
+    u32 *p32;
+
+	offset = 0;
+	p32 = (u32 *) gsp;
+	for (y = 0; y < height; y++) {
+		for (x = 0; x < width; x++) {
+			*p32++ = data[offset + x];
+		}
+		offset += lineoffset / (32/8);
+	}
+	return (void *)p32;
+}
+
+static void ps2_paintsimg32(int sx, int sy, int width, int height, const uint32_t *data, int lineoffset)
+{
+    u64 *gsp;
+    void *gsp_h;
+    int gspsz; /* Available size. */
+	int fbw = (defaultinfo.w + 63) / 64;
+
+	if ((gsp = ps2con_gsp_alloc(ALIGN16(12 * 8 + sizeof(data[0]) * width * height), &gspsz)) == NULL) {
+		DPRINTK("Failed ps2con_gsp_alloc with w %d h %d size %lu\n", width, height, ALIGN16(12 * 8 + sizeof(data[0]) * width * height));
+	    return;
+	}
+	gsp_h = gsp;
+
+	*gsp++ = PS2_GIFTAG_SET_TOPHALF(4, 0, 0, 0, PS2_GIFTAG_FLG_PACKED, 1);
+	/* A+D */
+	*gsp++ = 0x0e;
+	*gsp++ = (u64)0 | ((u64)defaultinfo.fbp << 32) |
+	    ((u64)fbw << 48) | ((u64)defaultinfo.psm << 56);
+	*gsp++ = PS2_GS_BITBLTBUF;
+	*gsp++ = PACK64(0, PACK32(sx, sy));
+	*gsp++ = PS2_GS_TRXPOS;
+	*gsp++ = PACK64(width, height);
+	*gsp++ = PS2_GS_TRXREG;
+	/* host to local */
+	*gsp++ = 0;
+	*gsp++ = PS2_GS_TRXDIR;
+
+	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(sizeof(data[0]) * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
+	*gsp++ = 0;
+
+	/* TBD: Optimize, don't copy pixel data, use DMA instead. */
+	ps2con_gsp_send(ALIGN16(ps2_addpattern32(gsp, data, width, height, lineoffset) - gsp_h));
+}
+
+static void ps2fb_redraw(struct fb_info *info)
+{
+	int x;
+	int y;
+	int offset;
+
+	offset = ((32/8) * defaultinfo.w + 15) & ~15;
+	for (x = 0; x < defaultinfo.w; x += PATTERN_MAX_X)
+	{
+		int w;
+
+		w = defaultinfo.w - x;
+		if (w > PATTERN_MAX_X) {
+			w = PATTERN_MAX_X;
+		}
+		for (y = 0; y < defaultinfo.h; y += PATTERN_MAX_Y)
+		{
+			int h;
+
+			h = defaultinfo.h - y;
+			if (h > PATTERN_MAX_Y) {
+				h = PATTERN_MAX_Y;
+			}
+			ps2_paintsimg32(x, y, w, h,
+				(void *) (info->fix.smem_start + (32/8) * x + y * offset),
+				offset);
+		}
+	}
+}
+
+static void ps2fb_redraw_timer_handler(unsigned long data)
+{
+	ps2fb_redraw((void *) data);
+	/* Redraw every 20 ms. */
+	redraw_timer.expires = jiffies + HZ / 50;
+	add_timer(&redraw_timer);
 }
 
 /**
@@ -245,15 +396,24 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
 	DPRINTK("ps2fb: %d %s() force 32 bit color\n", __LINE__, __FUNCTION__);
     /* TBD: Implement ps2fb_check_var() */
-	var->bits_per_pixel = 4;
-	var->red.offset = 24;
+	var->bits_per_pixel = 32;
+	var->red.offset = 0;
 	var->red.length = 8;
-	var->green.offset = 16;
+	var->green.offset = 8;
 	var->green.length = 8;
-	var->blue.offset = 8;
+	var->blue.offset = 16;
 	var->blue.length = 8;
-	var->transp.offset = 0;
+	var->transp.offset = 24; /* TBD: Check, seems to be disabled. Not needed? */
 	var->transp.length = 8;
+
+	var->red.msb_right = 0;
+	var->green.msb_right = 0;
+	var->blue.msb_right = 0;
+	var->transp.msb_right = 0;
+
+	if (var->rotate) {
+		return -EINVAL;
+	}
     return 0;	   	
 }
 
@@ -563,8 +723,53 @@ void ps2fb_imageblit(struct fb_info *p, const struct fb_image *image)
 	}
 }
 
+static int ps2fb_mmap(struct fb_info *info,
+		    struct vm_area_struct *vma)
+{
+	unsigned long start = vma->vm_start;
+	unsigned long size = vma->vm_end - vma->vm_start;
+	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
+	unsigned long page, pos;
+
+	if (((unsigned long)info->fix.smem_start) == 0) {
+		return -ENOMEM;
+	}
+
+	if (offset + size > info->fix.smem_len) {
+		return -EINVAL;
+	}
+
+	pos = (unsigned long)info->fix.smem_start + offset;
+	/* Framebuffer can't be mapped. Map normal memory instead
+	 * and copy every 20ms the data from memory to the
+	 * framebuffer. Currently there is no other way beside
+	 * mapping to access the framebuffer from applications
+	 * like xorg.
+	 * TBD: There is hardware acceleration needed.
+	 */
+
+	while (size > 0) {
+		page = vmalloc_to_pfn((void *)pos);
+		if (remap_pfn_range(vma, start, page, PAGE_SIZE, PAGE_SHARED)) {
+			return -EAGAIN;
+		}
+		start += PAGE_SIZE;
+		pos += PAGE_SIZE;
+		if (size > PAGE_SIZE)
+			size -= PAGE_SIZE;
+		else
+			size = 0;
+	}
+
+	vma->vm_flags |= VM_RESERVED;	/* avoid to swap out this VMA */
+	return 0;
+
+}
+
 static struct fb_ops ps2fb_ops = {
 	.owner		= THIS_MODULE,
+	.fb_open = ps2fb_open,
+	.fb_release = ps2fb_release,
 #if 0 /* TBD: Implement functions. */
 	.fb_read = ps2fb_read,
 	.fb_write = ps2fb_write,
@@ -580,7 +785,29 @@ static struct fb_ops ps2fb_ops = {
 	.fb_fillrect = ps2fb_fillrect,
 	.fb_copyarea = ps2fb_copyarea,
 	.fb_imageblit = ps2fb_imageblit,
+	.fb_mmap = ps2fb_mmap,
 };
+
+static void *rvmalloc(unsigned long size)
+{
+	void *mem;
+	unsigned long adr;
+
+	size = PAGE_ALIGN(size);
+	mem = vmalloc_32(size);
+	if (!mem)
+		return NULL;
+
+	memset(mem, 0, size); /* Clear the ram out, no junk to the user */
+	adr = (unsigned long) mem;
+	while (size > 0) {
+		SetPageReserved(vmalloc_to_page((void *)adr));
+		adr += PAGE_SIZE;
+		size -= PAGE_SIZE;
+	}
+
+	return mem;
+}
 
 static int __devinit ps2fb_probe(struct platform_device *pdev)
 {
@@ -605,8 +832,8 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 
 	ps2con_gsp_init();
 
-	/* Clear screen. */
-	ps2_paintrect(0, 0, defaultinfo.w, defaultinfo.h, 0x80aaaa00);
+	/* Clear screen (black). */
+	ps2_paintrect(0, 0, defaultinfo.w, defaultinfo.h, 0x80000000);
 
 	/* TBD: Test rectangle function. */
 	ps2_paintrect(10, 20, 50, 100, 0x800000aa);
@@ -622,7 +849,13 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
      */
     info->screen_base = NULL; /* TBD: framebuffer_virtual_memory; */
     info->fbops = &ps2fb_ops;
+
+	ps2fb_fix.smem_len = 32/8 * defaultinfo.w * defaultinfo.h; /* TBD: Increase memory. */
+	ps2fb_fix.smem_start = (unsigned long) rvmalloc(ps2fb_fix.smem_len);
+	ps2fb_fix.line_length = ((32/8 * defaultinfo.w) + 15) & ~15;
+	printk("ps2fb: smem_start 0x%08lx\n", ps2fb_fix.smem_start);
     info->fix = ps2fb_fix;
+
     /*
      * Set up flags to indicate what sort of acceleration your
      * driver can provide (pan/wrap/copyarea/etc.) and whether it
@@ -727,6 +960,9 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 	DPRINTK(KERN_INFO "fb%d: %s frame buffer device\n", info->node,
 		info->fix.id);
 	platform_set_drvdata(pdev, info);
+
+    init_timer(&redraw_timer);
+
     return 0;
 }
 
