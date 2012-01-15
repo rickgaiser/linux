@@ -31,8 +31,13 @@
 #ifdef CONFIG_CPU_R5900
 /* CPU has a bug MSB must be 0 for instruction cache. */
 #define INDEX_BASE	0
+/* Workaround for short loops on R5900. */
+#define R5900_LOOP_WAR() do { \
+		__asm__ __volatile__("nop;nop;\n"); \
+	} while(0)
 #else
 #define INDEX_BASE	CKSEG0
+#define R5900_LOOP_WAR() do { } while(0)
 #endif
 
 #define cache_op_s(op,addr)						\
@@ -551,6 +556,7 @@ static inline void prot##blast_##pfx##cache##_range(unsigned long start, \
 									\
 	while (1) {							\
 		prot##cache_op##fn_pfx(hitop, addr);				\
+		R5900_LOOP_WAR();					\
 		if (addr == aend)					\
 			break;						\
 		addr += lsize;						\
