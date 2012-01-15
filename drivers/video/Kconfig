@@ -2229,12 +2229,6 @@ config FB_BROADSHEET
 	  and could also have been called by other names when coupled with
 	  a bridge adapter.
 
-source "drivers/video/omap/Kconfig"
-source "drivers/video/omap2/Kconfig"
-
-source "drivers/video/backlight/Kconfig"
-source "drivers/video/display/Kconfig"
-
 config FB_PS2
 	tristate "Frame buffer driver for Sony Playstation 2"
 	depends on FB && SONY_PS2
@@ -2242,6 +2236,12 @@ config FB_PS2
 	help
 	  This driver implements support for framebuffer of the Sony
 	  Playstation 2.
+
+source "drivers/video/omap/Kconfig"
+source "drivers/video/omap2/Kconfig"
+
+source "drivers/video/backlight/Kconfig"
+source "drivers/video/display/Kconfig"
 
 if VT
 	source "drivers/video/console/Kconfig"
