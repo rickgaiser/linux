@@ -141,10 +141,10 @@ struct dma_completion {
 extern struct dma_channel ps2dma_channels[];
 void __init ps2dma_init(void);
 irqreturn_t ps2dma_intr_handler(int irq, void *dev_id);
-void ps2dma_add_queue(struct dma_request *req, struct dma_channel *ch);
+void ps2dma_add_queue(struct dma_request *req, struct dma_channel *ch, int flushall);
 void ps2dma_complete(struct dma_completion *x);
 void ps2dma_init_completion(struct dma_completion *x);
 int ps2dma_intr_safe_wait_for_completion(struct dma_channel *ch, int polling, struct dma_completion *x);
-int ps2sdma_send(int chno, void *ptr, int len);
+int ps2sdma_send(int chno, const void *ptr, int len, int flushall);
 
 #endif /* __ASM_PS2_DMA_H */
