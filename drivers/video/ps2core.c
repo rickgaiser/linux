@@ -168,7 +168,7 @@ static void *ps2kdma_alloc(struct kdma_buffer *kdb, int min, int max, int *size)
     return (void *)kdb->kreq + sizeof(struct kdma_request);
 }
 
-static void ps2kdma_send(struct kdma_buffer *kdb, int len)
+static void ps2kdma_send(struct kdma_buffer *kdb, int len, int flushall)
 {
     unsigned long flags;
     int alen;
@@ -186,7 +186,7 @@ static void ps2kdma_send(struct kdma_buffer *kdb, int len)
     kreq->kdb = kdb;
     kreq->qwc = len >> 4;
 
-    ps2dma_add_queue((struct dma_request *)kreq, kdb->channel);
+    ps2dma_add_queue((struct dma_request *)kreq, kdb->channel, flushall);
 
     if (kdb->error) {
 	kdb->error = 0;
@@ -207,9 +207,15 @@ u64 *ps2con_gsp_alloc(int request, int *avail)
     return ps2kdma_alloc(in_interrupt() ? &kkdb : &kdb, request, BUF_SIZE, avail);
 }
 
-void ps2con_gsp_send(int len)
+void ps2con_gsp_send(int len, int flushall)
 {
-    ps2kdma_send(in_interrupt() ? &kkdb : &kdb, len);
+	struct kdma_buffer *buf;
+
+	buf = in_interrupt() ? &kkdb : &kdb;
+	if (!flushall) {
+		dma_cache_wback((unsigned long)buf->kreq + sizeof(struct kdma_request), len);
+	}
+    ps2kdma_send(buf, len, flushall);
 }    
 
 void ps2con_initinfo(struct ps2_screeninfo *info)

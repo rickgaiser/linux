@@ -111,7 +111,7 @@ int ps2gs_set_gsreg(int reg, u64 val)
     packet->param[0] = val;
     packet->param[1] = reg;
 
-    ps2sdma_send(DMA_GIF, packet, sizeof(*packet));
+    ps2sdma_send(DMA_GIF, packet, sizeof(*packet), 1 /* TBD: optimize */);
     return 0;
 }
 
@@ -913,12 +913,12 @@ int ps2gs_reset(int mode)
     info.gvreq.info = &info;
     ps2dma_init_completion(&info.gvreq.c);
 
-    ps2dma_add_queue((struct dma_request *)&info.ggreq, gifch);
+    ps2dma_add_queue((struct dma_request *)&info.ggreq, gifch, 1);
     do {
 	result = ps2dma_intr_safe_wait_for_completion(gifch, in_interrupt(), &info.ggreq.c);
     } while (result != 0);
 
-    ps2dma_add_queue((struct dma_request *)&info.gvreq, vifch);
+    ps2dma_add_queue((struct dma_request *)&info.gvreq, vifch, 1);
     do {
 	result = ps2dma_intr_safe_wait_for_completion(vifch, in_interrupt(), &info.gvreq.c);
     } while (result != 0);

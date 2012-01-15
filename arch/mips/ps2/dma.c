@@ -76,7 +76,7 @@ irqreturn_t ps2dma_intr_handler(int irq, void *dev_id)
     return IRQ_HANDLED;
 }
 
-void ps2dma_add_queue(struct dma_request *req, struct dma_channel *ch)
+void ps2dma_add_queue(struct dma_request *req, struct dma_channel *ch, int flushall)
 {
     unsigned long flags;
 
@@ -93,7 +93,9 @@ void ps2dma_add_queue(struct dma_request *req, struct dma_channel *ch)
 	 * TBD: Function would be faster if only the required area is
 	 * flushed.
 	 */
-	__flush_cache_vmap();
+	if (flushall) {
+		__flush_cache_vmap();
+	}
 #endif
 
     spin_lock_irqsave(&ch->lock, flags);
@@ -239,7 +241,7 @@ static void sdma_free(struct dma_request *req, struct dma_channel *ch)
 static struct dma_ops sdma_send_ops =
 { sdma_send_start, NULL, NULL, sdma_free };
 
-int ps2sdma_send(int chno, void *ptr, int len)
+int ps2sdma_send(int chno, const void *ptr, int len, int flushall)
 {
     struct sdma_request sreq;
     struct dma_channel *ch = &ps2dma_channels[chno];
@@ -250,7 +252,7 @@ int ps2sdma_send(int chno, void *ptr, int len)
     sreq.qwc = len >> 4;
     ps2dma_init_completion(&sreq.c);
 
-    ps2dma_add_queue((struct dma_request *)&sreq, ch);
+    ps2dma_add_queue((struct dma_request *)&sreq, ch, flushall);
     do {
 	result = ps2dma_intr_safe_wait_for_completion(ch, in_interrupt(), &sreq.c);
 	if (result)

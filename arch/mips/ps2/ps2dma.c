@@ -596,7 +596,7 @@ int ps2dma_check_and_add_queue(struct dma_dev_request *req, int nonblock)
     devch->qct++;
     devch->qsize += req->qsize;
 
-    ps2dma_add_queue(&req->r, devch->channel);
+    ps2dma_add_queue(&req->r, devch->channel, 1);
 
     spin_unlock_irqrestore(&devch->device->lock, flags);
 
