@@ -473,7 +473,7 @@ static void ps2con_clear(struct vc_data *conp, int sy, int sx, int height,
     *gsp++ = PACK32((sx + width) * fontwidth(p) * 16,
 		    (sy + height) * fontheight(p) * 16);	/* XYZ2 */
 
-    ps2con_gsp_send(ALIGN16(6 * 8));
+    ps2con_gsp_send(ALIGN16(6 * 8), 0);
 
     if (redraw_cursor)
 	vbl_cursor_cnt = CURSOR_DRAW_DELAY;
@@ -731,7 +731,7 @@ static void ps2con_putc(struct vc_data *conp, int ch, int ypos, int xpos)
     *gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(fontwidth(p) * fontheight(p) * p->pixel_size) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
     *gsp++ = 0;
 
-    ps2con_gsp_send(ALIGN16(ps2con_put_pattern(p, gsp, &sch, 1) - gsp_h));
+    ps2con_gsp_send(ALIGN16(ps2con_put_pattern(p, gsp, &sch, 1) - gsp_h), 0);
 
     if (redraw_cursor)
 	vbl_cursor_cnt = CURSOR_DRAW_DELAY;
@@ -783,7 +783,7 @@ static void ps2con_putcs(struct vc_data *conp, const unsigned short *s, int coun
 	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(dc * fontwidth(p) * fontheight(p) * p->pixel_size) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
 	*gsp++ = 0;
 
-	ps2con_gsp_send(ALIGN16(ps2con_put_pattern(p, gsp, s, dc) - gsp_h));
+	ps2con_gsp_send(ALIGN16(ps2con_put_pattern(p, gsp, s, dc) - gsp_h), 0);
 
 	s += dc;
 	xpos += dc;
@@ -1058,7 +1058,7 @@ static void ps2con_bmove(struct vc_data *conp, int sy, int sx, int dy, int dx,
     *gsp++ = 2;	/* local to local */
     *gsp++ = PS2_GS_TRXDIR;
 
-    ps2con_gsp_send(ALIGN16(10 * 8));
+    ps2con_gsp_send(ALIGN16(10 * 8), 0);
 }
 
 
@@ -1352,7 +1352,11 @@ static int ps2con_set_font(struct vc_data *vc, struct console_font *font, unsign
     int h = font->height;
     int size = h;
     int i, k;
-    u8 *new_data, *data = font->data, *p;
+    u8 *new_data;
+    u8 *data = font->data;
+	u8 *p;
+
+	data = font->data;
 
     /* TBD: Check additonal parameter flags. */
 #ifdef CONFIG_FBCON_FONTWIDTH8_ONLY
@@ -1429,8 +1433,7 @@ static int ps2con_set_font(struct vc_data *vc, struct console_font *font, unsign
     	    FNTSIZE(ps2dpy[i].fontdata) == size &&
 	    !memcmp(ps2dpy[i].fontdata, new_data, size)) {
 	    kfree(new_data - FONT_EXTRA_WORDS*sizeof(int));
-	    new_data = ps2dpy[i].fontdata;
-	    break;
+    	return ps2con_do_set_font(vc, unit, font, ps2dpy[i].fontdata, 1);
     	}
     }
     return ps2con_do_set_font(vc, unit, font, new_data, 1);
@@ -1580,7 +1583,7 @@ static void ps2con_revc(struct vc_data *conp, int sy, int sx,
     *gsp++ = PACK32((sx + width) * fontwidth(p) * 16,
 		    (sy + height) * fontheight(p) * 16);	/* XYZ2 */
 
-    ps2con_gsp_send(ALIGN16(9 * 8));
+    ps2con_gsp_send(ALIGN16(9 * 8), 0);
 }
 
 static void ps2con_clear_margins(struct vc_data *conp, struct ps2dpy *p)
@@ -1602,7 +1605,7 @@ static void ps2con_clear_margins(struct vc_data *conp, struct ps2dpy *p)
     *gsp++ = PACK32(0, bottom_start * 16);			/* XYZ2 */
     *gsp++ = PACK32(p->info.w * 16, p->info.h * 16);		/* XYZ2 */
 
-    ps2con_gsp_send(ALIGN16(8 * 8));
+    ps2con_gsp_send(ALIGN16(8 * 8), 0);
 }
 
 #ifdef LOGO_SUPPORT
@@ -1686,7 +1689,7 @@ static int __init ps2con_show_logo( void )
 		    src += LOGO_W;
 	    }
 
-	    ps2con_gsp_send(ALIGN16((unsigned char *)ptr - (unsigned char *)gsp_h));
+	    ps2con_gsp_send(ALIGN16((unsigned char *)ptr - (unsigned char *)gsp_h), 0);
 	}
    }
     

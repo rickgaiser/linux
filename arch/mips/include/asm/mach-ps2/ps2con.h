@@ -57,6 +57,6 @@ struct ps2dpy {
 void ps2con_initinfo(struct ps2_screeninfo *info);
 void ps2con_gsp_init(void);
 u64 *ps2con_gsp_alloc(int request, int *avail);
-void ps2con_gsp_send(int len);
+void ps2con_gsp_send(int len, int flushall);
 
 #endif /* _VIDEO_PS2CON_H */

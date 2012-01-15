@@ -671,8 +671,8 @@ int ps2gs_storeimage(struct ps2_image *img, struct dma_device *dev)
     *p++ = 1;
     *p++ = PS2_GS_TRXDIR;
 
-    ps2dma_add_queue((struct dma_request *)&gifreq, gifch);
-    ps2dma_add_queue((struct dma_request *)sreq, vifch);
+    ps2dma_add_queue((struct dma_request *)&gifreq, gifch, 1);
+    ps2dma_add_queue((struct dma_request *)sreq, vifch, 1);
     DSPRINT("storeimage: sleep_on\n");
     wait_for_completion(&sreq->c);
     DSPRINT("storeimage: sleep_on end\n");

@@ -13,10 +13,12 @@
 #include <linux/platform_device.h>
 
 #include <asm/page.h>
+#include <asm/cacheflush.h>
 
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/gsfunc.h>
 #include <asm/mach-ps2/eedev.h>
+#include <asm/mach-ps2/dma.h>
 
 /* TBD: Seems not to be needed, because this is not used by xorg. */
 #define PIXMAP_SIZE (4 * 2048 * 32/8)
@@ -39,7 +41,7 @@ static void ps2fb_redraw_timer_handler(unsigned long dev_addr);
 void ps2con_initinfo(struct ps2_screeninfo *info);
 void ps2con_gsp_init(void);
 u64 *ps2con_gsp_alloc(int request, int *avail);
-void ps2con_gsp_send(int len);
+void ps2con_gsp_send(int len, int flushall);
 
 struct ps2fb_par
 {
@@ -162,7 +164,7 @@ static void ps2_paintrect(int sx, int sy, int width, int height, uint32_t color)
 	/* XYZ2 */
     *gsp++ = PACK32((sx + width) * 16, (sy + height) * 16);
 
-    ps2con_gsp_send(ALIGN16(6 * 8));
+    ps2con_gsp_send(ALIGN16(6 * 8), 0);
 }
 
 static void *ps2_addpattern1(void *gsp, const unsigned char *data, int width, int height, uint32_t bgcolor, uint32_t fgcolor, int lineoffset)
@@ -199,6 +201,7 @@ static void ps2_paintsimg1(int sx, int sy, int width, int height, uint32_t bgcol
     void *gsp_h;
     int gspsz; /* Available DMA packet size. */
 	int fbw = (defaultinfo.w + 63) / 64;
+	unsigned int packetlen;
 
 	if ((gsp = ps2con_gsp_alloc(ALIGN16(12 * 8 + sizeof(fgcolor) * width * height), &gspsz)) == NULL) {
 		DPRINTK("Failed ps2con_gsp_alloc with w %d h %d size %lu\n", width, height, ALIGN16(12 * 8 + sizeof(fgcolor) * width * height));
@@ -221,7 +224,9 @@ static void ps2_paintsimg1(int sx, int sy, int width, int height, uint32_t bgcol
 	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(sizeof(fgcolor) * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
 	*gsp++ = 0;
 
-	ps2con_gsp_send(ALIGN16(ps2_addpattern1(gsp, data, width, height, bgcolor, fgcolor, lineoffset) - gsp_h));
+	gsp = ps2_addpattern1(gsp, data, width, height, bgcolor, fgcolor, lineoffset);
+	packetlen = ((void *) ALIGN16(gsp)) - gsp_h;
+	ps2con_gsp_send(packetlen, 0);
 }
 
 /* Paint image from data with 8 bit per pixel. */
@@ -252,6 +257,10 @@ static void ps2_paintsimg8(int sx, int sy, int width, int height, uint32_t *pale
     void *gsp_h;
     int gspsz; /* Available size. */
 	int fbw = (defaultinfo.w + 63) / 64;
+#if 0
+	void *buffer;
+#endif
+	unsigned int packetlen;
 
 	if ((gsp = ps2con_gsp_alloc(ALIGN16(12 * 8 + sizeof(palette[0]) * width * height), &gspsz)) == NULL) {
 		DPRINTK("Failed ps2con_gsp_alloc with w %d h %d size %lu\n", width, height, ALIGN16(12 * 8 + sizeof(palette[0]) * width * height));
@@ -276,10 +285,32 @@ static void ps2_paintsimg8(int sx, int sy, int width, int height, uint32_t *pale
 	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(sizeof(palette[0]) * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
 	*gsp++ = 0;
 
+#if 1
 	/* TBD: Optimize, don't copy pixel data, use DMA instead. */
-	ps2con_gsp_send(ALIGN16(ps2_addpattern8(gsp, data, width, height, palette, lineoffset) - gsp_h));
+	gsp = ps2_addpattern8(gsp, data, width, height, palette, lineoffset);
+	packetlen = ((void *) ALIGN16(gsp)) - gsp_h;
+	ps2con_gsp_send(packetlen, 0);
+#else
+	ps2con_gsp_send(((void *) gsp) - gsp_h, 0);
+	packetlen = ALIGN16(4 * width * height);
+
+	buffer = kmalloc(packetlen, GFP_DMA32);
+	if (buffer != NULL) {
+		/* TBD: Still slow copy. */
+		/* Convert data. */
+		ps2_addpattern8(buffer, data, width, height, palette, lineoffset);
+		dma_cache_wback((unsigned long) buffer, packetlen);
+		ps2sdma_send(DMA_GIF, buffer, packetlen, 0);
+		kfree(buffer);
+	} else {
+		/* TBD: Fast, but clut missing and 8 bit format. */
+		dma_cache_wback((unsigned long) data, packetlen);
+		ps2sdma_send(DMA_GIF, data, packetlen, 0);
+	}
+#endif
 }
 
+#if 0
 /* Paint image from data with 8 bit per pixel. */
 static void *ps2_addpattern32(void *gsp, const uint32_t *data, int width, int height, int lineoffset)
 {
@@ -298,15 +329,84 @@ static void *ps2_addpattern32(void *gsp, const uint32_t *data, int width, int he
 	}
 	return (void *)p32;
 }
+#endif
 
-static void ps2_paintsimg32(int sx, int sy, int width, int height, const uint32_t *data, int lineoffset)
+void ps2fb_dma_send(const void *data, unsigned long len)
+{
+	unsigned long page;
+	unsigned long start;
+	unsigned long end;
+	unsigned long s;
+	unsigned long offset;
+	void *cur_start;
+	unsigned long cur_size;
+
+	/* TBD: Cache is flushed by ps2con_gsp_send, but this may change. */
+
+	start = (unsigned long) data;
+	cur_start = 0;
+	cur_size = 0;
+
+	s = start & (PAGE_SIZE - 1);
+	s = PAGE_SIZE - s;
+	if (s < PAGE_SIZE) {
+		if (s > len) {
+			s = len;
+		}
+		offset = start & (PAGE_SIZE - 1);
+		// TBD: vmalloc_to_pfn is only working with redraw handler.
+		cur_start = phys_to_virt(PFN_PHYS(vmalloc_to_pfn((void *) start))) + offset;
+		cur_size = ALIGN16(s);
+		start += s;
+		len -= s;
+	}
+
+	end = ALIGN16(start + len);
+
+	for (page = start; page < end; page += PAGE_SIZE) {
+		void *addr;
+		unsigned long size;
+
+		addr = phys_to_virt(PFN_PHYS(vmalloc_to_pfn((void *) page)));
+		size = end - page;
+		if (size > PAGE_SIZE) {
+			size = PAGE_SIZE;
+		}
+
+		if (cur_size > 0) {
+			if (addr == (cur_start + cur_size)) {
+				/* contigous physical memory. */
+				cur_size += size;
+			} else {
+				/* Start DMA transfer for current data. */
+				ps2sdma_send(DMA_GIF, cur_start, ALIGN16(cur_size), 0);
+
+				cur_size = size;
+				cur_start = addr;
+			}
+		} else {
+			cur_start = addr;
+			cur_size = size;
+		}
+	}
+	if (cur_size > 0) {
+		/* Start DMA transfer for current data. */
+		ps2sdma_send(DMA_GIF, cur_start, ALIGN16(cur_size), 0);
+
+		cur_size = 0;
+		cur_start = 0;
+	}
+}
+
+
+static void ps2_paintsimg32(int sx, int sy, int width, int height, const uint32_t *data)
 {
     u64 *gsp;
     void *gsp_h;
     int gspsz; /* Available size. */
 	int fbw = (defaultinfo.w + 63) / 64;
 
-	if ((gsp = ps2con_gsp_alloc(ALIGN16(12 * 8 + sizeof(data[0]) * width * height), &gspsz)) == NULL) {
+	if ((gsp = ps2con_gsp_alloc(ALIGN16(12 * 8), &gspsz)) == NULL) {
 		DPRINTK("Failed ps2con_gsp_alloc with w %d h %d size %lu\n", width, height, ALIGN16(12 * 8 + sizeof(data[0]) * width * height));
 	    return;
 	}
@@ -328,38 +428,25 @@ static void ps2_paintsimg32(int sx, int sy, int width, int height, const uint32_
 
 	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(sizeof(data[0]) * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
 	*gsp++ = 0;
+	ps2con_gsp_send(((unsigned long) gsp) - ((unsigned long) gsp_h), 1);
 
-	/* TBD: Optimize, don't copy pixel data, use DMA instead. */
-	ps2con_gsp_send(ALIGN16(ps2_addpattern32(gsp, data, width, height, lineoffset) - gsp_h));
+	ps2fb_dma_send(data, ALIGN16(4 * width * height));
 }
 
 static void ps2fb_redraw(struct fb_info *info)
 {
-	int x;
-	int y;
 	int offset;
+	int y;
 
-	offset = ((32/8) * defaultinfo.w + 15) & ~15;
-	for (x = 0; x < defaultinfo.w; x += PATTERN_MAX_X)
-	{
-		int w;
+	offset = (32/8) * defaultinfo.w;
+	for (y = 0; y < defaultinfo.h; y += 64) {
+		int h;
 
-		w = defaultinfo.w - x;
-		if (w > PATTERN_MAX_X) {
-			w = PATTERN_MAX_X;
+		h = defaultinfo.h - y;
+		if (h > 64) {
+			h = 64;
 		}
-		for (y = 0; y < defaultinfo.h; y += PATTERN_MAX_Y)
-		{
-			int h;
-
-			h = defaultinfo.h - y;
-			if (h > PATTERN_MAX_Y) {
-				h = PATTERN_MAX_Y;
-			}
-			ps2_paintsimg32(x, y, w, h,
-				(void *) (info->fix.smem_start + (32/8) * x + y * offset),
-				offset);
-		}
+		ps2_paintsimg32(0, y, 640, h, (void *) (info->fix.smem_start + y * offset));
 	}
 }
 
@@ -686,7 +773,7 @@ void ps2fb_imageblit(struct fb_info *p, const struct fb_image *image)
 
 		fgcolor = ((u32*)(p->pseudo_palette))[image->fg_color];
 		bgcolor = ((u32*)(p->pseudo_palette))[image->bg_color];
-		offset = (image->width + 127) & ~127;
+		offset = (image->width + 7) & ~7;
 		for (x = 0; x < image->width; x += PATTERN_MAX_X)
 		{
 			int w;
@@ -713,7 +800,7 @@ void ps2fb_imageblit(struct fb_info *p, const struct fb_image *image)
 		int y;
 		int offset;
 
-		offset = (image->width + 15) & ~15;
+		offset = image->width;
 		for (x = 0; x < image->width; x += PATTERN_MAX_X)
 		{
 			int w;
@@ -760,7 +847,6 @@ static int ps2fb_mmap(struct fb_info *info,
 	 * framebuffer. Currently there is no other way beside
 	 * mapping to access the framebuffer from applications
 	 * like xorg.
-	 * TBD: There is hardware acceleration needed.
 	 */
 
 	while (size > 0) {
@@ -850,9 +936,6 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 	/* Clear screen (black). */
 	ps2_paintrect(0, 0, defaultinfo.w, defaultinfo.h, 0x80000000);
 
-	/* TBD: Test rectangle function. */
-	ps2_paintrect(10, 20, 50, 100, 0x800000aa);
-
     par = info->par;
 	info->pseudo_palette = par->pseudo_palette;
 	par->opencnt = 0;
@@ -868,7 +951,7 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 
 	ps2fb_fix.smem_len = 32/8 * defaultinfo.w * defaultinfo.h; /* TBD: Increase memory. */
 	ps2fb_fix.smem_start = (unsigned long) rvmalloc(ps2fb_fix.smem_len);
-	ps2fb_fix.line_length = ((32/8 * defaultinfo.w) + 15) & ~15;
+	ps2fb_fix.line_length = 32/8 * defaultinfo.w;
 	printk("ps2fb: smem_start 0x%08lx\n", ps2fb_fix.smem_start);
     info->fix = ps2fb_fix;
 
@@ -934,7 +1017,7 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
      * scan_align is the number of padding for each scanline.  It is in bytes.
      * Thus for accelerators that need padding to the next u32, put 4 here.
      */
-    info->pixmap.scan_align = 16;
+    info->pixmap.scan_align = 1;
 
     /*
      * buf_align is the amount to be padded for the buffer. For example,
@@ -949,7 +1032,7 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
      *
      * NOTE: This field is currently unused.
      */
-    info->pixmap.access_align = 32;
+    info->pixmap.access_align = 8;
 /***************************** End optional stage ***************************/
 #endif
 
@@ -1034,6 +1117,7 @@ static int __init ps2fb_init(void)
 #else
 	DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
 #endif
+
 	ret = platform_driver_register(&ps2fb_driver);
 	DPRINTK("ps2fb: %d %s() ret = %d\n", __LINE__, __FUNCTION__, ret);
 
