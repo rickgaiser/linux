@@ -217,7 +217,7 @@ static ssize_t ps2dev_write(struct file *file, const char *buf, size_t count, lo
     return ps2dma_write(dev, &pkt, file->f_flags & O_NONBLOCK);
 }
 
-static int ps2dev_fsync(struct file *file, struct dentry *dentry, int datasync)
+static int ps2dev_fsync(struct file *file, int datasync)
 {
     struct dma_device *dev = (struct dma_device *)file->private_data;
 
