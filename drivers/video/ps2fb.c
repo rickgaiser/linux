@@ -53,7 +53,7 @@ struct ps2fb_par
 static struct fb_fix_screeninfo ps2fb_fix /* TBD: __devinitdata */ = {
 	.id =		"PS2 GS", 
 	.type =		FB_TYPE_PACKED_PIXELS,
-	.visual =	FB_VISUAL_PSEUDOCOLOR,
+	.visual =	FB_VISUAL_TRUECOLOR, /* TBD: FB_VISUAL_PSEUDOCOLOR, */
 	.xpanstep =	1,
 	.ypanstep =	1,
 	.ywrapstep =	1, 
