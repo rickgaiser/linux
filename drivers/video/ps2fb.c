@@ -689,17 +689,22 @@ int ps2fb_sync(struct fb_info *info)
 void ps2fb_fillrect(struct fb_info *p, const struct fb_fillrect *region)
 {
 	uint32_t color;
-#if 0
-	DPRINTK("ps2fb: %d %s() dx %d dy %d w %d h %d col 0x%08x\n", __LINE__, __FUNCTION__,
-		region->dx,
-		region->dy,
-		region->width,
-		region->height,
-		region->color);
-#endif
 
-	color = region->color & 0x00FFFFFF;
-	color |= 0x80000000;
+	if (region->rop != ROP_COPY) {
+		printk("ps2fb: %d %s() dx %d dy %d w %d h %d col 0x%08x unsupported rop\n", __LINE__, __FUNCTION__,
+			region->dx,
+			region->dy,
+			region->width,
+			region->height,
+			region->color);
+		return;
+	}
+
+	if (p->fix.visual == FB_VISUAL_TRUECOLOR ||
+	    p->fix.visual == FB_VISUAL_DIRECTCOLOR )
+		color = ((u32*)(p->pseudo_palette))[region->color];
+	else
+		color = region->color;
 	/* TBD: handle region->rop ROP_COPY or ROP_XOR */
 	ps2_paintrect(region->dx, region->dy, region->width, region->height, color);
 /*	Meaning of struct fb_fillrect
@@ -737,6 +742,7 @@ void ps2fb_copyarea(struct fb_info *p, const struct fb_copyarea *area)
  *      @sx: The x and y coordinates of the upper left hand corner of the
  *      @sy: source area on the screen.
  */
+	/* TBD: Function ps2fb_copyarea() needs to be implemented, used by fbcon. */
 }
 
 /**
@@ -756,8 +762,8 @@ void ps2fb_imageblit(struct fb_info *p, const struct fb_image *image)
 	uint32_t fgcolor;
 	uint32_t bgcolor;
 
-	if (image->depth != 1) {
-		DPRINTK("ps2fb: blit depth %d dx %d dy %d w %d h %d 0x%08x\n",
+	if ((image->depth != 1) && (image->depth != 8)) {
+		printk("ps2fb: blit depth %d dx %d dy %d w %d h %d 0x%08x\n",
 		image->depth,
 		image->dx,
 		image->dy,
