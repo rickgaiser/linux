@@ -30,9 +30,11 @@
 #include <linux/platform_device.h>
 
 #include <asm/bootinfo.h>
+#include <asm/reboot.h>
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/dma.h>
 #include <asm/mach-ps2/sifdefs.h>
+#include <asm/mach-ps2/sbios.h>
 
 void (*__wbflush)(void);
 
@@ -77,6 +79,10 @@ static struct platform_device gs_device = {
 	.name           = "ps2fb",
 };
 
+static unsigned int ps2_blink_frequency = 500;
+module_param_named(panicblink, ps2_blink_frequency, uint, 0600);
+MODULE_PARM_DESC(panicblink, "Frequency with which the PS2 HDD should blink when kernel panics");
+
 static void ps2_wbflush(void)
 {
 	__asm__ __volatile__("sync.l":::"memory");
@@ -85,13 +91,52 @@ static void ps2_wbflush(void)
 	*((volatile unsigned int *) ps2sif_bustovirt(0));
 }
 
+static void ps2_machine_restart(char *command)
+{
+	ps2_halt(SB_HALT_MODE_RESTART);
+}
+
+static void ps2_machine_halt(void)
+{
+	ps2_halt(SB_HALT_MODE_HALT);
+}
+
+static void ps2_machine_off(void)
+{
+	ps2_halt(SB_HALT_MODE_PWROFF);
+}
+
+static long ps2_panic_blink(long count)
+{
+	static long last_blink;
+	static int powerbtn_enabled = 0;
+
+	if (!powerbtn_enabled) {
+		powerbtn_enabled = 1;
+
+		/* Enable power button, because init will not handle any signals. */
+		ps2_powerbutton_enable_auto_shutoff(-1);
+	}
+
+	/*
+	 * We expect frequency to be about 1/2s. KDB uses about 1s.
+	 * Make sure they are different.
+	 */
+	if (!ps2_blink_frequency)
+		return 0;
+	if (count - last_blink < ps2_blink_frequency)
+		return 0;
+
+	/* TBD: Blink HDD led of fat PS2. */
+	return 0;
+}
+
 void __init plat_mem_setup(void)
 {
-#if 0 /* TBD: Add handling for system reboot and power off. */
 	_machine_restart = ps2_machine_restart;
 	_machine_halt = ps2_machine_halt;
-	pm_power_off = ps2_machine_power_off;
-#endif
+	pm_power_off = ps2_machine_off;
+	panic_blink = ps2_panic_blink;
 
 	__wbflush = ps2_wbflush;
 
@@ -127,6 +172,7 @@ void ps2_dev_init(void)
 	ps2dma_init();
 	ps2sif_init();
 	ps2rtc_init();
+	ps2_powerbutton_init();
 	platform_device_register(&usb_ohci_device);
 
 	switch (ps2_pccard_present) {

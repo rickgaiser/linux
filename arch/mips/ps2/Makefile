@@ -16,3 +16,4 @@ obj-y		+= sbcall.o
 obj-y		+= iopheap.o
 obj-y		+= rtc.o
 obj-y		+= siflock.o
+obj-y		+= powerbutton.o

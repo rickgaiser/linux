@@ -921,6 +921,11 @@ static int __init kernel_init(void * unused)
 	 * the work
 	 */
 
+#ifdef CONFIG_SONY_PS2
+	/* Disable auto off when pressing the power button, because file system could be damaged. */
+	ps2_powerbutton_enable_auto_shutoff(0);
+#endif
+
 	if (!ramdisk_execute_command)
 		ramdisk_execute_command = "/init";
 

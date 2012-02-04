@@ -344,24 +344,25 @@ void handleRPCIRQ(iop_sifCmdBufferIrq_t *sifCmdBufferIrq, void *arg)
 	do_IRQ(sifCmdBufferIrq->data[0]);
 }
 
+static void handleRPCPowerBtn(iop_sifCmdBufferIrq_t *sifCmdBufferIrq, void *arg)
+{
+	/* give a SIGPWR signal to init proc */
+	kill_cad_pid(SIGPWR, 0);
+}
+
+
 /*
  *  Initialize
  */
 
 int __init ps2sif_init(void)
 {
-    struct sb_sifaddcmdhandler_arg addcmdhandlerparam;
     struct sb_sifsetcmdbuffer_arg setcmdhandlerbufferparam;
 
     init_waitqueue_head(&ps2sif_dma_waitq);
 
     setcmdhandlerbufferparam.db = usrCmdHandler;
     setcmdhandlerbufferparam.size = sizeof(usrCmdHandler) / 8;
-
-    addcmdhandlerparam.fid = 0x20;
-    addcmdhandlerparam.func = handleRPCIRQ;
-    addcmdhandlerparam.data = NULL;
-
 
     if (sbios(SB_SIFINIT, 0) < 0) {
 	printk(KERN_ERR "ps2sif: SIF init failed.\n");
@@ -382,8 +383,22 @@ int __init ps2sif_init(void)
     if (sbios(SB_SIFSETCMDBUFFER, &setcmdhandlerbufferparam) < 0) {
         printk("Failed to initialize EEDEBUG handler (1).\n");
     } else {
+    	struct sb_sifaddcmdhandler_arg addcmdhandlerparam;
+
+    	addcmdhandlerparam.fid = 0x20;
+    	addcmdhandlerparam.func = handleRPCIRQ;
+    	addcmdhandlerparam.data = NULL;
+
         if (sbios(SB_SIFADDCMDHANDLER, &addcmdhandlerparam) < 0) {
             printk("Failed to initialize SIF IRQ handler.\n");
+        }
+
+    	addcmdhandlerparam.fid = 20;
+    	addcmdhandlerparam.func = handleRPCPowerBtn;
+    	addcmdhandlerparam.data = NULL;
+
+        if (sbios(SB_SIFADDCMDHANDLER, &addcmdhandlerparam) < 0) {
+            printk("Failed to initialize SIF power button handler.\n");
         }
     }
     if (sbios(SB_SIFINITRPC, 0) < 0) {
