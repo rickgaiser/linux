@@ -634,7 +634,7 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	/* TBD: Support 16 and 32 bit color. */
 	if (var->bits_per_pixel != 32) {
-		DPRINTK("ps2fb: %d %s() force 32 bit color\n", __LINE__, __FUNCTION__);
+		printk("ps2fb: force 32 bit color\n");
 		var->bits_per_pixel = 32;
 	}
 	var->red.offset = 0;
@@ -653,38 +653,38 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	if (var->xres_virtual != var->xres) {
 		/* Resolution is not supported. */
-		DPRINTK("ps2fb: xres_virtual %d not support with xres %d\n", var->xres_virtual, var->xres);
-		return -EINVAL;
+		printk("ps2fb: xres_virtual %d not support with xres %d\n", var->xres_virtual, var->xres);
+		var->xres_virtual = var->xres;
 	}
 
 	if (var->yres_virtual != var->yres) {
 		/* Support second screen. */
-		DPRINTK("ps2fb: yres_virtual %d not support with yres %d\n", var->yres_virtual, var->yres);
-		return -EINVAL;
+		printk("ps2fb: yres_virtual %d not support with yres %d\n", var->yres_virtual, var->yres);
+		var->yres_virtual = var->yres;
 	}
 
 	if (var->xoffset != 0) {
 		/* Panning not supported. */
-		DPRINTK("ps2fb: xoffset %d is not supported\n", var->xoffset);
-		return -EINVAL;
+		printk("ps2fb: xoffset %d is not supported\n", var->xoffset);
+		var->xoffset = 0;
 	}
 
 	if (var->yoffset != 0) {
 		/* TBD: Panning not supported. */
-		DPRINTK("ps2fb: yoffset %d is not supported\n", var->yoffset);
-		return -EINVAL;
+		printk("ps2fb: yoffset %d is not supported\n", var->yoffset);
+		var->yoffset = 0;
 	}
 
 	res = ps2con_get_resolution(crtmode, var->xres, var->yres, 60 /* TBD: calculate rate. */);
 	if (res < 0) {
 		/* Resolution is not supported in this crtmode. */
-		DPRINTK("ps2fb: %dx%d is not supported in crtmode %d\n", var->xres, var->yres, crtmode);
+		printk("ps2fb: %dx%d is not supported in crtmode %d\n", var->xres, var->yres, crtmode);
 		return -EINVAL;
 	}
 
 	if (var->rotate) {
 		/* No support for rotating. */
-		DPRINTK("ps2fb: rotate is not supported.\n");
+		printk("ps2fb: rotate is not supported.\n");
 		return -EINVAL;
 	}
 
