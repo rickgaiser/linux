@@ -1,4 +1,4 @@
-/* Copyright 2011 Mega Man */
+/* Copyright 2011 - 2012 Mega Man */
 /* TBD: Unfinished state. Rework code. */
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -11,6 +11,7 @@
 #include <linux/init.h>
 #include <linux/vmalloc.h>
 #include <linux/platform_device.h>
+#include <linux/ps2/gs.h>
 
 #include <asm/page.h>
 #include <asm/cacheflush.h>
@@ -19,6 +20,7 @@
 #include <asm/mach-ps2/gsfunc.h>
 #include <asm/mach-ps2/eedev.h>
 #include <asm/mach-ps2/dma.h>
+#include <asm/mach-ps2/ps2con.h>
 
 /* TBD: Seems not to be needed, because this is not used by xorg. */
 #define PIXMAP_SIZE (4 * 2048 * 32/8)
@@ -37,12 +39,6 @@
 static int ps2fb_init(void);
 static void ps2fb_redraw_timer_handler(unsigned long dev_addr);
 
-/* TBD: Move functions declarations to header file. */
-void ps2con_initinfo(struct ps2_screeninfo *info);
-void ps2con_gsp_init(void);
-u64 *ps2con_gsp_alloc(int request, int *avail);
-void ps2con_gsp_send(int len, int flushall);
-
 struct ps2fb_par
 {
 	u32 pseudo_palette[256];
@@ -50,21 +46,133 @@ struct ps2fb_par
 	/* TBD: add members. */
 };
 
-static struct fb_fix_screeninfo ps2fb_fix /* TBD: __devinitdata */ = {
-	.id =		"PS2 GS", 
-	.type =		FB_TYPE_PACKED_PIXELS,
-	.visual =	FB_VISUAL_TRUECOLOR, /* TBD: FB_VISUAL_PSEUDOCOLOR, */
-	.xpanstep =	1,
-	.ypanstep =	1,
-	.ywrapstep =	1, 
-	.accel =	FB_ACCEL_NONE,
-};
-
 static struct ps2_screeninfo defaultinfo;
 
 static struct timer_list redraw_timer = {
     function: ps2fb_redraw_timer_handler
 };
+
+static char *mode_option __devinitdata;
+static int crtmode = -1;
+
+#define param_get_crtmode NULL
+static int param_set_crtmode(const char *val, struct kernel_param *kp)
+{
+	if (strnicmp(val, "vesa", 4) == 0) {
+		val += 4;
+		crtmode = PS2_GS_VESA;
+		// TBD: maxres = 4;
+	} else if (strnicmp(val, "dtv", 3) == 0) {
+		val += 3;
+		crtmode = PS2_GS_DTV;
+		// TBD: maxres = 3;
+	} else if (strnicmp(val, "ntsc", 4) == 0) {
+		// TBD: val += 4;
+		crtmode = PS2_GS_NTSC;
+		// TBD: maxres = 2;
+	} else if (strnicmp(val, "pal", 3) == 0) {
+		val += 3;
+		crtmode = PS2_GS_PAL;
+		// TBD: maxres = 2;
+	}
+
+	// TBD: Add code to support old parameter style.
+
+	return 0;
+}
+
+#define param_check_crtmode(name, p) __param_check(name, p, void)
+
+module_param_named(crtmode, crtmode, crtmode, 0);
+MODULE_PARM_DESC(crtmode,
+	"Crtmode mode, set to 'vesa', 'dtv', 'ntsc' or 'pal'");
+module_param(mode_option, charp, 0);
+MODULE_PARM_DESC(mode_option,
+	"Specify initial video mode as \"<xres>x<yres>[-<bpp>][@<refresh>]\"");
+
+/* TBD: Calculate correct timing values. */
+static const struct fb_videomode pal_modes[] = {
+	{
+		/* 640x240 @ 50 Hz, 15.625 kHz hsync (PAL RGB) */
+		NULL, 50, 640, 240, 74074, 64, 16, 39, 5, 64, 5,
+		0, FB_VMODE_NONINTERLACED
+	},
+	{
+		/* 640x480i @ 50 Hz, 15.625 kHz hsync (PAL RGB) */
+		NULL, 50, 640, 480, 74074, 64, 16, 39, 5, 64, 5,
+		0, FB_VMODE_INTERLACED
+	},
+};
+
+/* TBD: Calculate correct timing values. */
+static const struct fb_videomode ntsc_modes[] = {
+	{
+		/* 640x224 @ 60 Hz, 15.625 kHz hsync (NTSC RGB) */
+		NULL, 60, 640, 224, 74074, 64, 16, 39, 5, 64, 5,
+		0, FB_VMODE_NONINTERLACED
+	},
+	{
+		/* 640x448i @ 60 Hz, 15.625 kHz hsync (NTSC RGB) */
+		NULL, 60, 640, 448, 74074, 64, 16, 39, 5, 64, 5,
+		0, FB_VMODE_INTERLACED
+	},
+};
+
+/* TBD: Calculate correct timing values. */
+static const struct fb_videomode dtv_modes[] = {
+	{
+		/* 720x480p @ 60 Hz, 15.625 kHz hsync (DTV RGB) */
+		NULL, 60, 720, 480, 74074, 64, 16, 39, 5, 64, 5,
+		0, FB_VMODE_NONINTERLACED
+	},
+	{
+		/* 1280x720p @ 60 Hz, 15.625 kHz hsync (DTV RGB) */
+		NULL, 60, 1280, 720, 74074, 64, 16, 39, 5, 64, 5,
+		0, FB_VMODE_NONINTERLACED
+	},
+	{
+		/* 1920x1080i @ 30 Hz, 15.625 kHz hsync (DTV RGB) */
+		NULL, 30, 1920, 1080, 74074, 64, 16, 39, 5, 64, 5,
+		0, FB_VMODE_INTERLACED
+	},
+};
+
+static void *rvmalloc(unsigned long size)
+{
+	void *mem;
+	unsigned long adr;
+
+	size = PAGE_ALIGN(size);
+	mem = vmalloc_32(size);
+	if (!mem)
+		return NULL;
+
+	memset(mem, 0, size); /* Clear the ram out, no junk to the user */
+	adr = (unsigned long) mem;
+	while (size > 0) {
+		SetPageReserved(vmalloc_to_page((void *)adr));
+		adr += PAGE_SIZE;
+		size -= PAGE_SIZE;
+	}
+
+	return mem;
+}
+
+static void rvfree(void *mem, unsigned long size)
+{
+	unsigned long adr;
+
+	if (!mem)
+		return;
+
+	adr = (unsigned long) mem;
+	while ((long) size > 0) {
+		ClearPageReserved(vmalloc_to_page((void *)adr));
+		adr += PAGE_SIZE;
+		size -= PAGE_SIZE;
+	}
+	vfree(mem);
+}
 
 /**
  *	ps2fb_open - Optional function. Called when the framebuffer is
@@ -437,16 +545,42 @@ static void ps2fb_redraw(struct fb_info *info)
 {
 	int offset;
 	int y;
+	int maxheight;
 
-	offset = (32/8) * defaultinfo.w;
-	for (y = 0; y < defaultinfo.h; y += 64) {
+	switch (info->var.xres) {
+		case 640:
+			maxheight = 64;
+			break;
+		case 720:
+			maxheight = 56;
+			break;
+		case 800:
+			maxheight = 50;
+			break;
+		case 1024:
+			maxheight = 40;
+			break;
+		case 1280:
+			maxheight = 32;
+			break;
+		case 1920:
+			maxheight = 20;
+			break;
+		default:
+			maxheight = 20;
+			break;
+	}
+
+	offset = (info->var.bits_per_pixel/8) * info->var.xres;
+	for (y = 0; y < info->var.yres; y += maxheight) {
 		int h;
 
-		h = defaultinfo.h - y;
-		if (h > 64) {
-			h = 64;
+		h = info->var.yres - y;
+		if (h > maxheight) {
+			h = maxheight;
 		}
-		ps2_paintsimg32(0, y, 640, h, (void *) (info->fix.smem_start + y * offset));
+		// TBD: Add support for 16 bit color.
+		ps2_paintsimg32(0, y, defaultinfo.w, h, (void *) (info->fix.smem_start + y * offset));
 	}
 }
 
@@ -496,9 +630,13 @@ static void ps2fb_redraw_timer_handler(unsigned long data)
  */
 static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
-	DPRINTK("ps2fb: %d %s() force 32 bit color\n", __LINE__, __FUNCTION__);
-    /* TBD: Implement ps2fb_check_var() */
-	var->bits_per_pixel = 32;
+	int res;
+
+	/* TBD: Support 16 and 32 bit color. */
+	if (var->bits_per_pixel != 32) {
+		DPRINTK("ps2fb: %d %s() force 32 bit color\n", __LINE__, __FUNCTION__);
+		var->bits_per_pixel = 32;
+	}
 	var->red.offset = 0;
 	var->red.length = 8;
 	var->green.offset = 8;
@@ -513,13 +651,97 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	var->blue.msb_right = 0;
 	var->transp.msb_right = 0;
 
-	if (var->rotate) {
+	if (var->xres_virtual != var->xres) {
+		/* Resolution is not supported. */
+		DPRINTK("ps2fb: xres_virtual %d not support with xres %d\n", var->xres_virtual, var->xres);
 		return -EINVAL;
 	}
+
+	if (var->yres_virtual != var->yres) {
+		/* Support second screen. */
+		DPRINTK("ps2fb: yres_virtual %d not support with yres %d\n", var->yres_virtual, var->yres);
+		return -EINVAL;
+	}
+
+	if (var->xoffset != 0) {
+		/* Panning not supported. */
+		DPRINTK("ps2fb: xoffset %d is not supported\n", var->xoffset);
+		return -EINVAL;
+	}
+
+	if (var->yoffset != 0) {
+		/* TBD: Panning not supported. */
+		DPRINTK("ps2fb: yoffset %d is not supported\n", var->yoffset);
+		return -EINVAL;
+	}
+
+	res = ps2con_get_resolution(crtmode, var->xres, var->yres, 60 /* TBD: calculate rate. */);
+	if (res < 0) {
+		/* Resolution is not supported in this crtmode. */
+		DPRINTK("ps2fb: %dx%d is not supported in crtmode %d\n", var->xres, var->yres, crtmode);
+		return -EINVAL;
+	}
+
+	if (var->rotate) {
+		/* No support for rotating. */
+		DPRINTK("ps2fb: rotate is not supported.\n");
+		return -EINVAL;
+	}
+
+	/* TBD: check more parameters? */
     return 0;	   	
 }
 
-#if 0 /* TBD: Implement function. */
+static void ps2fb_switch_mode(struct fb_info *info)
+{
+    struct ps2fb_par *par;
+	int size;
+
+	DPRINTK("ps2fb: %dx%d\n", info->var.xres, info->var.yres);
+
+	size = PAGE_ALIGN(info->var.bits_per_pixel/8 * info->var.xres * info->var.yres);
+	if (info->fix.smem_len != size) {
+		if (info->fix.smem_start != 0) {
+			/* TBD: Check if this could lead to problems if this is somewhere mapped. */
+			rvfree((void *) info->fix.smem_start, info->fix.smem_len);
+			info->fix.smem_start = 0;
+		}
+		info->fix.smem_len = 0;
+	}
+
+	/* TBD: Use par instead of defaultinfo and change info. */
+    par = info->par;
+
+	/* Activate screen mode. */
+	defaultinfo.psm = PS2_GS_PSMCT32;
+	defaultinfo.mode = crtmode;
+	defaultinfo.w = info->var.xres;
+	defaultinfo.h = info->var.yres;
+	defaultinfo.res = ps2con_get_resolution(crtmode, info->var.xres, info->var.yres, 60 /* TBD: calculate rate. */);
+	if (defaultinfo.w * defaultinfo.h > 1024 * 1024)
+		defaultinfo.psm = PS2_GS_PSMCT16; // TBD: use also 16 bit for virtual frame buffer.
+
+	DPRINTK("ps2fb: %d %s() mode %dx%d %dbpp crtmode %d res %d\n", __LINE__, __FUNCTION__, info->var.xres, info->var.yres, info->var.bits_per_pixel, defaultinfo.mode, defaultinfo.res);
+    ps2gs_screeninfo(&defaultinfo, NULL);
+
+	/* Clear screen (black). */
+	ps2_paintrect(0, 0, info->var.xres, info->var.yres, 0x80000000);
+
+	if (info->fix.smem_start == 0) {
+		info->fix.smem_start = (unsigned long) rvmalloc(size);
+	}
+	if (info->fix.smem_start != 0) {
+		/* Allocating of frame buffer worked. */
+		info->fix.smem_len = size;
+	} else {
+		printk("ps2fb: Failed to allocate video memory for %dx%d %d Bytes.\n", info->var.xres, info->var.yres, size);
+	}
+	info->fix.line_length = info->var.bits_per_pixel/8 * info->var.xres;
+	DPRINTK("ps2fb: smem_start 0x%08lx\n", info->fix.smem_start);
+	DPRINTK("ps2fb: smem_len 0x%08lx\n", info->fix.smem_len);
+	DPRINTK("ps2fb: line_length 0x%08lx\n", info->fix.line_length);
+}
+
 /**
  *      ps2fb_set_par - Optional function. Alters the hardware state.
  *      @info: frame buffer structure that represents a single frame buffer
@@ -561,15 +783,12 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
  */
 static int ps2fb_set_par(struct fb_info *info)
 {
-    struct ps2fb_par *par;
-
 	DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
 
-    par = info->par;
-    /* TBD: Set hardware state. */
+	ps2fb_switch_mode(info);
+
     return 0;	
 }
-#endif
 
 /**
  *  	ps2fb_setcolreg - Optional function. Sets a color register.
@@ -839,7 +1058,7 @@ static int ps2fb_mmap(struct fb_info *info,
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 	unsigned long page, pos;
 
-	if (((unsigned long)info->fix.smem_start) == 0) {
+	if (info->fix.smem_start == 0) {
 		return -ENOMEM;
 	}
 
@@ -885,9 +1104,7 @@ static struct fb_ops ps2fb_ops = {
 	/** TBD: .fb_ioctl = ps2fb_ioctl, */
 #endif
 	.fb_check_var = ps2fb_check_var,
-#if 0 /* TBD: Implement function. */
 	.fb_set_par = ps2fb_set_par,
-#endif
 	.fb_setcolreg = ps2fb_setcolreg,
 	.fb_fillrect = ps2fb_fillrect,
 	.fb_copyarea = ps2fb_copyarea,
@@ -895,26 +1112,7 @@ static struct fb_ops ps2fb_ops = {
 	.fb_mmap = ps2fb_mmap,
 };
 
-static void *rvmalloc(unsigned long size)
-{
-	void *mem;
-	unsigned long adr;
 
-	size = PAGE_ALIGN(size);
-	mem = vmalloc_32(size);
-	if (!mem)
-		return NULL;
-
-	memset(mem, 0, size); /* Clear the ram out, no junk to the user */
-	adr = (unsigned long) mem;
-	while (size > 0) {
-		SetPageReserved(vmalloc_to_page((void *)adr));
-		adr += PAGE_SIZE;
-		size -= PAGE_SIZE;
-	}
-
-	return mem;
-}
 
 static int __devinit ps2fb_probe(struct platform_device *pdev)
 {
@@ -922,9 +1120,18 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
     struct ps2fb_par *par;
     struct device *device = &pdev->dev; /* or &pdev->dev */
     int cmap_len, retval;	
-	char *mode_option;
+
+	/* TBD: move to other function? */
+	ps2con_gsp_init();
    
 	DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
+
+    ps2con_initinfo(&defaultinfo);
+	if (crtmode < 0) {
+		/* Set default to old crtmode parameter. */
+		crtmode = defaultinfo.mode;
+	}
+
     /*
      * Dynamically allocate info and par
      */
@@ -934,17 +1141,6 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 	    /* TBD: goto error path */
 		return -ENOMEM;
     }
-    ps2con_initinfo(&defaultinfo);
-    ps2gs_screeninfo(&defaultinfo, NULL);
-
-	ps2con_gsp_init();
-
-	/* Clear screen (black). */
-	ps2_paintrect(0, 0, defaultinfo.w, defaultinfo.h, 0x80000000);
-
-    par = info->par;
-	info->pseudo_palette = par->pseudo_palette;
-	par->opencnt = 0;
 
     /* 
      * Here we set the screen_base to the virtual memory address
@@ -955,11 +1151,18 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
     info->screen_base = NULL; /* TBD: framebuffer_virtual_memory; */
     info->fbops = &ps2fb_ops;
 
-	ps2fb_fix.smem_len = 32/8 * defaultinfo.w * defaultinfo.h; /* TBD: Increase memory. */
-	ps2fb_fix.smem_start = (unsigned long) rvmalloc(ps2fb_fix.smem_len);
-	ps2fb_fix.line_length = 32/8 * defaultinfo.w;
-	printk("ps2fb: smem_start 0x%08lx\n", ps2fb_fix.smem_start);
-    info->fix = ps2fb_fix;
+	strcpy(info->fix.id, "PS2 GS");
+	info->fix.type = FB_TYPE_PACKED_PIXELS;
+	info->fix.visual = FB_VISUAL_TRUECOLOR; /* TBD: FB_VISUAL_PSEUDOCOLOR, */
+	info->fix.xpanstep = 1;
+	info->fix.ypanstep = 1; // TBD: Add suport for second screen.
+	info->fix.ywrapstep = 1 ;
+	info->fix.accel = FB_ACCEL_NONE; /* TBD: Check if something is possible. */
+
+
+    par = info->par;
+	info->pseudo_palette = par->pseudo_palette;
+	par->opencnt = 0;
 
     /*
      * Set up flags to indicate what sort of acceleration your
@@ -1046,12 +1249,33 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
      * This should give a reasonable default video mode. The following is
      * done when we can set a video mode. 
      */
-	mode_option = "640x480@60";	 	
-
-    retval = fb_find_mode(&info->var, info, mode_option, NULL, 0, NULL, 8);
+	switch (crtmode) {
+	case PS2_GS_PAL:
+		retval = fb_find_mode(&info->var, info, mode_option, pal_modes, ARRAY_SIZE(pal_modes), NULL, 32);
+		break;
+	case PS2_GS_NTSC:
+		retval = fb_find_mode(&info->var, info, mode_option, ntsc_modes, ARRAY_SIZE(ntsc_modes), NULL, 32);
+		break;
+	case PS2_GS_DTV:
+		retval = fb_find_mode(&info->var, info, mode_option, dtv_modes, ARRAY_SIZE(dtv_modes), NULL, 32);
+		break;
+	case PS2_GS_VESA:
+		retval = fb_find_mode(&info->var, info, mode_option, NULL, 0, NULL, 32);
+		break;
+	default:
+		printk("ps2fb: unknown crtmode %d\n", crtmode);
+		retval = fb_find_mode(&info->var, info, mode_option, NULL, 0, NULL, 32);
+		break;
+	}
+	DPRINTK("ps2fb: fb_find_mode retval = %d\n", retval);
+	DPRINTK("ps2fb: mode_option %s %dx%d\n", mode_option, info->var.xres, info->var.yres);
   
-    if (!retval || retval == 4)
-	return -EINVAL;			
+	if (!retval)
+		return -EINVAL;			
+
+	info->fix.smem_len = 0;
+	info->fix.smem_start = 0;
+	ps2fb_switch_mode(info);
 
     /* This has to be done! */
 	cmap_len = 256; /* TBD: check. */
@@ -1100,8 +1324,36 @@ static struct platform_driver ps2fb_driver = {
  */
 int __init ps2fb_setup(char *options)
 {
+	char *this_opt;
+
 	DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
+
+	if (!options || !*options)
+		return 0;
+
     /* Parse user speficied options (`video=ps2fb:') */
+	while ((this_opt = strsep(&options, ",")) != NULL) {
+		if (!*this_opt) continue;
+
+		if (strnicmp(this_opt, "vesa", 4) == 0) {
+			crtmode = PS2_GS_VESA;
+			// TBD: maxres = 4;
+		} else if (strnicmp(this_opt, "dtv", 3) == 0) {
+			crtmode = PS2_GS_DTV;
+			// TBD: maxres = 3;
+		} else if (strnicmp(this_opt, "ntsc", 4) == 0) {
+			crtmode = PS2_GS_NTSC;
+			// TBD: maxres = 2;
+		} else if (strnicmp(this_opt, "pal", 3) == 0) {
+			crtmode = PS2_GS_PAL;
+			// TBD: maxres = 2;
+		} else if (this_opt[0] >= '0' && this_opt[0] <= '9') {
+			mode_option = this_opt;
+		} else {
+			printk(KERN_WARNING
+				"ps2fb: unrecognized option %s\n", this_opt);
+		}
+	}
 	return 0;
 }
 #endif /* MODULE */
