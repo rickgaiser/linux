@@ -58,5 +58,7 @@ void ps2con_initinfo(struct ps2_screeninfo *info);
 void ps2con_gsp_init(void);
 u64 *ps2con_gsp_alloc(int request, int *avail);
 void ps2con_gsp_send(int len, int flushall);
+int ps2con_get_resolution(int mode, int w, int h, int rate);
+
 
 #endif /* _VIDEO_PS2CON_H */
