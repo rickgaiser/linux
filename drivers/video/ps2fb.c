@@ -43,6 +43,7 @@ struct ps2fb_par
 {
 	u32 pseudo_palette[256];
 	u32 opencnt;
+	int mapped;
 	/* TBD: add members. */
 };
 
@@ -196,12 +197,6 @@ static int ps2fb_open(struct fb_info *info, int user)
 
     par = info->par;
 	if (user) {
-		if (par->opencnt == 0) {
-			/* Start timer for redrawing screen, because application could use mmap. */
-			redraw_timer.data = (unsigned long) info;
-    		redraw_timer.expires = jiffies + HZ / 50;
-    		add_timer(&redraw_timer);
-		}
 		par->opencnt++;
 	}
     return 0;
@@ -234,6 +229,7 @@ static int ps2fb_release(struct fb_info *info, int user)
 		if (par->opencnt == 0) {
 			/* Redrawing shouldn't be needed after closing by application. */
 			del_timer(&redraw_timer);
+			par->mapped = 0;
 		}
 	}
     return 0;
@@ -630,6 +626,7 @@ static void ps2fb_redraw_timer_handler(unsigned long data)
  */
 static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
+    struct ps2fb_par *par = info->par;
 	int res;
 
 	/* TBD: Support 16 and 32 bit color. */
@@ -689,6 +686,15 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	}
 
 	/* TBD: check more parameters? */
+	if ((info->var.xres_virtual != var->xres_virtual) || (info->var.yres_virtual != var->yres_virtual)) {
+		/* Allocated memory will change. */
+		/* TBD: Check when virtual memory buffer is supported. */
+		if (par->mapped != 0) {
+			printk("ps2fb: framebuffer must be unmapped before changing mode!\n");
+			return -EBUSY;
+		}
+	}
+
     return 0;	   	
 }
 
@@ -1057,6 +1063,7 @@ static int ps2fb_mmap(struct fb_info *info,
 	unsigned long size = vma->vm_end - vma->vm_start;
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 	unsigned long page, pos;
+    struct ps2fb_par *par;
 
 	if (info->fix.smem_start == 0) {
 		return -ENOMEM;
@@ -1065,6 +1072,10 @@ static int ps2fb_mmap(struct fb_info *info,
 	if (offset + size > info->fix.smem_len) {
 		return -EINVAL;
 	}
+
+    par = info->par;
+
+	/* TBD: Allocate framebuffer only on demand, not in mode changing function? */
 
 	pos = (unsigned long)info->fix.smem_start + offset;
 	/* Framebuffer can't be mapped. Map normal memory instead
@@ -1088,6 +1099,18 @@ static int ps2fb_mmap(struct fb_info *info,
 	}
 
 	vma->vm_flags |= VM_RESERVED;	/* avoid to swap out this VMA */
+
+	if (par->mapped == 0) {
+		par->mapped = 1;
+
+		/* Make screen black when mapped the first time. */
+		memset((void *) info->fix.smem_start, 0, info->fix.smem_len);
+
+		/* Start timer for redrawing screen, because application could use mmap. */
+		redraw_timer.data = (unsigned long) info;
+   		redraw_timer.expires = jiffies + HZ / 50;
+   		add_timer(&redraw_timer);
+	}
 	return 0;
 
 }
