@@ -22,9 +22,6 @@
 #include <asm/mach-ps2/dma.h>
 #include <asm/mach-ps2/ps2con.h>
 
-/* TBD: Seems not to be needed, because this is not used by xorg. */
-#define PIXMAP_SIZE (4 * 2048 * 32/8)
-
 /** Bigger 1 bit color images will be devided into smaller images with the following maximum width. */
 #define PATTERN_MAX_X 16
 /** Bigger 1 bit color images will be devided into smaller images with the following maximum height. */
@@ -87,7 +84,7 @@ static int param_set_crtmode(const char *val, struct kernel_param *kp)
 		crtmode = PS2_GS_PAL;
 	}
 
-	// TBD: Add code to support old parameter style.
+	/* TBD: Add code to support old parameter style. */
 
 	return 0;
 }
@@ -203,7 +200,7 @@ u32 colto32(struct fb_var_screeninfo *var, u32 col)
 	b = (col >> var->blue.offset) & (0xFFFFFFFF >> (32 - var->blue.length));
 	b <<= 8 - var->blue.length;
 	t = (col >> var->transp.offset) & (0xFFFFFFFF >> (32 - var->transp.length));
-	b <<= 8 - var->transp.length;
+	t <<= 8 - var->transp.length;
 
 	rv = (r << 0) | (g << 8) | (b << 16) | (t << 24);
 
@@ -217,20 +214,14 @@ u32 colto32(struct fb_var_screeninfo *var, u32 col)
  *	@user: tell us if the userland (value=1) or the console is accessing
  *	       the framebuffer. 
  *
- *	This function is the first function called in the framebuffer api.
- *	Usually you don't need to provide this function. The case where it 
- *	is used is to change from a text mode hardware state to a graphics
- * 	mode state. 
- *
  *	Returns negative errno on error, or zero on success.
  */
 static int ps2fb_open(struct fb_info *info, int user)
 {
-    struct ps2fb_par *par;
+    struct ps2fb_par *par = info->par;
 
 	DPRINTK("ps2fb_open: user %d\n", user);
 
-    par = info->par;
 	if (user) {
 		par->opencnt++;
 	}
@@ -244,22 +235,15 @@ static int ps2fb_open(struct fb_info *info, int user)
  *	@user: tell us if the userland (value=1) or the console is accessing
  *	       the framebuffer. 
  *	
- *	Thus function is called when we close /dev/fb or the framebuffer 
- *	console system is released. Usually you don't need this function.
- *	The case where it is usually used is to go from a graphics state
- *	to a text mode state.
- *
  *	Returns negative errno on error, or zero on success.
  */
 static int ps2fb_release(struct fb_info *info, int user)
 {
-    struct ps2fb_par *par;
+    struct ps2fb_par *par = info->par;
 
 	DPRINTK("ps2fb_release: user %d\n", user);
 
-    par = info->par;
 	if (user) {
-		/* TBD: Check if mmap is also removed. */
 		par->opencnt--;
 		if (par->opencnt == 0) {
 			/* Redrawing shouldn't be needed after closing by application. */
@@ -574,7 +558,7 @@ void ps2fb_dma_send(const void *data, unsigned long len)
 			s = len;
 		}
 		offset = start & (PAGE_SIZE - 1);
-		// TBD: vmalloc_to_pfn is only working with redraw handler.
+		/* vmalloc_to_pfn is only working with redraw handler. */
 		cur_start = phys_to_virt(PFN_PHYS(vmalloc_to_pfn((void *) start))) + offset;
 		cur_size = ALIGN16(s);
 		start += s;
@@ -618,6 +602,16 @@ void ps2fb_dma_send(const void *data, unsigned long len)
 	}
 }
 
+/**
+ *		Copy data to framebuffer on GS side.
+ *
+ *		@param info PS2 screeninfo (16 bit and 32 bit PSM is supported)
+ *		@param sx Destination X coordinate in framebuffer
+ *		@param sy Destination Y coordinate in framebuffer
+ *		@param width Width of frame
+ *		@param height Height of frame
+ *		@param data Source pointer which was allocated with rvmalloc()
+ */
 static void ps2fb_copyframe(struct ps2_screeninfo *info, int sx, int sy, int width, int height, const uint32_t *data)
 {
     u64 *gsp;
@@ -769,7 +763,6 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
 	int res;
 
-	/* TBD: Support 16 and 32 bit color. */
 	if (var->bits_per_pixel <= 16) {
 		var->bits_per_pixel = 16;
 	} else if (var->bits_per_pixel <= 32) {
@@ -804,6 +797,8 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 		var->transp.offset = 15; /* TBD: Check, seems to be disabled. Not needed? */
 		var->transp.length = 1;
 	} else {
+		/* TBD: Add support for 8bpp, because directfb doesn't support BGR, but 8bpp. */
+		/* TBD: Simulate 8bpp, convert on GS side. */
 		printk("ps2fb: %d bits per pixel are not supported.\n", var->bits_per_pixel);
 		return -EINVAL;
 	}
@@ -872,7 +867,8 @@ static void ps2fb_switch_mode(struct fb_info *info)
 	par->redraw_xres = info->var.xres;
 	par->screeninfo.h = info->var.yres;
 	par->redraw_yres = info->var.yres;
-	par->screeninfo.res = ps2con_get_resolution(crtmode, info->var.xres, info->var.yres, 60 /* TBD: calculate rate. */);
+	par->screeninfo.res = ps2con_get_resolution(crtmode,
+		info->var.xres, info->var.yres, 60 /* TBD: calculate rate. */);
 	if (info->var.bits_per_pixel == 16) {
 		par->screeninfo.psm = PS2_GS_PSMCT16;
 	}
@@ -1093,86 +1089,92 @@ void ps2fb_fillrect(struct fb_info *p, const struct fb_fillrect *region)
 			region->width,
 			region->height,
 			region->color);
+		/* TBD: handle region->rop ROP_COPY or ROP_XOR */
 		return;
 	}
 
 	if (p->fix.visual == FB_VISUAL_TRUECOLOR ||
-	    p->fix.visual == FB_VISUAL_DIRECTCOLOR )
+	    p->fix.visual == FB_VISUAL_DIRECTCOLOR ) {
 		color = ((u32*)(p->pseudo_palette))[region->color];
-	else
+	} else {
 		color = region->color;
-	/* TBD: handle region->rop ROP_COPY or ROP_XOR */
-	ps2_paintrect(region->dx, region->dy, region->width, region->height, colto32(&p->var, color));
-/*	Meaning of struct fb_fillrect
- *
- *	@dx: The x and y corrdinates of the upper left hand corner of the 
- *	@dy: area we want to draw to. 
- *	@width: How wide the rectangle is we want to draw.
- *	@height: How tall the rectangle is we want to draw.
- *	@color:	The color to fill in the rectangle with. 
- *	@rop: The raster operation. We can draw the rectangle with a COPY
- *	      of XOR which provides erasing effect. 
- */
+	}
+	ps2_paintrect(region->dx, region->dy,
+		region->width, region->height, colto32(&p->var, color));
 }
 
 /**
- *      ps2fb_copyarea - REQUIRED function. Can use generic routines if
- *                       non acclerated hardware and packed pixel based.
- *                       Copies one area of the screen to another area.
+ *      ps2fb_copyarea - REQUIRED function.
  *
  *      @info: frame buffer structure that represents a single frame buffer
  *      @area: Structure providing the data to copy the framebuffer contents
  *	       from one region to another.
  *
  *      This drawing operation copies a rectangular area from one area of the
- *	screen to another area.
+ *		screen to another area.
  */
-void ps2fb_copyarea(struct fb_info *p, const struct fb_copyarea *area) 
+void ps2fb_copyarea(struct fb_info *info, const struct fb_copyarea *area) 
 {
+	struct ps2fb_par *par = info->par;
+	u64 *gsp;
+	int fbw = (par->screeninfo.w + 63) / 64;
+	
 	DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
-/*
- *      @dx: The x and y coordinates of the upper left hand corner of the
- *      @dy: destination area on the screen.
- *      @width: How wide the rectangle is we want to copy.
- *      @height: How tall the rectangle is we want to copy.
- *      @sx: The x and y coordinates of the upper left hand corner of the
- *      @sy: source area on the screen.
- */
-	/* TBD: Function ps2fb_copyarea() needs to be implemented, used by fbcon. */
+	
+	if ((gsp = ps2con_gsp_alloc(ALIGN16(10 * 8), NULL)) == NULL) {
+		printk("ps2fb: ps2con_gsp_alloc() failed in ps2con_bmove().\n");
+		return;
+	}
+	
+	*gsp++ = PS2_GIFTAG_SET_TOPHALF(4, 1, 0, 0, PS2_GIFTAG_FLG_PACKED, 1);
+	/* A+D */
+	*gsp++ = 0x0e;
+	*gsp++ = (u64)par->screeninfo.fbp |
+	((u64)fbw << 16) | ((u64)par->screeninfo.psm << 24) |
+	((u64)par->screeninfo.fbp << 32) |
+	((u64)fbw << 48) | ((u64)par->screeninfo.psm << 56);
+	*gsp++ = PS2_GS_BITBLTBUF;
+
+	if (area->sy > area->dy || (area->sy == area->dy && area->sx > area->dx)) {
+		/* copy region LT -> RB */
+		*gsp++ = PACK64(PACK32(area->sx, area->sy),
+		PACK32(area->dx, area->dy) + (0 << 27));
+	} else {
+		/* copy region RB -> LT */
+		*gsp++ = PACK64(PACK32(area->sx, area->sy),
+			PACK32(area->dx, area->dy) + (3 << 27));
+	}
+	
+	*gsp++ = PS2_GS_TRXPOS;
+	*gsp++ = PACK64(area->width, area->height);
+	*gsp++ = PS2_GS_TRXREG;
+	/* local to local */
+	*gsp++ = 2;
+	*gsp++ = PS2_GS_TRXDIR;
+	
+	ps2con_gsp_send(ALIGN16(10 * 8), 0);
 }
 
 /**
- *      ps2fb_imageblit - REQUIRED function. Can use generic routines if
- *                        non acclerated hardware and packed pixel based.
- *                        Copies a image from system memory to the screen. 
+ *      ps2fb_imageblit - REQUIRED function.
  *
- *      @info: frame buffer structure that represents a single frame buffer
- *	@image:	structure defining the image.
+ *		@info: frame buffer structure that represents a single frame buffer
+ *		@image:	structure defining the image.
  *
  *      This drawing operation draws a image on the screen. It can be a 
- *	mono image (needed for font handling) or a color image (needed for
- *	tux). 
+ *		mono image (needed for font handling) or a color image (needed for
+ *		tux). 
  */
 void ps2fb_imageblit(struct fb_info *info, const struct fb_image *image) 
 {
     struct ps2fb_par *par = info->par;
-	uint32_t fgcolor;
-	uint32_t bgcolor;
-
-	if ((image->depth != 1) && (image->depth != 8)) {
-		printk("ps2fb: blit depth %d dx %d dy %d w %d h %d 0x%08x\n",
-		image->depth,
-		image->dx,
-		image->dy,
-		image->width,
-		image->height,
-		(unsigned int)image->data);
-	}
 
 	if (image->depth == 1) {
 		int x;
 		int y;
 		int offset;
+		uint32_t fgcolor;
+		uint32_t bgcolor;
 
 		fgcolor = ((u32*)(info->pseudo_palette))[image->fg_color];
 		bgcolor = ((u32*)(info->pseudo_palette))[image->bg_color];
@@ -1241,6 +1243,15 @@ void ps2fb_imageblit(struct fb_info *info, const struct fb_image *image)
 				}
 			}
 		}
+	} else {
+		printk("ps2fb: blit depth %d dx %d dy %d w %d h %d 0x%08x\n",
+		image->depth,
+		image->dx,
+		image->dy,
+		image->width,
+		image->height,
+		(unsigned int)image->data);
+		/* TBD: Implement other color depths in ps2fb_imageblit()? */
 	}
 }
 
@@ -1251,13 +1262,15 @@ static int ps2fb_mmap(struct fb_info *info,
 	unsigned long size = vma->vm_end - vma->vm_start;
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 	unsigned long page, pos;
-    struct ps2fb_par *par;
+    struct ps2fb_par *par = info->par;
 
 	if (offset + size > info->fix.smem_len) {
 		return -EINVAL;
 	}
 
 	if ((info->fix.smem_start == 0) && (info->fix.smem_len > 0)) {
+		/* Memory is allocated on first call to mmap. */
+		/* This will save memory until framebuffer is used. */
 		info->fix.smem_start = (unsigned long) rvmalloc(info->fix.smem_len);
 	}
 
@@ -1265,8 +1278,6 @@ static int ps2fb_mmap(struct fb_info *info,
 		printk("ps2fb: Failed to allocate frame buffer (%d Bytes).\n", info->fix.smem_len);
 		return -ENOMEM;
 	}
-
-    par = info->par;
 
 	pos = (unsigned long)info->fix.smem_start + offset;
 	/* Framebuffer can't be mapped. Map normal memory instead
@@ -1348,7 +1359,6 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
     info = framebuffer_alloc(sizeof(struct ps2fb_par), device);
 
     if (!info) {
-	    /* TBD: goto error path */
 		return -ENOMEM;
     }
 
@@ -1404,63 +1414,7 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 		| FBINFO_HWACCEL_COPYAREA
 		| FBINFO_HWACCEL_FILLRECT
 		| FBINFO_HWACCEL_IMAGEBLIT;
-
-#if 1 // TBD: Check
-/********************* This stage is optional ******************************/
-     /*
-     * The struct pixmap is a scratch pad for the drawing functions. This
-     * is where the monochrome bitmap is constructed by the higher layers
-     * and then passed to the accelerator.  For drivers that uses
-     * cfb_imageblit, you can skip this part.  For those that have a more
-     * rigorous requirement, this stage is needed
-     */
-
-    /* PIXMAP_SIZE should be small enough to optimize drawing, but not
-     * large enough that memory is wasted.  A safe size is
-     * (max_xres * max_font_height/8). max_xres is driver dependent,
-     * max_font_height is 32.
-     */
-    info->pixmap.addr = kmalloc(PIXMAP_SIZE, GFP_KERNEL);
-    if (!info->pixmap.addr) {
-	    /* TBD: goto error handler */
-		return -ENOMEM;
-    }
-
-    info->pixmap.size = PIXMAP_SIZE;
-
-    /*
-     * FB_PIXMAP_SYSTEM - memory is in system ram
-     * FB_PIXMAP_IO     - memory is iomapped
-     * FB_PIXMAP_SYNC   - if set, will call fb_sync() per access to pixmap,
-     *                    usually if FB_PIXMAP_IO is set.
-     *
-     * Currently, FB_PIXMAP_IO is unimplemented.
-     */
-	/* TBD: Set FB_PIXMAP_SYNC for DMA? */
-    info->pixmap.flags = FB_PIXMAP_SYSTEM;
-
-    /*
-     * scan_align is the number of padding for each scanline.  It is in bytes.
-     * Thus for accelerators that need padding to the next u32, put 4 here.
-     */
-    info->pixmap.scan_align = 1;
-
-    /*
-     * buf_align is the amount to be padded for the buffer. For example,
-     * the i810fb needs a scan_align of 2 but expects it to be fed with
-     * dwords, so a buf_align = 4 is required.
-     */
-    info->pixmap.buf_align = 16;
-
-    /* access_align is how many bits can be accessed from the framebuffer
-     * ie. some epson cards allow 16-bit access only.  Most drivers will
-     * be safe with u32 here.
-     *
-     * NOTE: This field is currently unused.
-     */
-    info->pixmap.access_align = 8;
-/***************************** End optional stage ***************************/
-#endif
+	/* TBD: Support FBINFO_HWACCEL_YPAN or FBINFO_HWACCEL_YWRAP some applications need this. */
 
     /*
      * This should give a reasonable default video mode. The following is
