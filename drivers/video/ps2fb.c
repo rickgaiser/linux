@@ -30,6 +30,23 @@
 /** Bigger 1 bit color images will be devided into smaller images with the following maximum height. */
 #define PATTERN_MAX_Y 8
 
+/** Alignment for width in Bytes. */
+#define PS2_FBMEM_ALIGN 8
+
+/** Number of colors in palette. */
+#define PAL_COLORS 256
+
+/** Usable memory in GS. */
+#define MAXVIDEOMEMSIZE (4 * 1024 * 1024)
+
+/* ps2fb module parameters. */
+#define VESA "VESA"
+#define DTV "dtv"
+#define NTSC "NTSC"
+#define PAL "pal"
+#define VIDEOMEMEMORYSIZE "videomemsize="
+#define DEFAULTVIDEOMEMSIZE (2 * 1024 * 1024)
+
 #if 0
 #define DPRINTK(args...) ps2_printf(args)
 #else
@@ -41,13 +58,13 @@ static void ps2fb_redraw_timer_handler(unsigned long dev_addr);
 
 struct ps2fb_par
 {
-	u32 pseudo_palette[256];
+	u32 pseudo_palette[PAL_COLORS];
 	u32 opencnt;
 	int mapped;
-	/* TBD: add members. */
+	struct ps2_screeninfo screeninfo;
+	int redraw_xres;
+	int redraw_yres;
 };
-
-static struct ps2_screeninfo defaultinfo;
 
 static struct timer_list redraw_timer = {
     function: ps2fb_redraw_timer_handler
@@ -55,26 +72,19 @@ static struct timer_list redraw_timer = {
 
 static char *mode_option __devinitdata;
 static int crtmode = -1;
+static int videomemsize = DEFAULTVIDEOMEMSIZE;
 
 #define param_get_crtmode NULL
 static int param_set_crtmode(const char *val, struct kernel_param *kp)
 {
-	if (strnicmp(val, "vesa", 4) == 0) {
-		val += 4;
+	if (strnicmp(val, VESA, sizeof(VESA) - 1) == 0) {
 		crtmode = PS2_GS_VESA;
-		// TBD: maxres = 4;
-	} else if (strnicmp(val, "dtv", 3) == 0) {
-		val += 3;
+	} else if (strnicmp(val, DTV, sizeof(DTV) - 1) == 0) {
 		crtmode = PS2_GS_DTV;
-		// TBD: maxres = 3;
-	} else if (strnicmp(val, "ntsc", 4) == 0) {
-		// TBD: val += 4;
+	} else if (strnicmp(val, NTSC, sizeof(NTSC) - 1) == 0) {
 		crtmode = PS2_GS_NTSC;
-		// TBD: maxres = 2;
-	} else if (strnicmp(val, "pal", 3) == 0) {
-		val += 3;
+	} else if (strnicmp(val, PAL, sizeof(PAL) - 1) == 0) {
 		crtmode = PS2_GS_PAL;
-		// TBD: maxres = 2;
 	}
 
 	// TBD: Add code to support old parameter style.
@@ -86,10 +96,13 @@ static int param_set_crtmode(const char *val, struct kernel_param *kp)
 
 module_param_named(crtmode, crtmode, crtmode, 0);
 MODULE_PARM_DESC(crtmode,
-	"Crtmode mode, set to 'vesa', 'dtv', 'ntsc' or 'pal'");
+	"Crtmode mode, set to '" VESA "', '" DTV "', '" NTSC "' or '" PAL "'");
 module_param(mode_option, charp, 0);
 MODULE_PARM_DESC(mode_option,
 	"Specify initial video mode as \"<xres>x<yres>[-<bpp>][@<refresh>]\"");
+module_param(videomemsize, int, 0);
+MODULE_PARM_DESC(videomemsize,
+	"Maximum memory for frame buffer mmap");
 
 /* TBD: Calculate correct timing values. */
 static const struct fb_videomode pal_modes[] = {
@@ -173,6 +186,28 @@ static void rvfree(void *mem, unsigned long size)
 		size -= PAGE_SIZE;
 	}
 	vfree(mem);
+}
+
+u32 colto32(struct fb_var_screeninfo *var, u32 col)
+{
+	u32 rv;
+	u32 r;
+	u32 g;
+	u32 b;
+	u32 t;
+
+	r = (col >> var->red.offset) & (0xFFFFFFFF >> (32 - var->red.length));
+	r <<= 8 - var->red.length;
+	g = (col >> var->green.offset) & (0xFFFFFFFF >> (32 - var->green.length));
+	g <<= 8 - var->green.length;
+	b = (col >> var->blue.offset) & (0xFFFFFFFF >> (32 - var->blue.length));
+	b <<= 8 - var->blue.length;
+	t = (col >> var->transp.offset) & (0xFFFFFFFF >> (32 - var->transp.length));
+	b <<= 8 - var->transp.length;
+
+	rv = (r << 0) | (g << 8) | (b << 16) | (t << 24);
+
+	return rv;
 }
 
 /**
@@ -271,7 +306,8 @@ static void ps2_paintrect(int sx, int sy, int width, int height, uint32_t color)
     ps2con_gsp_send(ALIGN16(6 * 8), 0);
 }
 
-static void *ps2_addpattern1(void *gsp, const unsigned char *data, int width, int height, uint32_t bgcolor, uint32_t fgcolor, int lineoffset)
+/* Convert 1bpp to 32bpp */
+static void *ps2_addpattern1_32(void *gsp, const unsigned char *data, int width, int height, uint32_t bgcolor, uint32_t fgcolor, int lineoffset)
 {
 	int y;
 	int x;
@@ -298,13 +334,41 @@ static void *ps2_addpattern1(void *gsp, const unsigned char *data, int width, in
 	return (void *)p32;
 }
 
-/* Paint image from data with 1 bit per pixel. */
-static void ps2_paintsimg1(int sx, int sy, int width, int height, uint32_t bgcolor, uint32_t fgcolor, const unsigned char *data, int lineoffset)
+/* Convert 1bpp to 16bpp */
+static void *ps2_addpattern1_16(void *gsp, const unsigned char *data, int width, int height, uint16_t bgcolor, uint16_t fgcolor, int lineoffset)
+{
+	int y;
+	int x;
+	int offset;
+    u16 *p16;
+
+	offset = 0;
+	p16 = (u16 *) gsp;
+	for (y = 0; y < height; y++) {
+		for (x = 0; x < width; x++) {
+			u32 v;
+
+			v = data[(offset + x) / 8];
+			v >>= 7 - ((offset + x) & 7);
+			v &= 1;
+			if (v) {
+				*p16++ = fgcolor;
+			} else {
+				*p16++ = bgcolor;
+			}
+		}
+		offset += lineoffset;
+	}
+	return (void *)p16;
+}
+
+/* Paint image from data with 1 bit per pixel in 32bpp framebuffer. */
+static void ps2_paintsimg1_32(struct ps2_screeninfo *info, int sx, int sy, int width, int height, uint32_t bgcolor, uint32_t fgcolor, const unsigned char *data, int lineoffset)
 {
     u64 *gsp;
     void *gsp_h;
     int gspsz; /* Available DMA packet size. */
-	int fbw = (defaultinfo.w + 63) / 64;
+	int fbw = (info->w + 63) / 64;
 	unsigned int packetlen;
 
 	if ((gsp = ps2con_gsp_alloc(ALIGN16(12 * 8 + sizeof(fgcolor) * width * height), &gspsz)) == NULL) {
@@ -315,8 +379,8 @@ static void ps2_paintsimg1(int sx, int sy, int width, int height, uint32_t bgcol
 
 	*gsp++ = PS2_GIFTAG_SET_TOPHALF(4, 0, 0, 0, PS2_GIFTAG_FLG_PACKED, 1);
 	*gsp++ = 0x0e;		/* A+D */
-	*gsp++ = (u64)0 | ((u64)defaultinfo.fbp << 32) |
-	    ((u64)fbw << 48) | ((u64)defaultinfo.psm << 56);
+	*gsp++ = (u64)0 | ((u64)info->fbp << 32) |
+	    ((u64)fbw << 48) | ((u64)info->psm << 56);
 	*gsp++ = PS2_GS_BITBLTBUF;
 	*gsp++ = PACK64(0, PACK32(sx, sy));
 	*gsp++ = PS2_GS_TRXPOS;
@@ -328,13 +392,48 @@ static void ps2_paintsimg1(int sx, int sy, int width, int height, uint32_t bgcol
 	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(sizeof(fgcolor) * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
 	*gsp++ = 0;
 
-	gsp = ps2_addpattern1(gsp, data, width, height, bgcolor, fgcolor, lineoffset);
+	gsp = ps2_addpattern1_32(gsp, data, width, height, bgcolor, fgcolor, lineoffset);
+	packetlen = ((void *) ALIGN16(gsp)) - gsp_h;
+	ps2con_gsp_send(packetlen, 0);
+}
+
+/* Paint image from data with 1 bit per pixel in 16bpp framebuffer. */
+static void ps2_paintsimg1_16(struct ps2_screeninfo *info, int sx, int sy, int width, int height, uint16_t bgcolor, uint16_t fgcolor, const unsigned char *data, int lineoffset)
+{
+    u64 *gsp;
+    void *gsp_h;
+    int gspsz; /* Available DMA packet size. */
+	int fbw = (info->w + 63) / 64;
+	unsigned int packetlen;
+
+	if ((gsp = ps2con_gsp_alloc(ALIGN16(12 * 8 + sizeof(fgcolor) * width * height), &gspsz)) == NULL) {
+		DPRINTK("Failed ps2con_gsp_alloc with w %d h %d size %lu\n", width, height, ALIGN16(12 * 8 + sizeof(fgcolor) * width * height));
+	    return;
+	}
+	gsp_h = gsp;
+
+	*gsp++ = PS2_GIFTAG_SET_TOPHALF(4, 0, 0, 0, PS2_GIFTAG_FLG_PACKED, 1);
+	*gsp++ = 0x0e;		/* A+D */
+	*gsp++ = ((u64)0) | ((u64)info->fbp << 32) |
+	    ((u64)fbw << 48) | ((u64)info->psm << 56);
+	*gsp++ = PS2_GS_BITBLTBUF;
+	*gsp++ = PACK64(0, PACK32(sx, sy));
+	*gsp++ = PS2_GS_TRXPOS;
+	*gsp++ = PACK64(width, height);
+	*gsp++ = PS2_GS_TRXREG;
+	*gsp++ = 0;		/* host to local */
+	*gsp++ = PS2_GS_TRXDIR;
+
+	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(sizeof(fgcolor) * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
+	*gsp++ = 0;
+
+	gsp = ps2_addpattern1_16(gsp, data, width, height, bgcolor, fgcolor, lineoffset);
 	packetlen = ((void *) ALIGN16(gsp)) - gsp_h;
 	ps2con_gsp_send(packetlen, 0);
 }
 
 /* Paint image from data with 8 bit per pixel. */
-static void *ps2_addpattern8(void *gsp, const unsigned char *data, int width, int height, uint32_t *palette, int lineoffset)
+static void *ps2_addpattern8_32(void *gsp, const unsigned char *data, int width, int height, uint32_t *palette, int lineoffset)
 {
 	int y;
 	int x;
@@ -355,15 +454,35 @@ static void *ps2_addpattern8(void *gsp, const unsigned char *data, int width, in
 	return (void *)p32;
 }
 
-static void ps2_paintsimg8(int sx, int sy, int width, int height, uint32_t *palette, const unsigned char *data, int lineoffset)
+/* Paint image from data with 8 bit per pixel. */
+static void *ps2_addpattern8_16(void *gsp, const unsigned char *data, int width, int height, uint32_t *palette, int lineoffset)
+{
+	int y;
+	int x;
+	int offset;
+    u16 *p16;
+
+	offset = 0;
+	p16 = (u16 *) gsp;
+	for (y = 0; y < height; y++) {
+		for (x = 0; x < width; x++) {
+			u32 v;
+
+			v = data[offset + x];
+			*p16++ = palette[v];
+		}
+		offset += lineoffset;
+	}
+	return (void *)p16;
+}
+
+/* Paint 8bpp image in 32bpp screen buffer. */
+static void ps2_paintsimg8_32(struct ps2_screeninfo *info, int sx, int sy, int width, int height, uint32_t *palette, const unsigned char *data, int lineoffset)
 {
     u64 *gsp;
     void *gsp_h;
     int gspsz; /* Available size. */
-	int fbw = (defaultinfo.w + 63) / 64;
-#if 0
-	void *buffer;
-#endif
+	int fbw = (info->w + 63) / 64;
 	unsigned int packetlen;
 
 	if ((gsp = ps2con_gsp_alloc(ALIGN16(12 * 8 + sizeof(palette[0]) * width * height), &gspsz)) == NULL) {
@@ -375,8 +494,8 @@ static void ps2_paintsimg8(int sx, int sy, int width, int height, uint32_t *pale
 	*gsp++ = PS2_GIFTAG_SET_TOPHALF(4, 0, 0, 0, PS2_GIFTAG_FLG_PACKED, 1);
 	/* A+D */
 	*gsp++ = 0x0e;
-	*gsp++ = (u64)0 | ((u64)defaultinfo.fbp << 32) |
-	    ((u64)fbw << 48) | ((u64)defaultinfo.psm << 56);
+	*gsp++ = (u64)0 | ((u64)info->fbp << 32) |
+	    ((u64)fbw << 48) | ((u64)info->psm << 56);
 	*gsp++ = PS2_GS_BITBLTBUF;
 	*gsp++ = PACK64(0, PACK32(sx, sy));
 	*gsp++ = PS2_GS_TRXPOS;
@@ -389,51 +508,48 @@ static void ps2_paintsimg8(int sx, int sy, int width, int height, uint32_t *pale
 	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(sizeof(palette[0]) * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
 	*gsp++ = 0;
 
-#if 1
-	/* TBD: Optimize, don't copy pixel data, use DMA instead. */
-	gsp = ps2_addpattern8(gsp, data, width, height, palette, lineoffset);
+	gsp = ps2_addpattern8_32(gsp, data, width, height, palette, lineoffset);
 	packetlen = ((void *) ALIGN16(gsp)) - gsp_h;
 	ps2con_gsp_send(packetlen, 0);
-#else
-	ps2con_gsp_send(((void *) gsp) - gsp_h, 0);
-	packetlen = ALIGN16(4 * width * height);
-
-	buffer = kmalloc(packetlen, GFP_DMA32);
-	if (buffer != NULL) {
-		/* TBD: Still slow copy. */
-		/* Convert data. */
-		ps2_addpattern8(buffer, data, width, height, palette, lineoffset);
-		dma_cache_wback((unsigned long) buffer, packetlen);
-		ps2sdma_send(DMA_GIF, buffer, packetlen, 0);
-		kfree(buffer);
-	} else {
-		/* TBD: Fast, but clut missing and 8 bit format. */
-		dma_cache_wback((unsigned long) data, packetlen);
-		ps2sdma_send(DMA_GIF, data, packetlen, 0);
-	}
-#endif
 }
 
-#if 0
-/* Paint image from data with 8 bit per pixel. */
-static void *ps2_addpattern32(void *gsp, const uint32_t *data, int width, int height, int lineoffset)
+/* Paint 8bpp image in 16bpp screen buffer. */
+static void ps2_paintsimg8_16(struct ps2_screeninfo *info, int sx, int sy, int width, int height, uint32_t *palette, const unsigned char *data, int lineoffset)
 {
-	int y;
-	int x;
-	int offset;
-    u32 *p32;
+    u64 *gsp;
+    void *gsp_h;
+    int gspsz; /* Available size. */
+	int fbw = (info->w + 63) / 64;
+	unsigned int packetlen;
 
-	offset = 0;
-	p32 = (u32 *) gsp;
-	for (y = 0; y < height; y++) {
-		for (x = 0; x < width; x++) {
-			*p32++ = data[offset + x];
-		}
-		offset += lineoffset / (32/8);
+	if ((gsp = ps2con_gsp_alloc(ALIGN16(12 * 8 + sizeof(palette[0]) * width * height), &gspsz)) == NULL) {
+		DPRINTK("Failed ps2con_gsp_alloc with w %d h %d size %lu\n", width, height, ALIGN16(12 * 8 + sizeof(palette[0]) * width * height));
+	    return;
 	}
-	return (void *)p32;
+	gsp_h = gsp;
+
+	*gsp++ = PS2_GIFTAG_SET_TOPHALF(4, 0, 0, 0, PS2_GIFTAG_FLG_PACKED, 1);
+	/* A+D */
+	*gsp++ = 0x0e;
+	*gsp++ = (u64)0 | ((u64)info->fbp << 32) |
+	    ((u64)fbw << 48) | ((u64)info->psm << 56);
+	*gsp++ = PS2_GS_BITBLTBUF;
+	*gsp++ = PACK64(0, PACK32(sx, sy));
+	*gsp++ = PS2_GS_TRXPOS;
+	*gsp++ = PACK64(width, height);
+	*gsp++ = PS2_GS_TRXREG;
+	/* host to local */
+	*gsp++ = 0;
+	*gsp++ = PS2_GS_TRXDIR;
+
+	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(sizeof(palette[0]) * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
+	*gsp++ = 0;
+
+	/* TBD: This is really slow at 1280x1024 */
+	gsp = ps2_addpattern8_16(gsp, data, width, height, palette, lineoffset);
+	packetlen = ((void *) ALIGN16(gsp)) - gsp_h;
+	ps2con_gsp_send(packetlen, 0);
 }
-#endif
 
 void ps2fb_dma_send(const void *data, unsigned long len)
 {
@@ -502,25 +618,50 @@ void ps2fb_dma_send(const void *data, unsigned long len)
 	}
 }
 
-
-static void ps2_paintsimg32(int sx, int sy, int width, int height, const uint32_t *data)
+static void ps2fb_copyframe(struct ps2_screeninfo *info, int sx, int sy, int width, int height, const uint32_t *data)
 {
     u64 *gsp;
     void *gsp_h;
     int gspsz; /* Available size. */
-	int fbw = (defaultinfo.w + 63) / 64;
+	int fbw = (info->w + 63) / 64;
+	int bpp;
 
 	if ((gsp = ps2con_gsp_alloc(ALIGN16(12 * 8), &gspsz)) == NULL) {
-		DPRINTK("Failed ps2con_gsp_alloc with w %d h %d size %lu\n", width, height, ALIGN16(12 * 8 + sizeof(data[0]) * width * height));
+		DPRINTK("Failed ps2con_gsp_alloc\n");
 	    return;
+	}
+	/* Calculate number of bytes per pixel. */
+	switch (info->psm) {
+	case PS2_GS_PSMCT32:
+	case PS2_GS_PSMZ32:
+	case PS2_GS_PSMCT24:
+	case PS2_GS_PSMZ24:
+		bpp = 4;
+		break;
+
+	case PS2_GS_PSMCT16:
+	case PS2_GS_PSMCT16S:
+	case PS2_GS_PSMZ16:
+	case PS2_GS_PSMZ16S:
+		bpp = 2;
+		break;
+
+	case PS2_GS_PSMT8:
+	case PS2_GS_PSMT8H:
+		bpp = 1;
+		break;
+
+	default:
+		bpp = 1;
+		break;
 	}
 	gsp_h = gsp;
 
 	*gsp++ = PS2_GIFTAG_SET_TOPHALF(4, 0, 0, 0, PS2_GIFTAG_FLG_PACKED, 1);
 	/* A+D */
 	*gsp++ = 0x0e;
-	*gsp++ = (u64)0 | ((u64)defaultinfo.fbp << 32) |
-	    ((u64)fbw << 48) | ((u64)defaultinfo.psm << 56);
+	*gsp++ = (u64)0 | ((u64)info->fbp << 32) |
+	    ((u64)fbw << 48) | ((u64)info->psm << 56);
 	*gsp++ = PS2_GS_BITBLTBUF;
 	*gsp++ = PACK64(0, PACK32(sx, sy));
 	*gsp++ = PS2_GS_TRXPOS;
@@ -530,11 +671,11 @@ static void ps2_paintsimg32(int sx, int sy, int width, int height, const uint32_
 	*gsp++ = 0;
 	*gsp++ = PS2_GS_TRXDIR;
 
-	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(sizeof(data[0]) * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
+	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(bpp * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
 	*gsp++ = 0;
 	ps2con_gsp_send(((unsigned long) gsp) - ((unsigned long) gsp_h), 1);
 
-	ps2fb_dma_send(data, ALIGN16(4 * width * height));
+	ps2fb_dma_send(data, ALIGN16(bpp * width * height));
 }
 
 static void ps2fb_redraw(struct fb_info *info)
@@ -542,8 +683,9 @@ static void ps2fb_redraw(struct fb_info *info)
 	int offset;
 	int y;
 	int maxheight;
+    struct ps2fb_par *par = info->par;
 
-	switch (info->var.xres) {
+	switch (par->redraw_xres) {
 		case 640:
 			maxheight = 64;
 			break;
@@ -567,16 +709,15 @@ static void ps2fb_redraw(struct fb_info *info)
 			break;
 	}
 
-	offset = (info->var.bits_per_pixel/8) * info->var.xres;
-	for (y = 0; y < info->var.yres; y += maxheight) {
+	offset = ((info->var.bits_per_pixel/8) * par->redraw_xres + PS2_FBMEM_ALIGN - 1) & ~(PS2_FBMEM_ALIGN - 1);
+	for (y = 0; y < par->redraw_yres; y += maxheight) {
 		int h;
 
-		h = info->var.yres - y;
+		h = par->redraw_yres - y;
 		if (h > maxheight) {
 			h = maxheight;
 		}
-		// TBD: Add support for 16 bit color.
-		ps2_paintsimg32(0, y, defaultinfo.w, h, (void *) (info->fix.smem_start + y * offset));
+		ps2fb_copyframe(&par->screeninfo, 0, y, par->screeninfo.w, h, (void *) (info->fix.smem_start + y * offset));
 	}
 }
 
@@ -626,22 +767,46 @@ static void ps2fb_redraw_timer_handler(unsigned long data)
  */
 static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
-    struct ps2fb_par *par = info->par;
 	int res;
 
 	/* TBD: Support 16 and 32 bit color. */
-	if (var->bits_per_pixel != 32) {
-		printk("ps2fb: force 32 bit color\n");
+	if (var->bits_per_pixel <= 16) {
+		var->bits_per_pixel = 16;
+	} else if (var->bits_per_pixel <= 32) {
 		var->bits_per_pixel = 32;
+	} else {
+		printk("ps2fb: %d bits per pixel are not supported.\n", var->bits_per_pixel);
+		return -EINVAL;
 	}
-	var->red.offset = 0;
-	var->red.length = 8;
-	var->green.offset = 8;
-	var->green.length = 8;
-	var->blue.offset = 16;
-	var->blue.length = 8;
-	var->transp.offset = 24; /* TBD: Check, seems to be disabled. Not needed? */
-	var->transp.length = 8;
+	if ((var->bits_per_pixel/8 * var->xres * var->yres) > MAXVIDEOMEMSIZE) {
+		if (var->bits_per_pixel > 16) {
+			printk("ps2fb: %d bits per pixel are not supported at %dx%d.\n",
+				var->bits_per_pixel, var->xres, var->yres);
+			var->bits_per_pixel = 16;
+		}
+	}
+	if (var->bits_per_pixel == 32) {
+		var->red.offset = 0;
+		var->red.length = 8;
+		var->green.offset = 8;
+		var->green.length = 8;
+		var->blue.offset = 16;
+		var->blue.length = 8;
+		var->transp.offset = 24; /* TBD: Check, seems to be disabled. Not needed? */
+		var->transp.length = 8;
+	} else if (var->bits_per_pixel == 16) {
+		var->red.offset = 0;
+		var->red.length = 5;
+		var->green.offset = 5;
+		var->green.length = 5;
+		var->blue.offset = 10;
+		var->blue.length = 5;
+		var->transp.offset = 15; /* TBD: Check, seems to be disabled. Not needed? */
+		var->transp.length = 1;
+	} else {
+		printk("ps2fb: %d bits per pixel are not supported.\n", var->bits_per_pixel);
+		return -EINVAL;
+	}
 
 	var->red.msb_right = 0;
 	var->green.msb_right = 0;
@@ -686,66 +851,60 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	}
 
 	/* TBD: check more parameters? */
-	if ((info->var.xres_virtual != var->xres_virtual) || (info->var.yres_virtual != var->yres_virtual)) {
-		/* Allocated memory will change. */
-		/* TBD: Check when virtual memory buffer is supported. */
-		if (par->mapped != 0) {
-			printk("ps2fb: framebuffer must be unmapped before changing mode!\n");
-			return -EBUSY;
-		}
-	}
 
     return 0;	   	
 }
 
 static void ps2fb_switch_mode(struct fb_info *info)
 {
-    struct ps2fb_par *par;
-	int size;
+    struct ps2fb_par *par = info->par;
+	int maxredrawline;
 
 	DPRINTK("ps2fb: %dx%d\n", info->var.xres, info->var.yres);
-
-	size = PAGE_ALIGN(info->var.bits_per_pixel/8 * info->var.xres * info->var.yres);
-	if (info->fix.smem_len != size) {
-		if (info->fix.smem_start != 0) {
-			/* TBD: Check if this could lead to problems if this is somewhere mapped. */
-			rvfree((void *) info->fix.smem_start, info->fix.smem_len);
-			info->fix.smem_start = 0;
-		}
-		info->fix.smem_len = 0;
+	if (par->mapped != 0) {
+		del_timer(&redraw_timer);
 	}
 
-	/* TBD: Use par instead of defaultinfo and change info. */
-    par = info->par;
-
 	/* Activate screen mode. */
-	defaultinfo.psm = PS2_GS_PSMCT32;
-	defaultinfo.mode = crtmode;
-	defaultinfo.w = info->var.xres;
-	defaultinfo.h = info->var.yres;
-	defaultinfo.res = ps2con_get_resolution(crtmode, info->var.xres, info->var.yres, 60 /* TBD: calculate rate. */);
-	if (defaultinfo.w * defaultinfo.h > 1024 * 1024)
-		defaultinfo.psm = PS2_GS_PSMCT16; // TBD: use also 16 bit for virtual frame buffer.
+	par->screeninfo.psm = PS2_GS_PSMCT32;
+	par->screeninfo.mode = crtmode;
+	par->screeninfo.w = info->var.xres;
+	par->redraw_xres = info->var.xres;
+	par->screeninfo.h = info->var.yres;
+	par->redraw_yres = info->var.yres;
+	par->screeninfo.res = ps2con_get_resolution(crtmode, info->var.xres, info->var.yres, 60 /* TBD: calculate rate. */);
+	if (info->var.bits_per_pixel == 16) {
+		par->screeninfo.psm = PS2_GS_PSMCT16;
+	}
 
-	DPRINTK("ps2fb: %d %s() mode %dx%d %dbpp crtmode %d res %d\n", __LINE__, __FUNCTION__, info->var.xres, info->var.yres, info->var.bits_per_pixel, defaultinfo.mode, defaultinfo.res);
-    ps2gs_screeninfo(&defaultinfo, NULL);
+	DPRINTK("ps2fb: %d %s() mode %dx%d %dbpp crtmode %d res %d psm %d\n", __LINE__, __FUNCTION__, info->var.xres, info->var.yres, info->var.bits_per_pixel, par->screeninfo.mode, par->screeninfo.res, par->screeninfo.psm);
+    ps2gs_screeninfo(&par->screeninfo, NULL);
 
 	/* Clear screen (black). */
 	ps2_paintrect(0, 0, info->var.xres, info->var.yres, 0x80000000);
 
-	if (info->fix.smem_start == 0) {
-		info->fix.smem_start = (unsigned long) rvmalloc(size);
+	info->fix.line_length = (info->var.bits_per_pixel/8 * info->var.xres + PS2_FBMEM_ALIGN - 1) & ~(PS2_FBMEM_ALIGN - 1);
+	maxredrawline = videomemsize / info->fix.line_length;
+	if (maxredrawline < par->redraw_yres) {
+		/* Reserved framebuffer memory is too small. */
+		par->redraw_yres = maxredrawline;
 	}
-	if (info->fix.smem_start != 0) {
-		/* Allocating of frame buffer worked. */
-		info->fix.smem_len = size;
-	} else {
-		printk("ps2fb: Failed to allocate video memory for %dx%d %d Bytes.\n", info->var.xres, info->var.yres, size);
-	}
-	info->fix.line_length = info->var.bits_per_pixel/8 * info->var.xres;
 	DPRINTK("ps2fb: smem_start 0x%08lx\n", info->fix.smem_start);
 	DPRINTK("ps2fb: smem_len 0x%08lx\n", info->fix.smem_len);
 	DPRINTK("ps2fb: line_length 0x%08lx\n", info->fix.line_length);
+
+	if (par->mapped != 0) {
+		/* Make screen black when mapped the first time. */
+		memset((void *) info->fix.smem_start, 0, info->fix.smem_len);
+
+		/* TBD: Copy current frame buffer to memory. */
+
+		/* Restart timer for redrawing screen, because application could use mmap. */
+		redraw_timer.data = (unsigned long) info;
+   		redraw_timer.expires = jiffies + HZ / 50;
+		/* TBD: Use vbl interrupt handler instead. */
+   		add_timer(&redraw_timer);
+	}
 }
 
 /**
@@ -822,15 +981,27 @@ static int ps2fb_setcolreg(unsigned regno, unsigned red, unsigned green,
 			   unsigned blue, unsigned transp,
 			   struct fb_info *info)
 {
-	// TBD: DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
-    if (regno >= 256)  /* no. of hw registers */
+	struct fb_var_screeninfo *var;
+	u32 *reg;
+
+    if (regno >= PAL_COLORS)  /* no. of hw registers */
        return -EINVAL;
 
-	((u32 *) (info->pseudo_palette))[regno] =
-		(red & 0xFF) << 0 |
-		(green & 0xFF) << 8 |
-		(blue & 0xFF) << 16 | 0x80000000; /* TBD: transp */
-	// TBD: DPRINTK("ps2fb: %d %s() reg %d = 0x%08x r 0x%02x g 0x%02x b 0x%02x\n", __LINE__, __FUNCTION__, regno, ((u32 *) (info->pseudo_palette))[regno], red, green, blue);
+	var = &info->var;
+	reg = info->pseudo_palette;
+
+	red >>= 16 - var->red.length;
+	green >>= 16 - var->green.length;
+	blue >>= 16 - var->blue.length;
+	transp >>= 16 - var->transp.length;
+
+	reg[regno] =
+		red << var->red.offset |
+		green << var->green.offset |
+		blue << var->blue.offset |
+		transp << var->transp.offset;
+
+	DPRINTK("ps2fb: %d %s() reg %d = 0x%08x r 0x%02x g 0x%02x b 0x%02x\n", __LINE__, __FUNCTION__, regno, ((u32 *) (info->pseudo_palette))[regno], red, green, blue);
     return 0;
 }
 
@@ -931,7 +1102,7 @@ void ps2fb_fillrect(struct fb_info *p, const struct fb_fillrect *region)
 	else
 		color = region->color;
 	/* TBD: handle region->rop ROP_COPY or ROP_XOR */
-	ps2_paintrect(region->dx, region->dy, region->width, region->height, color);
+	ps2_paintrect(region->dx, region->dy, region->width, region->height, colto32(&p->var, color));
 /*	Meaning of struct fb_fillrect
  *
  *	@dx: The x and y corrdinates of the upper left hand corner of the 
@@ -982,8 +1153,9 @@ void ps2fb_copyarea(struct fb_info *p, const struct fb_copyarea *area)
  *	mono image (needed for font handling) or a color image (needed for
  *	tux). 
  */
-void ps2fb_imageblit(struct fb_info *p, const struct fb_image *image) 
+void ps2fb_imageblit(struct fb_info *info, const struct fb_image *image) 
 {
+    struct ps2fb_par *par = info->par;
 	uint32_t fgcolor;
 	uint32_t bgcolor;
 
@@ -1002,8 +1174,8 @@ void ps2fb_imageblit(struct fb_info *p, const struct fb_image *image)
 		int y;
 		int offset;
 
-		fgcolor = ((u32*)(p->pseudo_palette))[image->fg_color];
-		bgcolor = ((u32*)(p->pseudo_palette))[image->bg_color];
+		fgcolor = ((u32*)(info->pseudo_palette))[image->fg_color];
+		bgcolor = ((u32*)(info->pseudo_palette))[image->bg_color];
 		offset = (image->width + 7) & ~7;
 		for (x = 0; x < image->width; x += PATTERN_MAX_X)
 		{
@@ -1021,9 +1193,17 @@ void ps2fb_imageblit(struct fb_info *p, const struct fb_image *image)
 				if (h > PATTERN_MAX_Y) {
 					h = PATTERN_MAX_Y;
 				}
-				ps2_paintsimg1(image->dx + x, image->dy + y, w, h,
-					bgcolor, fgcolor, image->data + (x + y * offset) / 8,
-					offset);
+				if (par->screeninfo.psm == PS2_GS_PSMCT32) {
+					ps2_paintsimg1_32(&par->screeninfo, image->dx + x, image->dy + y, w, h,
+						bgcolor, fgcolor, image->data + (x + y * offset) / 8,
+						offset);
+				} else if (par->screeninfo.psm == PS2_GS_PSMCT16) {
+					ps2_paintsimg1_16(&par->screeninfo, image->dx + x, image->dy + y, w, h,
+						bgcolor, fgcolor, image->data + (x + y * offset) / 8,
+						offset);
+				} else {
+					printk("ps2fb: PSM %d is not supported.\n", par->screeninfo.psm);
+				}
 			}
 		}
 	} else if (image->depth == 8) {
@@ -1048,9 +1228,17 @@ void ps2fb_imageblit(struct fb_info *p, const struct fb_image *image)
 				if (h > PATTERN_MAX_Y) {
 					h = PATTERN_MAX_Y;
 				}
-				ps2_paintsimg8(image->dx + x, image->dy + y, w, h,
-					p->pseudo_palette, image->data + x + y * offset,
-					offset);
+				if (par->screeninfo.psm == PS2_GS_PSMCT32) {
+					ps2_paintsimg8_32(&par->screeninfo, image->dx + x, image->dy + y, w, h,
+						info->pseudo_palette, image->data + x + y * offset,
+						offset);
+				} else if (par->screeninfo.psm == PS2_GS_PSMCT16) {
+					ps2_paintsimg8_16(&par->screeninfo, image->dx + x, image->dy + y, w, h,
+						info->pseudo_palette, image->data + x + y * offset,
+						offset);
+				} else {
+					printk("ps2fb: PSM %d is not supported.\n", par->screeninfo.psm);
+				}
 			}
 		}
 	}
@@ -1065,17 +1253,20 @@ static int ps2fb_mmap(struct fb_info *info,
 	unsigned long page, pos;
     struct ps2fb_par *par;
 
-	if (info->fix.smem_start == 0) {
-		return -ENOMEM;
-	}
-
 	if (offset + size > info->fix.smem_len) {
 		return -EINVAL;
 	}
 
-    par = info->par;
+	if ((info->fix.smem_start == 0) && (info->fix.smem_len > 0)) {
+		info->fix.smem_start = (unsigned long) rvmalloc(info->fix.smem_len);
+	}
 
-	/* TBD: Allocate framebuffer only on demand, not in mode changing function? */
+	if (info->fix.smem_start == 0) {
+		printk("ps2fb: Failed to allocate frame buffer (%d Bytes).\n", info->fix.smem_len);
+		return -ENOMEM;
+	}
+
+    par = info->par;
 
 	pos = (unsigned long)info->fix.smem_start + offset;
 	/* Framebuffer can't be mapped. Map normal memory instead
@@ -1106,13 +1297,15 @@ static int ps2fb_mmap(struct fb_info *info,
 		/* Make screen black when mapped the first time. */
 		memset((void *) info->fix.smem_start, 0, info->fix.smem_len);
 
+		/* TBD: Copy current frame buffer to memory. */
+
 		/* Start timer for redrawing screen, because application could use mmap. */
 		redraw_timer.data = (unsigned long) info;
    		redraw_timer.expires = jiffies + HZ / 50;
+		/* TBD: Use vbl interrupt handler instead. */
    		add_timer(&redraw_timer);
 	}
 	return 0;
-
 }
 
 static struct fb_ops ps2fb_ops = {
@@ -1149,12 +1342,6 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
    
 	DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
 
-    ps2con_initinfo(&defaultinfo);
-	if (crtmode < 0) {
-		/* Set default to old crtmode parameter. */
-		crtmode = defaultinfo.mode;
-	}
-
     /*
      * Dynamically allocate info and par
      */
@@ -1186,6 +1373,13 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
     par = info->par;
 	info->pseudo_palette = par->pseudo_palette;
 	par->opencnt = 0;
+
+    ps2con_initinfo(&par->screeninfo);
+	if (crtmode < 0) {
+		/* Set default to old crtmode parameter. */
+		crtmode = par->screeninfo.mode;
+	}
+
 
     /*
      * Set up flags to indicate what sort of acceleration your
@@ -1296,12 +1490,16 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 	if (!retval)
 		return -EINVAL;			
 
-	info->fix.smem_len = 0;
+	if (videomemsize > 0) {
+		info->fix.smem_len = videomemsize;
+	} else {
+		info->fix.smem_len = 0;
+	}
 	info->fix.smem_start = 0;
 	ps2fb_switch_mode(info);
 
     /* This has to be done! */
-	cmap_len = 256; /* TBD: check. */
+	cmap_len = PAL_COLORS;
     if (fb_alloc_cmap(&info->cmap, cmap_len, 0))
 	return -ENOMEM;
 
@@ -1324,9 +1522,13 @@ static int __devexit ps2fb_remove(struct platform_device *pdev)
 
 	DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
 	if (info) {
+		if (info->fix.smem_start != 0) {
+			rvfree((void *) info->fix.smem_start, info->fix.smem_len);
+			info->fix.smem_start = 0;
+		}
+		info->fix.smem_len = 0;
 		unregister_framebuffer(info);
 		fb_dealloc_cmap(&info->cmap);
-		/* ... */
 		framebuffer_release(info);
 	}
 	return 0;
@@ -1358,18 +1560,16 @@ int __init ps2fb_setup(char *options)
 	while ((this_opt = strsep(&options, ",")) != NULL) {
 		if (!*this_opt) continue;
 
-		if (strnicmp(this_opt, "vesa", 4) == 0) {
+		if (strnicmp(this_opt, VESA, sizeof(VESA) - 1) == 0) {
 			crtmode = PS2_GS_VESA;
-			// TBD: maxres = 4;
-		} else if (strnicmp(this_opt, "dtv", 3) == 0) {
+		} else if (strnicmp(this_opt, DTV, sizeof(DTV) - 1) == 0) {
 			crtmode = PS2_GS_DTV;
-			// TBD: maxres = 3;
-		} else if (strnicmp(this_opt, "ntsc", 4) == 0) {
+		} else if (strnicmp(this_opt, NTSC, sizeof(NTSC) - 1) == 0) {
 			crtmode = PS2_GS_NTSC;
-			// TBD: maxres = 2;
-		} else if (strnicmp(this_opt, "pal", 3) == 0) {
+		} else if (strnicmp(this_opt, PAL, sizeof(PAL) - 1) == 0) {
 			crtmode = PS2_GS_PAL;
-			// TBD: maxres = 2;
+		} else if (strnicmp(this_opt, VIDEOMEMEMORYSIZE, sizeof(VIDEOMEMEMORYSIZE) - 1) == 0) {
+			videomemsize = simple_strtoul(this_opt + sizeof(VIDEOMEMEMORYSIZE) - 1, NULL, 10);
 		} else if (this_opt[0] >= '0' && this_opt[0] <= '9') {
 			mode_option = this_opt;
 		} else {
