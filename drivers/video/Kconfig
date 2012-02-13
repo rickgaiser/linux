@@ -2232,7 +2232,7 @@ config FB_BROADSHEET
 config FB_PS2
 	tristate "Frame buffer driver for Sony Playstation 2"
 	depends on FB && SONY_PS2
-	default n
+	default y
 	help
 	  This driver implements support for framebuffer of the Sony
 	  Playstation 2.
