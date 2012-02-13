@@ -229,7 +229,7 @@ config FONT_10x18
 config PS2_CONSOLE
 	tristate "Support for PlayStation 2 console device"
 	depends on SONY_PS2 && !FB_PS2
-	default y
+	default n
 
 config PS2_CONSOLE_SCROLLBACK
 	bool "Console scrollback support"
