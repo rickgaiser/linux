@@ -832,6 +832,7 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 		var->yoffset = 0;
 	}
 
+	/* TBD: Should use crtmode set by set crtmode application via /dev/ps2gs */
 	res = ps2con_get_resolution(crtmode, var->xres, var->yres, 60 /* TBD: calculate rate. */);
 	if (res < 0) {
 		/* Resolution is not supported in this crtmode. */
