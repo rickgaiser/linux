@@ -21,6 +21,10 @@
 #include <asm/war.h>
 #include <asm/system.h>
 
+#ifdef CONFIG_GENERIC_ATOMIC64
+#include <asm-generic/atomic64.h>
+#endif
+
 #define ATOMIC_INIT(i)    { (i) }
 
 /*
