@@ -34,4 +34,11 @@ config PS2_CDVD
 	tristate "Support for PS2 CD/DVD ROM drive"
 	depends on SONY_PS2
 
+config PS2_MC
+	tristate "Support for PS2 Memory Card"
+	default y
+	depends on SONY_PS2
+
+source "drivers/ps2/mcfs/Kconfig"
+
 endmenu
