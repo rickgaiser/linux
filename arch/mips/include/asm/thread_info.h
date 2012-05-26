@@ -83,6 +83,7 @@ register struct thread_info *__current_thread_info __asm__("$28");
 #define THREAD_SIZE (PAGE_SIZE << THREAD_SIZE_ORDER)
 #define THREAD_MASK (THREAD_SIZE - 1UL)
 
+#if 0 /* TBD: Page alignment problem when CONFIG_SLUB_DEBUG_ON is activated. */
 #define __HAVE_ARCH_THREAD_INFO_ALLOCATOR
 
 #ifdef CONFIG_DEBUG_STACK_USAGE
@@ -92,6 +93,7 @@ register struct thread_info *__current_thread_info __asm__("$28");
 #endif
 
 #define free_thread_info(info) kfree(info)
+#endif
 
 #endif /* !__ASSEMBLY__ */
 
