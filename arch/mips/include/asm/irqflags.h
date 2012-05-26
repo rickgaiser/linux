@@ -276,22 +276,22 @@ static inline int raw_irqs_disabled_flags(unsigned long flags)
 /* Reload some registers clobbered by trace_hardirqs_on */
 #ifdef CONFIG_64BIT
 # define TRACE_IRQS_RELOAD_REGS						\
-	LONG_L	$11, PT_R11(sp);					\
-	LONG_L	$10, PT_R10(sp);					\
-	LONG_L	$9, PT_R9(sp);						\
-	LONG_L	$8, PT_R8(sp);						\
-	LONG_L	$7, PT_R7(sp);						\
-	LONG_L	$6, PT_R6(sp);						\
-	LONG_L	$5, PT_R5(sp);						\
-	LONG_L	$4, PT_R4(sp);						\
-	LONG_L	$2, PT_R2(sp)
+	LONGD_L	$11, PT_R11(sp);					\
+	LONGD_L	$10, PT_R10(sp);					\
+	LONGD_L	$9, PT_R9(sp);						\
+	LONGD_L	$8, PT_R8(sp);						\
+	LONGD_L	$7, PT_R7(sp);						\
+	LONGD_L	$6, PT_R6(sp);						\
+	LONGD_L	$5, PT_R5(sp);						\
+	LONGD_L	$4, PT_R4(sp);						\
+	LONGD_L	$2, PT_R2(sp)
 #else
 # define TRACE_IRQS_RELOAD_REGS						\
-	LONG_L	$7, PT_R7(sp);						\
-	LONG_L	$6, PT_R6(sp);						\
-	LONG_L	$5, PT_R5(sp);						\
-	LONG_L	$4, PT_R4(sp);						\
-	LONG_L	$2, PT_R2(sp)
+	LONGD_L	$7, PT_R7(sp);						\
+	LONGD_L	$6, PT_R6(sp);						\
+	LONGD_L	$5, PT_R5(sp);						\
+	LONGD_L	$4, PT_R4(sp);						\
+	LONGD_L	$2, PT_R2(sp)
 #endif
 # define TRACE_IRQS_ON							\
 	CLI;	/* make sure trace_hardirqs_on() is called in kernel level */ \
