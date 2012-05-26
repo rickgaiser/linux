@@ -64,7 +64,7 @@ dma_addr_t ps2sif_allociopheap(int size)
     up(&iopheap_sem);
 
     if (err < 0)
-	return NULL;
+		return 0;
     return result;
 }
 
@@ -81,7 +81,7 @@ int ps2sif_freeiopheap(dma_addr_t addr)
     up(&iopheap_sem);
 
     if (err < 0)
-	return -1;
+		return -1;
     return result;
 }
 
