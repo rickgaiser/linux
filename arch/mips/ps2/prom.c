@@ -38,6 +38,7 @@ static void sbios_prints(const char *text)
 void __init prom_init(void)
 {
 	struct ps2_bootinfo *bootinfo;
+	int version;
 
 	memset(&ps2_bootinfox, 0, sizeof(struct ps2_bootinfo));
 	ps2_bootinfox.sbios_base = SBIOS_BASE;
@@ -57,9 +58,20 @@ void __init prom_init(void)
 	ps2_pcic_type = ps2_bootinfo->pcic_type;
 	ps2_sysconf = &ps2_bootinfo->sysconf;
 
-	printk("PlayStation 2 SIF BIOS: %04x\n", sbios(SB_GETVER, 0));
+	version = sbios(SB_GETVER, 0);
+	printk("PlayStation 2 SIF BIOS: %04x\n", version);
 
 	sbios(SB_SET_PRINTS_CALLBACK, sbios_prints);
+
+	/* Remove restriction to /BWLINUX path in mc calls. */
+	/* This patches the string in SBIOS. */
+	if (version == 0x200) {
+		/* Patch beta kit */
+		*((volatile unsigned char *)0x80007c20) = 0;
+	} else if (version == 0x250) {
+		/* Patch 1.0 kit */
+		*((volatile unsigned char *)0x800081b0) = 0;
+	}
 }
 
 void __init prom_free_prom_memory(void)
