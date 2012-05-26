@@ -58,8 +58,10 @@
 #ifdef CONFIG_64BIT
 /** Kernel uses 64-Bit pointers, but SBIOS expects 32-Bit pointers. */
 typedef uint32_t ps2_addr_t;
+typedef uint32_t ps2_const_addr_t;
 #else
 typedef void *ps2_addr_t;
+typedef const void *ps2_const_addr_t;
 #endif
 
 int sbios(int sbcall, void *arg);
@@ -246,7 +248,7 @@ struct sbr_ioph_alloc_arg {
 };
 #define SBR_IOPH_FREE		66
 struct sbr_ioph_free_arg {
-    ps2_addr_t addr;
+    uint32_t addr;
 };
 
 /* pad device */
@@ -279,14 +281,14 @@ struct sbr_pad_setactdirect_arg {
     int port;
     int slot;
 	/* const unsigned char *data */
-    ps2_addr_t data;
+    ps2_const_addr_t data;
 };
 #define SBR_PAD_SETACTALIGN	86
 struct sbr_pad_setactalign_arg {
     int port;
     int slot;
 	/* const unsigned char *data */
-    ps2_addr_t data;
+    ps2_const_addr_t data;
 };
 #define SBR_PAD_INFOPRESSMODE	87
 struct sbr_pad_pressmode_arg {
@@ -439,7 +441,7 @@ struct sbr_mc_open_arg {
     int port;
     int slot;
     /* const char *name; */
-	ps2_addr_t name;
+	ps2_const_addr_t name;
     int mode;
 };
 #define SBR_MC_MKDIR		146
@@ -447,7 +449,7 @@ struct sbr_mc_mkdir_arg {
     int port;
     int slot;
     /* const char *name; */
-	ps2_addr_t name;
+	ps2_const_addr_t name;
 };
 #define SBR_MC_CLOSE		147
 struct sbr_mc_close_arg {
@@ -468,7 +470,7 @@ struct sbr_mc_read_arg {
 #define SBR_MC_WRITE		150
 struct sbr_mc_write_arg {
     int fd;
-    ps2_addr_t buff;
+    ps2_const_addr_t buff;
     int size;
 };
 #define SBR_MC_GETINFO		151
@@ -487,7 +489,7 @@ struct sbr_mc_getdir_arg {
     int port;
     int slot;
     /* const char *name; */
-	ps2_addr_t name;
+	ps2_const_addr_t name;
     unsigned int mode;
     int maxent;
     ps2_addr_t table;
@@ -502,7 +504,7 @@ struct sbr_mc_delete_arg {
     int port;
     int slot;
     /* const char *name; */
-	ps2_addr_t name;
+	ps2_const_addr_t name;
 };
 #define SBR_MC_FLUSH		155
 struct sbr_mc_flush_arg {
@@ -513,9 +515,9 @@ struct sbr_mc_setfileinfo_arg {
     int port;
     int slot;
     /* const char *name; */
-	ps2_addr_t name;
+	ps2_const_addr_t name;
     /* const char *info; */
-	ps2_addr_t info;
+	ps2_const_addr_t info;
     unsigned int valid;
 };
 #define SBR_MC_RENAME		157
@@ -523,9 +525,9 @@ struct sbr_mc_rename_arg {
     int port;
     int slot;
     /* const char *org; */
-	ps2_addr_t org;
+	ps2_const_addr_t orgname;
     /* const char *new; */
-	ps2_addr_t newname;
+	ps2_const_addr_t newname;
 };
 #define SBR_MC_UNFORMAT		158
 struct sbr_mc_unformat_arg {
@@ -537,7 +539,7 @@ struct sbr_mc_getentspace_arg {
     int port;
     int slot;
     /* const char *path; */
-	ps2_addr_t path;
+	ps2_const_addr_t path;
 };
 #define SBR_MC_CALL		160
 
