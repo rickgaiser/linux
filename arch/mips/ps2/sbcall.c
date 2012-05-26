@@ -241,11 +241,12 @@ struct rpc_wait_queue {
 static void rpc_wakeup(void *p, int result)
 {
     struct rpc_wait_queue *rwq = (struct rpc_wait_queue *)p;
+	unsigned long flags;
 
-    spin_lock(&rwq->lock);
+    spin_lock_irqsave(&rwq->lock, flags);
     rwq->woken = 1;
     wake_up(&rwq->wq);
-    spin_unlock(&rwq->lock);
+    spin_unlock_irqrestore(&rwq->lock, flags);
 }
 
 int sbios_rpc(int func, void *arg, int *result)
