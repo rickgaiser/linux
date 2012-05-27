@@ -1007,7 +1007,7 @@ ps2cdvd_cleanup()
 
 	if (ps2cdvd_initialized & PS2CDVD_INIT_THREAD) {
 		DPRINT(DBG_VERBOSE, "stop thread %d\n", ps2cdvd.thread_id);
-		kill_proc(ps2cdvd.thread_id, SIGKILL, 1);
+		kill_pid(find_get_pid(ps2cdvd.thread_id), SIGKILL, 1);
 		/* wait for the thread to exit */
 		down(&ps2cdvd.ack_sem);
 	}
