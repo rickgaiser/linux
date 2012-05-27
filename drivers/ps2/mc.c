@@ -804,15 +804,16 @@ ps2mc_settimer(int timeout)
 static int
 ps2mc_thread(void *arg)
 {
+	sigset_t blocked, oldset;
+
 	DPRINT(DBG_INFO, "start thread\n");
-	lock_kernel();
+
 	/* get rid of all our resources related to user space */
 	daemonize("ps2mc_thread");
-	siginitsetinv(&current->blocked,
-		      sigmask(SIGKILL)|sigmask(SIGINT)|sigmask(SIGTERM));
-	/* Set the name of this process. */
-	sprintf(current->comm, "ps2mc");
-	unlock_kernel();
+
+	siginitsetinv(&blocked, sigmask(SIGKILL)|sigmask(SIGINT)|sigmask(SIGTERM));
+	sigprocmask(SIG_SETMASK, &blocked, &oldset);
+
 	thread_task = current;
 	complete(&thread_comp); /* notify that we are ready */
 
