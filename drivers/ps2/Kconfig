@@ -44,6 +44,11 @@ config PS2_SD
 	default y
 	depends on SONY_PS2 && SOUND_OSS_CORE
 
+config PS2_PAD_JS
+	tristate "Support for PS2 Joystick"
+	default y
+	depends on SONY_PS2 && PS2_PAD && INPUT
+
 source "drivers/ps2/mcfs/Kconfig"
 
 endmenu
