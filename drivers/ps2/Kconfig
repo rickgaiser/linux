@@ -39,6 +39,11 @@ config PS2_MC
 	default y
 	depends on SONY_PS2
 
+config PS2_SD
+	tristate "Support for PS2 Sound device"
+	default y
+	depends on SONY_PS2 && SOUND_OSS_CORE
+
 source "drivers/ps2/mcfs/Kconfig"
 
 endmenu
