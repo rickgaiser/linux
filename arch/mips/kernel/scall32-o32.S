@@ -24,8 +24,15 @@
 /* Highest syscall used of any syscall flavour */
 #define MAX_SYSCALL_NO	__NR_O32_Linux + __NR_O32_Linux_syscalls
 
+#ifdef CONFIG_MIPS_N32
+/* There is already an n32 syscall handler installed. */
+#define handle_sys handle_sys32
+#endif
+
+
 	.align  5
 NESTED(handle_sys, PT_SIZE, sp)
+#ifndef CONFIG_MIPS_N32
 	.set	noat
 #ifdef CONFIG_CPU_R5900
 	nop
@@ -35,13 +42,18 @@ NESTED(handle_sys, PT_SIZE, sp)
 	TRACE_IRQS_ON_RELOAD
 	STI
 	.set	at
+#endif
 
+#ifndef CONFIG_MIPS_N32
 	lw	t1, PT_EPC(sp)		# skip syscall on return
+#endif
 
 	subu	v0, v0, __NR_O32_Linux	# check syscall number
 	sltiu	t0, v0, __NR_O32_Linux_syscalls + 1
+#ifndef CONFIG_MIPS_N32
 	addiu	t1, 4			# skip to next instruction
 	sw	t1, PT_EPC(sp)
+#endif
 	beqz	t0, illegal_syscall
 
 	sll	t0, v0, 3
