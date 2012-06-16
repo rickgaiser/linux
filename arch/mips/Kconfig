@@ -2266,6 +2266,17 @@ config MIPS32_N32
 
 	  If unsure, say N.
 
+config MIPS_N32
+	bool "Kernel support for n32 binaries"
+	depends on CPU_R5900 && !64BIT
+	help
+	  Select this option if you want to run n32 binaries.  These are
+	  64-bit binaries using 32-bit quantities for addressing and certain
+	  data that would normally be 64-bit.  They are used in special
+	  cases.
+
+	  If unsure, say N.
+
 config BINFMT_ELF32
 	bool
 	default y if MIPS32_O32 || MIPS32_N32
