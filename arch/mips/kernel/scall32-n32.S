@@ -54,7 +54,16 @@ NESTED(handle_sys, PT_SIZE, sp)
 	and	t0, t1, t0
 	bnez	t0, n32_syscall_trace_entry
 
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+	SAVE_STATIC
+#endif
+
+	// TBD: How to pass parameters a4 and a5 which are on stack? Put arguments on stack like "stackargs" in scall32-o32.S
 	jalr	t2			# Do The Real Thing (TM)
+
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+	RESTORE_STATIC
+#endif
 
 	li	t0, -EMAXERRNO - 1	# error?
 	sltu	t0, t0, v0
@@ -93,9 +102,15 @@ n32_syscall_trace_entry:
 	ld	a1, PT_R5(sp)
 	ld	a2, PT_R6(sp)
 	ld	a3, PT_R7(sp)
-	ld	$8, PT_R8(sp)
-	ld	$9, PT_R9(sp)
+#if 0 // TBD: How to pass parameters a4 and a5 which are on stack? Put arguments on stack like "stackargs" in scall32-o32.S
+	ld	a4, PT_R8(sp)
+	ld	a5, PT_R9(sp)
+#endif
 	jalr	t0
+
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+	RESTORE_STATIC
+#endif
 
 	li	t0, -EMAXERRNO - 1	# error?
 	sltu	t0, t0, v0
