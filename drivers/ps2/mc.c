@@ -676,7 +676,7 @@ ps2mc_setdir(int portslot, const char *path, int flags,
 
 	res = ps2mclib_SetFileInfo(PS2MC_PORT(portslot), PS2MC_SLOT(portslot),
 			       (char*)path, (char*)dirbuf, valid, &result);
-	if (res != 0 || result < 0) {
+	if (res != 0 || (result < 0 && result != -4)) {
 		/* error */
 		printk("ps2mclib_SetDir() failed\n");
 		res = -EIO;
