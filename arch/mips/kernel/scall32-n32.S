@@ -18,6 +18,14 @@
 #include <asm/thread_info.h>
 #include <asm/unistd.h>
 
+/* MIPS ABI N32 register names are different to O32. */
+/* Register t0, t1, t2 and t3 should not be used, use t4, t5, t6 and t7 instead. */
+#define a4 t0
+#define a5 t1
+#define a6 t2
+#define a7 t3
+
+
 /* This duplicates the definition from <linux/sched.h> */
 #define PT_TRACESYS	0x00000002	/* tracing system calls */
 
@@ -32,96 +40,116 @@ NESTED(handle_sys, PT_SIZE, sp)
 	nop
 #endif
 	SAVE_SOME
+	SAVE_AT
+	SAVE_TEMP			# This will be restored in syscall_exit and n32_syscall_exit.
+	SAVE_STATIC
+					# N32 callers expect a4/t0 to be saved.
 	TRACE_IRQS_ON_RELOAD
 	STI
 	.set	at
 
-	dsubu	t0, v0, __NR_N32_Linux	# check syscall number
-	sltiu	t0, t0,	__NR_N32_Linux_syscalls + 1
+	dsubu	t4, v0, __NR_N32_Linux	# check syscall number
+	sltiu	t6, t4,	__NR_N32_Linux_syscalls + 1
 
-	ld	t1, PT_EPC(sp)		# skip syscall on return
-	daddiu	t1, 4			# skip to next instruction
-	sd	t1, PT_EPC(sp)
-	beqz	t0, not_n32_scall
+	ld	t5, PT_EPC(sp)		# skip syscall on return
+	daddiu	t5, 4			# skip to next instruction
+	sd	t5, PT_EPC(sp)
+	beqz	t6, not_n32_scall
 
-	dsll	t0, v0, 2		# offset into table
-	lw	t2, (sysn32_call_table - (__NR_N32_Linux * 4))(t0)
+	dsll	t4, t4, 3		# offset into table
+	la	t5, sysn32_call_table	# Syscall table address
+	addu	t4, t5
+	lw	t6, 0(t4)		# pointer to syscall function
+	lw	t7, 4(t4)		# >= 0 if we need stack arguments
 
 	sd	a3, PT_R26(sp)		# save a3 for syscall restarting
+	bgez	t7, stackargs
 
-	li	t1, _TIF_SYSCALL_TRACE | _TIF_SYSCALL_AUDIT
-	LONGI_L	t0, TI_FLAGS($28)	# syscall tracing enabled?
-	and	t0, t1, t0
-	bnez	t0, n32_syscall_trace_entry
+stack_done:
+	li	t5, _TIF_SYSCALL_TRACE | _TIF_SYSCALL_AUDIT
+	LONGI_L	t4, TI_FLAGS($28)	# syscall tracing enabled?
+	and	t4, t5, t4
+	bnez	t4, n32_syscall_trace_entry
 
-#ifdef CONFIG_R5900_128BIT_SUPPORT
-	SAVE_STATIC
-#endif
+	jalr	t6			# Do The Real Thing (TM)
 
-	// TBD: How to pass parameters a4 and a5 which are on stack? Put arguments on stack like "stackargs" in scall32-o32.S
-	jalr	t2			# Do The Real Thing (TM)
-
-#ifdef CONFIG_R5900_128BIT_SUPPORT
-	RESTORE_STATIC
-#endif
-
-	li	t0, -EMAXERRNO - 1	# error?
-	sltu	t0, t0, v0
-	sd	t0, PT_R7(sp)		# set error flag
-	beqz	t0, 1f
+	li	t4, -EMAXERRNO - 1	# error?
+	sltu	t4, t4, v0
+	sd	t4, PT_R7(sp)		# set error flag
+	beqz	t4, 1f
 
 	dnegu	v0			# error
 	sd	v0, PT_R0(sp)		# set flag for syscall restarting
 1:	sd	v0, PT_R2(sp)		# result
 
+n32_syscall_exit:
 	local_irq_disable		# make sure need_resched and
 					# signals dont change between
 					# sampling and return
 	LONGI_L  a2, TI_FLAGS($28)	# current->work
-	li	t0, _TIF_ALLWORK_MASK
-	and	t0, a2, t0
-	bnez	t0, n32_syscall_exit_work
+	li	t4, _TIF_ALLWORK_MASK
+	and	t4, a2, t4
+	bnez	t4, n32_syscall_exit_work
 
-	j	restore_partial
+	j	restore_all
 
 n32_syscall_exit_work:
+	RESTORE_STATIC
 	j	syscall_exit_work_partial
 
 /* ------------------------------------------------------------------------ */
 
 n32_syscall_trace_entry:
-	SAVE_STATIC
-	move	s0, t2
+	move	s0, t6
 	move	a0, sp
 	li	a1, 0
 	jal	do_syscall_trace
 
-	move	t0, s0
+	move	t4, s0
 	RESTORE_STATIC
 	ld	a0, PT_R4(sp)		# Restore argument registers
 	ld	a1, PT_R5(sp)
 	ld	a2, PT_R6(sp)
 	ld	a3, PT_R7(sp)
-#if 0 // TBD: How to pass parameters a4 and a5 which are on stack? Put arguments on stack like "stackargs" in scall32-o32.S
-	ld	a4, PT_R8(sp)
-	ld	a5, PT_R9(sp)
-#endif
-	jalr	t0
+	jalr	t4
 
-#ifdef CONFIG_R5900_128BIT_SUPPORT
-	RESTORE_STATIC
-#endif
-
-	li	t0, -EMAXERRNO - 1	# error?
-	sltu	t0, t0, v0
-	sd	t0, PT_R7(sp)		# set error flag
-	beqz	t0, 1f
+	li	t4, -EMAXERRNO - 1	# error?
+	sltu	t4, t4, v0
+	sd	t4, PT_R7(sp)		# set error flag
+	beqz	t4, 1f
 
 	dnegu	v0			# error
 	sd	v0, PT_R0(sp)		# set flag for syscall restarting
 1:	sd	v0, PT_R2(sp)		# result
 
 	j	syscall_exit
+
+/* ------------------------------------------------------------------------ */
+
+	/*
+	 * More than four arguments. Try to deal with it by copying the
+	 * stack arguments from the registers (ABI N32) to the kernel stack (ABI O32).
+	 */
+stackargs:
+	/* Ok, copy the args from the register to the kernel stack.
+	 * t7 is the precomputed number of instruction bytes needed to
+	 * load or store arguments 6-8.
+	 */
+	la	t5, 1f			# load up to 3 arguments
+	subu	t5, t7
+	sw	a4, 16(sp)		# argument #5 to ksp
+	jr	t5			# Jump to label 1f if t7 is 0 (5 arguments).
+
+	.set    push
+	.set    noreorder
+	.set	nomacro
+	sw	a7, 28(sp)		# argument #8 to ksp
+	sw	a6, 24(sp)		# argument #7 to ksp
+	sw	a5, 20(sp)		# argument #6 to ksp
+1:
+	j	stack_done		# go back
+	 nop
+	.set	pop
 
 not_n32_scall:
 	/* This is not an n32 compatibility syscall, pass it on to
@@ -130,305 +158,310 @@ not_n32_scall:
 
 	END(handle_sys)
 
+	.macro  sys function, nargs
+	PTR	\function
+	LONG	(\nargs << 2) - (5 << 2)
+	.endm
+
 EXPORT(sysn32_call_table)
-	PTR	sys_read			/* 6000 */
-	PTR	sys_write
-	PTR	sys_open
-	PTR	sys_close
-	PTR	sys_newstat
-	PTR	sys_newfstat			/* 6005 */
-	PTR	sys_newlstat
-	PTR	sys_poll
-	PTR	sys_lseek
-	PTR	sys_mips_mmap
-	PTR	sys_mprotect			/* 6010 */
-	PTR	sys_munmap
-	PTR	sys_brk
-	PTR	sys_rt_sigaction
-	PTR	sys_rt_sigprocmask
-	PTR	sys_ioctl		/* 6015 */
-	PTR	sys_pread64
-	PTR	sys_pwrite64
-	PTR	sys_readv
-	PTR	sys_writev
-	PTR	sys_access			/* 6020 */
-	PTR	sysm_pipe
-	PTR	sys_select
-	PTR	sys_sched_yield
-	PTR	sys_mremap
-	PTR	sys_msync			/* 6025 */
-	PTR	sys_mincore
-	PTR	sys_madvise
-	PTR	sys_shmget
-	PTR	sys_shmat
-	PTR	sys_shmctl			/* 6030 */
-	PTR	sys_dup
-	PTR	sys_dup2
-	PTR	sys_pause
-	PTR	sys_nanosleep
-	PTR	sys_getitimer		/* 6035 */
-	PTR	sys_setitimer
-	PTR	sys_alarm
-	PTR	sys_getpid
-	PTR	sys_sendfile
-	PTR	sys_socket			/* 6040 */
-	PTR	sys_connect
-	PTR	sys_accept
-	PTR	sys_sendto
-	PTR	sys_recvfrom
-	PTR	sys_sendmsg		/* 6045 */
-	PTR	sys_recvmsg
-	PTR	sys_shutdown
-	PTR	sys_bind
-	PTR	sys_listen
-	PTR	sys_getsockname			/* 6050 */
-	PTR	sys_getpeername
-	PTR	sys_socketpair
-	PTR	sys_setsockopt
-	PTR	sys_getsockopt
-	PTR	sys_clone			/* 6055 */
-	PTR	sys_fork
-	PTR	sys_execve
-	PTR	sys_exit
-	PTR	sys_wait4
-	PTR	sys_kill			/* 6060 */
-	PTR	sys_newuname
-	PTR	sys_semget
-	PTR	sys_semop
-	PTR	sys_semctl
-	PTR	sys_shmdt			/* 6065 */
-	PTR	sys_msgget
-	PTR	sys_msgsnd
-	PTR	sys_msgrcv
-	PTR	sys_msgctl
-	PTR	sys_fcntl		/* 6070 */
-	PTR	sys_flock
-	PTR	sys_fsync
-	PTR	sys_fdatasync
-	PTR	sys_truncate
-	PTR	sys_ftruncate			/* 6075 */
-	PTR	sys_getdents
-	PTR	sys_getcwd
-	PTR	sys_chdir
-	PTR	sys_fchdir
-	PTR	sys_rename			/* 6080 */
-	PTR	sys_mkdir
-	PTR	sys_rmdir
-	PTR	sys_creat
-	PTR	sys_link
-	PTR	sys_unlink			/* 6085 */
-	PTR	sys_symlink
-	PTR	sys_readlink
-	PTR	sys_chmod
-	PTR	sys_fchmod
-	PTR	sys_chown			/* 6090 */
-	PTR	sys_fchown
-	PTR	sys_lchown
-	PTR	sys_umask
-	PTR	sys_gettimeofday
-	PTR	sys_getrlimit		/* 6095 */
-	PTR	sys_getrusage
-	PTR	sys_sysinfo
-	PTR	sys_times
-	PTR	sys_ptrace
-	PTR	sys_getuid			/* 6100 */
-	PTR	sys_syslog
-	PTR	sys_getgid
-	PTR	sys_setuid
-	PTR	sys_setgid
-	PTR	sys_geteuid			/* 6105 */
-	PTR	sys_getegid
-	PTR	sys_setpgid
-	PTR	sys_getppid
-	PTR	sys_getpgrp
-	PTR	sys_setsid			/* 6110 */
-	PTR	sys_setreuid
-	PTR	sys_setregid
-	PTR	sys_getgroups
-	PTR	sys_setgroups
-	PTR	sys_setresuid			/* 6115 */
-	PTR	sys_getresuid
-	PTR	sys_setresgid
-	PTR	sys_getresgid
-	PTR	sys_getpgid
-	PTR	sys_setfsuid			/* 6120 */
-	PTR	sys_setfsgid
-	PTR	sys_getsid
-	PTR	sys_capget
-	PTR	sys_capset
-	PTR	sys_rt_sigpending		/* 6125 */
-	PTR	sys_rt_sigtimedwait
-	PTR	sys_rt_sigqueueinfo
-	PTR	sys_rt_sigsuspend
-	PTR	sys_sigaltstack
-	PTR	sys_utime		/* 6130 */
-	PTR	sys_mknod
-	PTR	sys_personality
-	PTR	sys_ustat
-	PTR	sys_statfs
-	PTR	sys_fstatfs		/* 6135 */
-	PTR	sys_sysfs
-	PTR	sys_getpriority
-	PTR	sys_setpriority
-	PTR	sys_sched_setparam
-	PTR	sys_sched_getparam		/* 6140 */
-	PTR	sys_sched_setscheduler
-	PTR	sys_sched_getscheduler
-	PTR	sys_sched_get_priority_max
-	PTR	sys_sched_get_priority_min
-	PTR	sys_sched_rr_get_interval	/* 6145 */
-	PTR	sys_mlock
-	PTR	sys_munlock
-	PTR	sys_mlockall
-	PTR	sys_munlockall
-	PTR	sys_vhangup			/* 6150 */
-	PTR	sys_pivot_root
-	PTR	sys_sysctl
-	PTR	sys_prctl
-	PTR	sys_adjtimex
-	PTR	sys_setrlimit		/* 6155 */
-	PTR	sys_chroot
-	PTR	sys_sync
-	PTR	sys_acct
-	PTR	sys_settimeofday
-	PTR	sys_mount		/* 6160 */
-	PTR	sys_umount
-	PTR	sys_swapon
-	PTR	sys_swapoff
-	PTR	sys_reboot
-	PTR	sys_sethostname			/* 6165 */
-	PTR	sys_setdomainname
-	PTR	sys_ni_syscall			/* was create_module */
-	PTR	sys_init_module
-	PTR	sys_delete_module
-	PTR	sys_ni_syscall			/* 6170, was get_kernel_syms */
-	PTR	sys_ni_syscall			/* was query_module */
-	PTR	sys_quotactl
-	PTR	sys_nfsservctl
-	PTR	sys_ni_syscall			/* res. for getpmsg */
-	PTR	sys_ni_syscall			/* 6175  for putpmsg */
-	PTR	sys_ni_syscall			/* res. for afs_syscall */
-	PTR	sys_ni_syscall			/* res. for security */
-	PTR	sys_gettid
-	PTR	sys_readahead
-	PTR	sys_setxattr			/* 6180 */
-	PTR	sys_lsetxattr
-	PTR	sys_fsetxattr
-	PTR	sys_getxattr
-	PTR	sys_lgetxattr
-	PTR	sys_fgetxattr			/* 6185 */
-	PTR	sys_listxattr
-	PTR	sys_llistxattr
-	PTR	sys_flistxattr
-	PTR	sys_removexattr
-	PTR	sys_lremovexattr		/* 6190 */
-	PTR	sys_fremovexattr
-	PTR	sys_tkill
-	PTR	sys_ni_syscall
-	PTR	sys_futex
-	PTR	sys_sched_setaffinity	/* 6195 */
-	PTR	sys_sched_getaffinity
-	PTR	sys_cacheflush
-	PTR	sys_cachectl
-	PTR	sys_sysmips
-	PTR	sys_io_setup			/* 6200 */
-	PTR	sys_io_destroy
-	PTR	sys_io_getevents
-	PTR	sys_io_submit
-	PTR	sys_io_cancel
-	PTR	sys_exit_group			/* 6205 */
-	PTR	sys_lookup_dcookie
-	PTR	sys_epoll_create
-	PTR	sys_epoll_ctl
-	PTR	sys_epoll_wait
-	PTR	sys_remap_file_pages		/* 6210 */
-	PTR	sys_rt_sigreturn
-	PTR	sys_fcntl64
-	PTR	sys_set_tid_address
-	PTR	sys_restart_syscall
-	PTR	sys_semtimedop			/* 6215 */
-	PTR	sys_fadvise64_64
-	PTR	sys_statfs64
-	PTR	sys_fstatfs64
-	PTR	sys_sendfile64
-	PTR	sys_timer_create		/* 6220 */
-	PTR	sys_timer_settime
-	PTR	sys_timer_gettime
-	PTR	sys_timer_getoverrun
-	PTR	sys_timer_delete
-	PTR	sys_clock_settime		/* 6225 */
-	PTR	sys_clock_gettime
-	PTR	sys_clock_getres
-	PTR	sys_clock_nanosleep
-	PTR	sys_tgkill
-	PTR	sys_utimes		/* 6230 */
-	PTR	sys_ni_syscall			/* sys_mbind */
-	PTR	sys_ni_syscall			/* sys_get_mempolicy */
-	PTR	sys_ni_syscall			/* sys_set_mempolicy */
-	PTR	sys_mq_open
-	PTR	sys_mq_unlink			/* 6235 */
-	PTR	sys_mq_timedsend
-	PTR	sys_mq_timedreceive
-	PTR	sys_mq_notify
-	PTR	sys_mq_getsetattr
-	PTR	sys_ni_syscall			/* 6240, sys_vserver */
-	PTR	sys_waitid
-	PTR	sys_ni_syscall			/* available, was setaltroot */
-	PTR	sys_add_key
-	PTR	sys_request_key
-	PTR	sys_keyctl			/* 6245 */
-	PTR	sys_set_thread_area
-	PTR	sys_inotify_init
-	PTR	sys_inotify_add_watch
-	PTR	sys_inotify_rm_watch
-	PTR	sys_migrate_pages		/* 6250 */
-	PTR	sys_openat
-	PTR	sys_mkdirat
-	PTR	sys_mknodat
-	PTR	sys_fchownat
-	PTR	sys_futimesat		/* 6255 */
-	PTR	sys_fstatat64
-	PTR	sys_unlinkat
-	PTR	sys_renameat
-	PTR	sys_linkat
-	PTR	sys_symlinkat			/* 6260 */
-	PTR	sys_readlinkat
-	PTR	sys_fchmodat
-	PTR	sys_faccessat
-	PTR	sys_pselect6
-	PTR	sys_ppoll		/* 6265 */
-	PTR	sys_unshare
-	PTR	sys_splice
-	PTR	sys_sync_file_range
-	PTR	sys_tee
-	PTR	sys_vmsplice		/* 6270 */
-	PTR	sys_move_pages
-	PTR	sys_set_robust_list
-	PTR	sys_get_robust_list
-	PTR	sys_kexec_load
-	PTR	sys_getcpu			/* 6275 */
-	PTR	sys_epoll_pwait
-	PTR	sys_ioprio_set
-	PTR	sys_ioprio_get
-	PTR	sys_utimensat
-	PTR	sys_signalfd		/* 6280 */
-	PTR	sys_ni_syscall
-	PTR	sys_eventfd
-	PTR	sys_fallocate
-	PTR	sys_timerfd_create
-	PTR	sys_timerfd_gettime	/* 6285 */
-	PTR	sys_timerfd_settime
-	PTR	sys_signalfd4
-	PTR	sys_eventfd2
-	PTR	sys_epoll_create1
-	PTR	sys_dup3			/* 6290 */
-	PTR	sys_pipe2
-	PTR	sys_inotify_init1
-	PTR	sys_preadv
-	PTR	sys_pwritev
-	PTR	sys_rt_tgsigqueueinfo	/* 6295 */
-	PTR	sys_perf_event_open
-	PTR	sys_accept4
-	PTR     sys_recvmmsg
-	PTR     sys_getdents
+	sys	sys_read		3	/* 6000 */
+	sys	sys_write		3
+	sys	sys_open		3
+	sys	sys_close		1
+	sys	sys_newstat		2
+	sys	sys_newfstat		2	/* 6005 */
+	sys	sys_newlstat		2
+	sys	sys_poll		3
+	sys	sys_lseek		3
+	sys	sys_mips_mmap		6
+	sys	sys_mprotect		3	/* 6010 */
+	sys	sys_munmap		2
+	sys	sys_brk			1
+	sys	sys_rt_sigaction	4
+	sys	sys_rt_sigprocmask	4
+	sys	sys_ioctl		3	/* 6015 */
+	sys	sys_pread64		6
+	sys	sys_pwrite64		6
+	sys	sys_readv		3
+	sys	sys_writev		3
+	sys	sys_access		2	/* 6020 */
+	sys	sysm_pipe		0
+	sys	sys_select		5
+	sys	sys_sched_yield		0
+	sys	sys_mremap		5
+	sys	sys_msync		3	/* 6025 */
+	sys	sys_mincore		3
+	sys	sys_madvise		3
+	sys	sys_shmget		3
+	sys	sys_shmat		3
+	sys	sys_shmctl		3	/* 6030 */
+	sys	sys_dup			1
+	sys	sys_dup2		2
+	sys	sys_pause		0
+	sys	sys_nanosleep		2
+	sys	sys_getitimer		2	/* 6035 */
+	sys	sys_setitimer		3
+	sys	sys_alarm		1
+	sys	sys_getpid		0
+	sys	sys_sendfile		4
+	sys	sys_socket		3	/* 6040 */
+	sys	sys_connect		3
+	sys	sys_accept		3
+	sys	sys_sendto		6
+	sys	sys_recvfrom		6
+	sys	sys_sendmsg		3	/* 6045 */
+	sys	sys_recvmsg		3
+	sys	sys_shutdown		2
+	sys	sys_bind		3
+	sys	sys_listen		2
+	sys	sys_getsockname		3	/* 6050 */
+	sys	sys_getpeername		3
+	sys	sys_socketpair		4
+	sys	sys_setsockopt		5
+	sys	sys_getsockopt		5
+	sys	sys_clone		0	/* 6055 */
+	sys	sys_fork		0
+	sys	sys_execve		0
+	sys	sys_exit		1
+	sys	sys_wait4		4
+	sys	sys_kill		2	/* 6060 */
+	sys	sys_newuname		1
+	sys	sys_semget		3
+	sys	sys_semop		3
+	sys	sys_semctl		4
+	sys	sys_shmdt		1	/* 6065 */
+	sys	sys_msgget		2
+	sys	sys_msgsnd		4
+	sys	sys_msgrcv		5
+	sys	sys_msgctl		3
+	sys	sys_fcntl		3	/* 6070 */
+	sys	sys_flock		2
+	sys	sys_fsync		1
+	sys	sys_fdatasync		1
+	sys	sys_truncate		2
+	sys	sys_ftruncate		2	/* 6075 */
+	sys	sys_getdents		3
+	sys	sys_getcwd		2
+	sys	sys_chdir		1
+	sys	sys_fchdir		1
+	sys	sys_rename		2	/* 6080 */
+	sys	sys_mkdir		2
+	sys	sys_rmdir		1
+	sys	sys_creat		2
+	sys	sys_link		2
+	sys	sys_unlink		1	/* 6085 */
+	sys	sys_symlink		2
+	sys	sys_readlink		3
+	sys	sys_chmod		2
+	sys	sys_fchmod		2
+	sys	sys_chown		3	/* 6090 */
+	sys	sys_fchown		3
+	sys	sys_lchown		3
+	sys	sys_umask		1
+	sys	sys_gettimeofday	2
+	sys	sys_getrlimit		2	/* 6095 */
+	sys	sys_getrusage		2
+	sys	sys_sysinfo		1
+	sys	sys_times		1
+	sys	sys_ptrace		4
+	sys	sys_getuid		0	/* 6100 */
+	sys	sys_syslog		3
+	sys	sys_getgid		0
+	sys	sys_setuid		1
+	sys	sys_setgid		1
+	sys	sys_geteuid		0	/* 6105 */
+	sys	sys_getegid		0
+	sys	sys_setpgid		2
+	sys	sys_getppid		0
+	sys	sys_getpgrp		0
+	sys	sys_setsid		0	/* 6110 */
+	sys	sys_setreuid		2
+	sys	sys_setregid		2
+	sys	sys_getgroups		2
+	sys	sys_setgroups		2
+	sys	sys_setresuid		3	/* 6115 */
+	sys	sys_getresuid		3
+	sys	sys_setresgid		3
+	sys	sys_getresgid		3
+	sys	sys_getpgid		1
+	sys	sys_setfsuid		1	/* 6120 */
+	sys	sys_setfsgid		1
+	sys	sys_getsid		1
+	sys	sys_capget		2
+	sys	sys_capset		2
+	sys	sys_rt_sigpending	2	/* 6125 */
+	sys	sys_rt_sigtimedwait	4
+	sys	sys_rt_sigqueueinfo	3
+	sys	sys_rt_sigsuspend	0
+	sys	sys_sigaltstack		0
+	sys	sys_utime		2	/* 6130 */
+	sys	sys_mknod		3
+	sys	sys_personality		1
+	sys	sys_ustat		2
+	sys	sys_statfs		2
+	sys	sys_fstatfs		2	/* 6135 */
+	sys	sys_sysfs		3
+	sys	sys_getpriority		2
+	sys	sys_setpriority		3
+	sys	sys_sched_setparam	2
+	sys	sys_sched_getparam	2	/* 6140 */
+	sys	sys_sched_setscheduler	3
+	sys	sys_sched_getscheduler	1
+	sys	sys_sched_get_priority_max	1
+	sys	sys_sched_get_priority_min	1
+	sys	sys_sched_rr_get_interval	2	/* 6145 */
+	sys	sys_mlock		2
+	sys	sys_munlock		2
+	sys	sys_mlockall		1
+	sys	sys_munlockall		0
+	sys	sys_vhangup		0	/* 6150 */
+	sys	sys_pivot_root		2
+	sys	sys_sysctl		1
+	sys	sys_prctl		5
+	sys	sys_adjtimex		1
+	sys	sys_setrlimit		2	/* 6155 */
+	sys	sys_chroot		1
+	sys	sys_sync		0
+	sys	sys_acct		1
+	sys	sys_settimeofday	2
+	sys	sys_mount		5	/* 6160 */
+	sys	sys_umount		2
+	sys	sys_swapon		2
+	sys	sys_swapoff		1
+	sys	sys_reboot		3
+	sys	sys_sethostname		2	/* 6165 */
+	sys	sys_setdomainname	2
+	sys	sys_ni_syscall		0	/* was create_module */
+	sys	sys_init_module		5
+	sys	sys_delete_module	1
+	sys	sys_ni_syscall		0	/* 6170, was get_kernel_syms */
+	sys	sys_ni_syscall		0	/* was query_module */
+	sys	sys_quotactl		4
+	sys	sys_nfsservctl		3
+	sys	sys_ni_syscall		0	/* res. for getpmsg */
+	sys	sys_ni_syscall		0	/* 6175  for putpmsg */
+	sys	sys_ni_syscall		0	/* res. for afs_syscall */
+	sys	sys_ni_syscall		0	/* res. for security */
+	sys	sys_gettid		0
+	sys	sys_readahead		5
+	sys	sys_setxattr		5	/* 6180 */
+	sys	sys_lsetxattr		5
+	sys	sys_fsetxattr		5
+	sys	sys_getxattr		4
+	sys	sys_lgetxattr		4
+	sys	sys_fgetxattr		4	/* 6185 */
+	sys	sys_listxattr		3
+	sys	sys_llistxattr		3
+	sys	sys_flistxattr		3
+	sys	sys_removexattr		2
+	sys	sys_lremovexattr	2	/* 6190 */
+	sys	sys_fremovexattr	2
+	sys	sys_tkill		2
+	sys	sys_ni_syscall		0
+	sys	sys_futex		6
+	sys	sys_sched_setaffinity	3	/* 6195 */
+	sys	sys_sched_getaffinity	3
+	sys	sys_cacheflush		3
+	sys	sys_cachectl		3
+	sys	sys_sysmips		4
+	sys	sys_io_setup		2	/* 6200 */
+	sys	sys_io_destroy		1
+	sys	sys_io_getevents	5
+	sys	sys_io_submit		3
+	sys	sys_io_cancel		3
+	sys	sys_exit_group		1	/* 6205 */
+	sys	sys_lookup_dcookie	4
+	sys	sys_epoll_create	1
+	sys	sys_epoll_ctl		4
+	sys	sys_epoll_wait		3
+	sys	sys_remap_file_pages	5	/* 6210 */
+	sys	sys_rt_sigreturn	0
+	sys	sys_fcntl64		3
+	sys	sys_set_tid_address	1
+	sys	sys_restart_syscall	0
+	sys	sys_semtimedop		4	/* 6215 */
+	sys	sys_fadvise64_64	7
+	sys	sys_statfs64		3
+	sys	sys_fstatfs64		2
+	sys	sys_sendfile64		5
+	sys	sys_timer_create	3	/* 6220 */
+	sys	sys_timer_settime	4
+	sys	sys_timer_gettime	2
+	sys	sys_timer_getoverrun	1
+	sys	sys_timer_delete	1
+	sys	sys_clock_settime	2	/* 6225 */
+	sys	sys_clock_gettime	2
+	sys	sys_clock_getres	2
+	sys	sys_clock_nanosleep	4
+	sys	sys_tgkill		3
+	sys	sys_utimes		2	/* 6230 */
+	sys	sys_ni_syscall		0	/* sys_mbind */
+	sys	sys_ni_syscall		0	/* sys_get_mempolicy */
+	sys	sys_ni_syscall		0	/* sys_set_mempolicy */
+	sys	sys_mq_open		4
+	sys	sys_mq_unlink		1	/* 6235 */
+	sys	sys_mq_timedsend	5
+	sys	sys_mq_timedreceive	5
+	sys	sys_mq_notify		2
+	sys	sys_mq_getsetattr	3
+	sys	sys_ni_syscall		0	/* 6240, sys_vserver */
+	sys	sys_waitid		5
+	sys	sys_ni_syscall		0	/* available, was setaltroot */
+	sys	sys_add_key		5
+	sys	sys_request_key		4
+	sys	sys_keyctl		5	/* 6245 */
+	sys	sys_set_thread_area	1
+	sys	sys_inotify_init	0
+	sys	sys_inotify_add_watch	3
+	sys	sys_inotify_rm_watch	2
+	sys	sys_migrate_pages	4	/* 6250 */
+	sys	sys_openat		4
+	sys	sys_mkdirat		3
+	sys	sys_mknodat		4
+	sys	sys_fchownat		5
+	sys	sys_futimesat		3	/* 6255 */
+	sys	sys_fstatat64		4
+	sys	sys_unlinkat		3
+	sys	sys_renameat		4
+	sys	sys_linkat		5
+	sys	sys_symlinkat		3	/* 6260 */
+	sys	sys_readlinkat		4
+	sys	sys_fchmodat		3
+	sys	sys_faccessat		3
+	sys	sys_pselect6		6
+	sys	sys_ppoll		5	/* 6265 */
+	sys	sys_unshare		1
+	sys	sys_splice		6
+	sys	sys_sync_file_range	7
+	sys	sys_tee			4
+	sys	sys_vmsplice		4	/* 6270 */
+	sys	sys_move_pages		6
+	sys	sys_set_robust_list	2
+	sys	sys_get_robust_list	3
+	sys	sys_kexec_load		4
+	sys	sys_getcpu		3	/* 6275 */
+	sys	sys_epoll_pwait		6
+	sys	sys_ioprio_set		3
+	sys	sys_ioprio_get		2
+	sys	sys_utimensat		4
+	sys	sys_signalfd		3	/* 6280 */
+	sys	sys_ni_syscall		0
+	sys	sys_eventfd		1
+	sys	sys_fallocate		6
+	sys	sys_timerfd_create	2
+	sys	sys_timerfd_gettime	2	/* 6285 */
+	sys	sys_timerfd_settime	4
+	sys	sys_signalfd4		4
+	sys	sys_eventfd2		2
+	sys	sys_epoll_create1	1
+	sys	sys_dup3		3	/* 6290 */
+	sys	sys_pipe2		2
+	sys	sys_inotify_init1	1
+	sys	sys_preadv		6
+	sys	sys_pwritev		6
+	sys	sys_rt_tgsigqueueinfo	4	/* 6295 */
+	sys	sys_perf_event_open	5
+	sys	sys_accept4		4
+	sys     sys_recvmmsg		5
+	sys     sys_getdents		3
 	.size	sysn32_call_table,.-sysn32_call_table
