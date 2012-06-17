@@ -44,13 +44,10 @@ NESTED(handle_sys, PT_SIZE, sp)
 	.set	at
 #endif
 
-#ifndef CONFIG_MIPS_N32
-	lw	t1, PT_EPC(sp)		# skip syscall on return
-#endif
-
 	subu	v0, v0, __NR_O32_Linux	# check syscall number
 	sltiu	t0, v0, __NR_O32_Linux_syscalls + 1
 #ifndef CONFIG_MIPS_N32
+	lw	t1, PT_EPC(sp)		# skip syscall on return
 	addiu	t1, 4			# skip to next instruction
 	sw	t1, PT_EPC(sp)
 #endif
@@ -166,6 +163,7 @@ stackargs:
 	la	t1, 5f			# load up to 3 arguments
 	subu	t1, t3
 #ifdef CONFIG_CPU_R5900
+	subu	t1, t3			# Add sync.l instructions to jump calculation
 	/* In an error exception handler the user space could be uncached. */
 	sync.l
 #endif
@@ -191,7 +189,11 @@ stackargs:
 	sync.l
 #endif
 4:	lw	t6, 20(t0)		# argument #6 from usp
-5:	jr	t1
+5:
+#ifdef CONFIG_CPU_R5900
+	addu	t1, t3
+#endif
+	jr	t1
 	 sw	t5, 16(sp)		# argument #5 to ksp
 
 	sw	t8, 28(sp)		# argument #8 to ksp
