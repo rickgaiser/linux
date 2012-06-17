@@ -302,7 +302,7 @@ int ps2mcfs_statfs(struct dentry *dentry, struct kstatfs *k_statfs)
 	k_statfs->f_type = PS2MCFS_SUPER_MAGIC;
 	k_statfs->f_namelen = PS2MC_NAME_MAX;
 
-	if (info.type == PS2MC_TYPE_PS2) {
+	if ((info.type == PS2MC_TYPE_PS2) || (info.type == PS2MC_TYPE_PS1)) {
 		k_statfs->f_bsize = info.blocksize;
 		k_statfs->f_blocks = info.totalblocks;
 		k_statfs->f_bfree = info.freeblocks;

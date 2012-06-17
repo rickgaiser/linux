@@ -228,6 +228,10 @@ ps2mc_getinfo(int portslot, struct ps2mc_cardinfo *info)
 		info->blocksize = 1024;		/* XXX, I donna */
 		info->totalblocks = 1024 * 8;	/* XXX, 8MB */
 	}
+	if (type == PS2MC_TYPE_PS1) {
+		info->blocksize = 1024 * 8;
+		info->totalblocks = 16;	     /* 16 blocks of 8KB (128 KB) */
+	}
 
 	return (0);
 }
