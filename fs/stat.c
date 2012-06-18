@@ -256,11 +256,6 @@ SYSCALL_DEFINE2(newlstat, char __user *, filename, struct stat __user *, statbuf
 	return cp_new_stat(&stat, statbuf);
 }
 
-int get_TBD_newlstat_size(void)
-{
-	return sizeof(struct stat);
-}
-
 #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
 SYSCALL_DEFINE4(newfstatat, int, dfd, char __user *, filename,
 		struct stat __user *, statbuf, int, flag)
