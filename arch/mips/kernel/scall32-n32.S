@@ -44,8 +44,8 @@ NESTED(handle_sys, PT_SIZE, sp)
 	SAVE_TEMP			# This will be restored in syscall_exit and n32_syscall_exit.
 	SAVE_STATIC
 					# N32 callers expect a4/t0 to be saved.
-	TRACE_IRQS_ON_RELOAD
-	STI
+	TRACE_IRQS_ON_RELOAD		# Caution: This can overwrite a4/t0.
+	STI				# Caution: This overwrites a4/t0.
 	.set	at
 
 	dsubu	t4, v0, __NR_N32_Linux	# check syscall number
@@ -135,6 +135,7 @@ stackargs:
 	 * t7 is the precomputed number of instruction bytes needed to
 	 * load or store arguments 6-8.
 	 */
+	LONGD_L	a4, PT_R8(sp)
 	la	t5, 1f			# load up to 3 arguments
 	subu	t5, t7
 	sw	a4, 16(sp)		# argument #5 to ksp
@@ -143,8 +144,11 @@ stackargs:
 	.set    push
 	.set    noreorder
 	.set	nomacro
+	LONGD_L	a7, PT_R11(sp)
 	sw	a7, 28(sp)		# argument #8 to ksp
+	LONGD_L	a6, PT_R10(sp)
 	sw	a6, 24(sp)		# argument #7 to ksp
+	LONGD_L	a5, PT_R9(sp)
 	sw	a5, 20(sp)		# argument #6 to ksp
 1:
 	j	stack_done		# go back
@@ -160,7 +164,7 @@ not_n32_scall:
 
 	.macro  sys function, nargs
 	PTR	\function
-	LONG	(\nargs << 2) - (5 << 2)
+	LONG	(\nargs << 3) - (5 << 3)
 	.endm
 
 EXPORT(sysn32_call_table)
