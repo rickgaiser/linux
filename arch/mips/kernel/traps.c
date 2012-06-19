@@ -485,6 +485,7 @@ asmlinkage void do_be(struct pt_regs *regs)
 #define OPCODE 0xfc000000
 #define BASE   0x03e00000
 #define RT     0x001f0000
+#define RS     0x03e00000
 #define OFFSET 0x0000ffff
 #define LL     0xc0000000
 #define SC     0xe0000000
@@ -494,6 +495,10 @@ asmlinkage void do_be(struct pt_regs *regs)
 #define FUNC   0x0000003f
 #define SYNC   0x0000000f
 #define RDHWR  0x0000003b
+#define DMULT  0x0000001c
+#define DMULTU 0x0000001d
+#define DDIV   0x0000001e
+#define DDIVU  0x0000001f
 
 /*
  * The ll_bit is cleared by r*_switch.S
@@ -650,6 +655,167 @@ static int simulate_sync(struct pt_regs *regs, unsigned int opcode)
 
 	return -1;			/* Must be something else ... */
 }
+
+#ifdef CONFIG_CPU_R5900
+typedef unsigned int UDItype	__attribute__ ((mode (DI)));
+
+UDItype __udivmoddi4(UDItype n, UDItype d, UDItype *rp);
+
+/** Multiply 64 bit x 64 bit = 128 bit (all unsigned). */
+void dmultu(uint64_t *hi, uint64_t *lo, uint64_t a, uint64_t b)
+{
+	/* Devide input into 32 bit parts. */
+	uint64_t alo = a & 0xFFFFFFFF;
+	uint64_t ahi = (a >> 32) & 0xFFFFFFFF;
+	uint64_t blo = b & 0xFFFFFFFF;
+	uint64_t bhi = (b >> 32) & 0xFFFFFFFF;
+	uint64_t x0; /* bits 32..0 of result including overflow bits. */
+	uint64_t x32; /* bits 63..32 of result including overflow bits. */
+	uint64_t x64; /* bits 127..64 of result. */
+
+	/* Use binomial formula to calculate ((ahi << 32) + alo) * ((bhi << 32) + blo). */
+	x0 = alo * blo;
+	x32 = ahi * blo;
+	x64 = ahi * bhi;
+
+	/* Handle overflow bits of x32. */
+	x64 += x32 >> 32;
+	x32 = (uint32_t) x32;
+
+	/* Handle overflow bits of x0. */
+	x32 += x0 >> 32;
+	x0 = (uint32_t) x0;
+
+	/* Handle overflow bits of x32. */
+	x64 += x32 >> 32;
+	x32 = (uint32_t) x32;
+
+	x32 += alo * bhi;
+
+	/* Handle overflow bits of x32. */
+	x64 += x32 >> 32;
+	x32 = (uint32_t) x32;
+
+	/* Get bits 63..0 */
+	*lo = (x32 << 32) + x0;
+	/* Get bits 127..64 */
+	*hi = x64;
+}
+
+/** Multiply 64 bit x 64 bit = 128 bit (all signed). */
+void dmult(uint64_t *hi, uint64_t *lo, int64_t a, int64_t b)
+{
+	uint64_t ax;
+	uint64_t bx;
+
+	if (a < 0) {
+		/* Value is negative, use positive value for calculation. */
+		ax = -a;
+	} else {
+		ax = a;
+	}
+	if (b < 0) {
+		/* Value is negative, use positive value for calculation. */
+		bx = -b;
+	} else {
+		bx = b;
+	}
+	/* Use multiplication function for unsigned values. */
+	dmultu(hi, lo, ax, bx);
+
+	/* Check if negative and positive value is calculated. Fix sign if so. */
+	if ((a < 0) ^ (b < 0)) {
+		uint64_t x0; /* bits 31..0 of result including overflow. */
+		uint64_t x32; /* bits 63..32 of result including overflow. */
+		uint64_t x64; /* bits 95..64 of result including overflow. */
+		uint64_t x96; /* bits 127..96 of result including overflow. */
+
+		/* Calculate 2's complement. */
+
+		/* Invert all bits. */
+		*hi = ~*hi;
+		*lo = ~*lo;
+
+		x0 = (uint32_t) *lo;
+		x32 = (uint32_t) (*lo >> 32);
+		x64 = (uint32_t) *hi;
+		x96 = (uint32_t) (*hi >> 32);
+
+		/* Add one and handle overflow. */
+		x0 += 1;
+		x32 += x0 >> 32;
+		x0 = (uint32_t) x0;
+		x64 += x32 >> 32;
+		x32 = (uint32_t) x32;
+		x96 += x64 >> 32;
+		x64 = (uint32_t) x64;
+
+		*lo = x0 + (x32 << 32);
+		*hi = x64 + (x96 << 32);
+	}
+}
+
+static int simulate_mips3(struct pt_regs *regs, unsigned int opcode)
+{
+	int rv = -1;
+
+	/* Emulate missing 64 bit instructions. */
+	if ((opcode & OPCODE) == SPEC0) {
+		int rt;
+		int rs;
+
+		rt = (opcode & RT) >> 16;
+		rs = (opcode & RS) >> 21;
+		switch(opcode & FUNC) {
+		case DMULT:
+			/* Emulate 64 bit calculation. */
+			dmult(&regs->hi, &regs->lo,
+				MIPS_READ_REG_S(regs->regs[rt]),
+				MIPS_READ_REG_S(regs->regs[rs]));
+			rv = 0;
+			break;
+
+		case DMULTU:
+			/* Emulate 64 bit calculation. */
+			dmultu(&regs->hi, &regs->lo,
+				MIPS_READ_REG(regs->regs[rt]),
+				MIPS_READ_REG(regs->regs[rs]));
+			rv = 0;
+			break;
+
+		case DDIV:
+			if (MIPS_READ_REG_S(regs->regs[rt]) == 0) {
+				/* The result is undefined. */
+				regs->lo = 0;
+				regs->hi = 0;
+			} else {
+				/* TBD: Optimize, use one function for calculation divisor and remainder at the same time. */
+				regs->lo = MIPS_READ_REG_S(regs->regs[rs]) / MIPS_READ_REG_S(regs->regs[rt]);
+				regs->hi = MIPS_READ_REG_S(regs->regs[rs]) % MIPS_READ_REG_S(regs->regs[rt]);
+			}
+			rv = 0;
+			break;
+
+		case DDIVU:
+			if (MIPS_READ_REG_S(regs->regs[rt]) == 0) {
+				/* The result is undefined. */
+				regs->lo = 0;
+				regs->hi = 0;
+			} else {
+				regs->lo = __udivmoddi4(MIPS_READ_REG(regs->regs[rs]), MIPS_READ_REG(regs->regs[rt]), &regs->hi);
+			}
+			rv = 0;
+			break;
+		default:
+			/* Must be something else ... */
+			rv = -1;
+			break;
+		}
+	}
+
+	return rv;
+}
+#endif
 
 asmlinkage void do_ov(struct pt_regs *regs)
 {
@@ -858,6 +1024,9 @@ asmlinkage void do_ri(struct pt_regs *regs)
 		status = simulate_sync(regs, opcode);
 
 #ifdef CONFIG_CPU_R5900
+	if (status < 0)
+		status = simulate_mips3(regs, opcode);
+
 	/* R5900 supports 32 bit FPU operation, but no 64 bit instructions. */
 	/* We need to emulate it here. */
 	if (cpu_has_fpu && status < 0) {
