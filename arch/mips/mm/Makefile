@@ -3,7 +3,8 @@
 #
 
 obj-y				+= cache.o dma-default.o extable.o fault.o \
-				   init.o tlbex.o tlbex-fault.o uasm.o page.o
+				   init.o tlbex.o tlbex-fault.o uasm.o page.o \
+				   page-funcs.o
 
 ifeq ($(CONFIG_CPU_R5900),y)
 obj-$(CONFIG_CPU_R5900)		+= ioremap.o pgtable-32.o
