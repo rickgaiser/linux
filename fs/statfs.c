@@ -133,13 +133,6 @@ SYSCALL_DEFINE3(statfs64, const char __user *, pathname, size_t, sz, struct stat
 	return error;
 }
 
-#ifdef CONFIG_MIPS_N32
-SYSCALL_DEFINE2(compat_statfs64, const char __user *, pathname, struct statfs64 __user *, buf)
-{
-	return sys_statfs64(pathname, sizeof(*buf), buf);
-}
-#endif
-
 SYSCALL_DEFINE2(fstatfs, unsigned int, fd, struct statfs __user *, buf)
 {
 	struct file *file;
@@ -178,13 +171,6 @@ SYSCALL_DEFINE3(fstatfs64, unsigned int, fd, size_t, sz, struct statfs64 __user 
 out:
 	return error;
 }
-
-#ifdef CONFIG_MIPS_N32
-SYSCALL_DEFINE2(compat_fstatfs64, unsigned int, fd, struct statfs64 __user *, buf)
-{
-	return sys_fstatfs64(fd, sizeof(*buf), buf);
-}
-#endif
 
 SYSCALL_DEFINE2(ustat, unsigned, dev, struct ustat __user *, ubuf)
 {
