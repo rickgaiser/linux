@@ -223,7 +223,7 @@ EXPORT(sysn32_call_table)
 	sys	sys_socketpair		4
 	sys	sys_setsockopt		5
 	sys	sys_getsockopt		5
-	sys	sys_clone		0	/* 6055 */
+	sys	sysn32_clone		0	/* 6055 */
 	sys	sys_fork		0
 	sys	sys_execve		0
 	sys	sys_exit		1
