@@ -199,6 +199,27 @@ _sys_clone(nabi_no_regargs struct pt_regs regs)
 	               parent_tidptr, child_tidptr);
 }
 
+#ifdef CONFIG_MIPS_N32
+/* Same as _sys_clone() function above, but without CONFIG_32BIT. */
+save_static_function(sysn32_clone);
+static int __used noinline
+_sysn32_clone(nabi_no_regargs struct pt_regs regs)
+{
+	unsigned long clone_flags;
+	unsigned long newsp;
+	int __user *parent_tidptr, *child_tidptr;
+
+	clone_flags = MIPS_READ_REG(regs.regs[4]);
+	newsp = MIPS_READ_REG(regs.regs[5]);
+	if (!newsp)
+		newsp = MIPS_READ_REG_L(regs.regs[29]);
+	parent_tidptr = (int __user *) MIPS_READ_REG_L(regs.regs[6]);
+	child_tidptr = (int __user *) MIPS_READ_REG_L(regs.regs[8]);
+	return do_fork(clone_flags, newsp, &regs, 0,
+	               parent_tidptr, child_tidptr);
+}
+#endif
+
 /*
  * sys_execve() executes a new program.
  */
