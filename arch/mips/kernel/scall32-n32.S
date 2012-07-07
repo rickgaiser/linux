@@ -301,9 +301,9 @@ EXPORT(sysn32_call_table)
 	sys	sys_utime		2	/* 6130 */
 	sys	sys_mknod		3
 	sys	sys_personality		1
-	sys	sys_ustat		2	/* TBD: maybe size of ustat not correct. */
-	sys	sys_compat_statfs64	2
-	sys	sys_compat_fstatfs64	2	/* 6135 */
+	sys	sys_ustat		2
+	sys	sys_statfs		2
+	sys	sys_fstatfs		2	/* 6135 */
 	sys	sys_sysfs		3
 	sys	sys_getpriority		2
 	sys	sys_setpriority		3
