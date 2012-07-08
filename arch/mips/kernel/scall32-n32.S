@@ -467,5 +467,5 @@ EXPORT(sysn32_call_table)
 	sys	sys_perf_event_open	5
 	sys	sys_accept4		4
 	sys     sys_recvmmsg		5
-	sys     sys_getdents		3
+	sys     sys_getdents64		3
 	.size	sysn32_call_table,.-sysn32_call_table
