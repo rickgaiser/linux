@@ -28,22 +28,21 @@ struct sigcontext {
 	unsigned int		sc_fpc_csr;
 	unsigned int		sc_fpc_eir;	/* Unused */
 	unsigned int		sc_used_math;
-#ifndef CONFIG_CPU_R5900
 	unsigned int		sc_dsp;		/* dsp status, was sc_ssflags */
-#endif
 	unsigned long long	sc_mdhi;
 	unsigned long long	sc_mdlo;
-#ifndef CONFIG_CPU_R5900
 	unsigned long		sc_hi1;		/* Was sc_cause */
 	unsigned long		sc_lo1;		/* Was sc_badvaddr */
+#ifdef CONFIG_CPU_R5900
+	unsigned long		sc_sa;
+	unsigned long		pad1;
+	unsigned long		pad2;
+	unsigned long		pad3;
+#else
 	unsigned long		sc_hi2;		/* Was sc_sigset[4] */
 	unsigned long		sc_lo2;
 	unsigned long		sc_hi3;
 	unsigned long		sc_lo3;
-#else
-	unsigned long long	sc_hi1;		/* Was sc_cause */
-	unsigned long long	sc_lo1;		/* Was sc_badvaddr */
-	unsigned long		sc_sa;
 #endif
 };
 
