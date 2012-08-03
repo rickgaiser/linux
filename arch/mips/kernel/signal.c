@@ -36,6 +36,10 @@
 
 #include "signal-common.h"
 
+/*
+ * Including <asm/unistd.h> would give use the 64-bit syscall numbers ...
+ */
+#define __NR_N32_restart_syscall	6214
 
 static int (*save_fp_context)(struct sigcontext __user *sc);
 static int (*restore_fp_context)(struct sigcontext __user *sc);
@@ -562,6 +566,15 @@ struct mips_abi mips_abi = {
 	.restart	= __NR_restart_syscall
 };
 
+#ifdef CONFIG_MIPS_N32
+struct mips_abi mips_abi_n32 = {
+	.setup_rt_frame	= setup_rt_frame,
+	.rt_signal_return_offset =
+		offsetof(struct mips_vdso, n32_rt_signal_trampoline),
+	.restart	= __NR_N32_restart_syscall
+};
+#endif
+
 static int handle_signal(unsigned long sig, siginfo_t *info,
 	struct k_sigaction *ka, sigset_t *oldset, struct pt_regs *regs)
 {
@@ -587,7 +600,7 @@ static int handle_signal(unsigned long sig, siginfo_t *info,
 
 	MIPS_WRITE_REG(regs->regs[0]) = 0;		/* Don't deal with this again.  */
 
-	if (sig_uses_siginfo(ka))
+	if (sig_uses_siginfo(ka) || (abi->setup_frame == NULL))
 		ret = abi->setup_rt_frame(vdso + abi->rt_signal_return_offset,
 					  ka, regs, sig, oldset, info);
 	else
