@@ -247,18 +247,49 @@ extern struct mips_abi mips_abi_n32;
 
 #ifdef CONFIG_32BIT
 
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+#define __SET_PERSONALITY32(ex)						\
+do {									\
+	if ((((ex).e_flags & EF_MIPS_ABI2) != 0) &&			\
+	     ((ex).e_flags & EF_MIPS_ABI) == 0)				\
+		__SET_PERSONALITY32_N32();				\
+	else								\
+		__SET_PERSONALITY32_O32();				\
+} while (0)
+
+#define SET_PERSONALITY(ex)						\
+do {									\
+	clear_thread_flag(TIF_32BIT_REGS);				\
+	set_thread_flag(TIF_32BIT_ADDR);				\
+									\
+	__SET_PERSONALITY32(ex);					\
+									\
+	if (current->personality != PER_LINUX32)			\
+		set_personality(PER_LINUX);				\
+} while (0)
+
+#define __SET_PERSONALITY32_O32()					\
+	do {								\
+		set_thread_flag(TIF_32BIT_REGS);			\
+		set_thread_flag(TIF_32BIT_ADDR);			\
+		current->thread.abi = &mips_abi;			\
+	} while (0)
+
+
+#else
 #define SET_PERSONALITY(ex)						\
 do {									\
 	set_personality(PER_LINUX);					\
 									\
 	current->thread.abi = &mips_abi;				\
 } while (0)
+#endif /* CONFIG_R5900_128BIT_SUPPORT */
 
 #endif /* CONFIG_32BIT */
 
-#ifdef CONFIG_64BIT
+#if defined(CONFIG_64BIT) || defined(CONFIG_R5900_128BIT_SUPPORT)
 
-#ifdef CONFIG_MIPS32_N32
+#if defined(CONFIG_MIPS32_N32) || defined(CONFIG_MIPS_N32)
 #define __SET_PERSONALITY32_N32()					\
 	do {								\
 		set_thread_flag(TIF_32BIT_ADDR);			\
@@ -267,7 +298,11 @@ do {									\
 #else
 #define __SET_PERSONALITY32_N32()					\
 	do { } while (0)
-#endif
+#endif /* CONFIG_MIPS32_N32 || CONFIG_MIPS_N32 */
+
+#endif /* CONFIG_64BIT || CONFIG_R5900_128BIT_SUPPORT */
+
+#ifdef CONFIG_64BIT
 
 #ifdef CONFIG_MIPS32_O32
 #define __SET_PERSONALITY32_O32()					\

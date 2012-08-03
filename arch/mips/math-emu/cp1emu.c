@@ -178,9 +178,11 @@ static int isBranchInstr(mips_instruction * i)
  */
 static inline int cop1_64bit(struct pt_regs *xcp)
 {
+#if !defined(CONFIG_R5900_128BIT_SUPPORT)
 	if (cpu_has_fpu)
 		return xcp->cp0_status & ST0_FR;
-#ifdef CONFIG_64BIT
+#endif
+#if defined(CONFIG_64BIT) || defined(CONFIG_R5900_128BIT_SUPPORT)
 	return !test_thread_flag(TIF_32BIT_REGS);
 #else
 	return 0;
