@@ -1028,10 +1028,21 @@ asmlinkage void do_ri(struct pt_regs *regs)
 		status = simulate_mips3(regs, opcode);
 
 	/* R5900 supports 32 bit FPU operation, but no 64 bit instructions. */
+	/* The instructions are reserved on this CPU. */
 	/* We need to emulate it here. */
-	if (cpu_has_fpu && status < 0) {
+	if (status < 0) {
 		/* Undo skip-over.  */
 		regs->cp0_epc = old_epc;
+
+		/* Assume that this is an FPU instruction and prepare FPU.
+		 * If this assumption is wrong, this will only cost time.
+		 */
+		if (used_math())	/* Using the FPU again.  */
+			own_fpu(1);
+		else {			/* First time FPU user.  */
+			init_fpu();
+			set_used_math();
+		}
 
 		/* Ensure 'resume' not overwrite saved fp context again. */
 		lose_fpu(1);
