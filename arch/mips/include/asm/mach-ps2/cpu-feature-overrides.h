@@ -1,5 +1,4 @@
-/* Copyright 2010 Mega Man */
-/* TBD: Unfinished state. Rework code. */
+/* Copyright 2010  2012 Mega Man */
 #ifndef __ASM_MACH_PS2_CPU_FEATURE_OVERRIDES_H
 #define __ASM_MACH_PS2_CPU_FEATURE_OVERRIDES_H
 
@@ -25,5 +24,9 @@
 /* TBD: Check define for cpu_has_dc_aliases */
 #define cpu_has_ic_fills_f_dc	0
 #define cpu_has_inclusive_pcaches	0
+/* For ABI n32 the 64 bit CPU must be emulated. The 32 bit CPU can't be used.
+ * Tasks with TIF_32BIT_REGS set, are ABI o32 which can use the FPU.
+ */
+#define cpu_has_fpu (test_thread_flag(TIF_32BIT_REGS))
 
 #endif
