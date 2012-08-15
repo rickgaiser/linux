@@ -246,11 +246,16 @@ void ps2gs_sgssreg_vb(void)
     int i;
 
     if (vb_gssreg_num) {
-	for (i = 0; i < vb_gssreg_num; i++)
-	    ps2gs_set_gssreg(vb_gssreg_p[i].reg, vb_gssreg_p[i].val);
-	kfree(vb_gssreg_p);
+	if (vb_gssreg_p != NULL) {
+		for (i = 0; i < vb_gssreg_num; i++)
+		    ps2gs_set_gssreg(vb_gssreg_p[i].reg, vb_gssreg_p[i].val);
+		kfree(vb_gssreg_p);
+		vb_gssreg_p = NULL;
+	} else {
+		printk("ps2gs: error: vb_gssreg_p is NULL.\n");
+	}
+	__asm__("":::"memory");
 	vb_gssreg_num = 0;
-	vb_gssreg_p = NULL;
     }
 }
 
@@ -409,6 +414,7 @@ static int ps2gs_ioctl(struct inode *inode, struct file *file,
 	    kfree(vb_gssreg_p);
 	    return -EFAULT;
 	}
+	__asm__("":::"memory");
 	vb_gssreg_num = sgssreg_vb.num;
 	return 0;
     }
