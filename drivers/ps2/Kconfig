@@ -32,6 +32,7 @@ config PS2_PAD
 
 config PS2_CDVD
 	tristate "Support for PS2 CD/DVD ROM drive"
+	default y
 	depends on SONY_PS2
 
 config PS2_MC
