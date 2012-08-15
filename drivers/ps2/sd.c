@@ -1254,7 +1254,9 @@ ps2sd_intr(void* argx, int dmach)
 	ps2sd_mc.intr_status |= (1 << dmach);
 	spin_unlock(&ps2sd_mc.spinlock);
 	DPRINT(DBG_INTR, "DMA interrupt %d\n", dmach);
+#ifdef PS2SD_USE_THREAD
 	up(&ps2sd_mc.intr_sem);
+#endif
 
 	return (0);
 }
@@ -2612,6 +2614,10 @@ ps2sd_init(void)
 	ps2sif_unlock(ps2sd_mc.lock);
 
 	ps2sd_mc.init |= PS2SD_INIT_UNIT;
+#ifdef PS2SD_USE_THREAD
+	/* Initialize mutex, if interrupts happens before starting thread. */
+	init_MUTEX_LOCKED(&ps2sd_mc.intr_sem);
+#endif
 	if (ps2sd_attach_unit(&ps2sd_units[0], 0, 0, &ps2sd_mixers[0],
 			      UNIT0_FLAGS) < 0)
 		goto error_out;
@@ -2629,7 +2635,6 @@ ps2sd_init(void)
 	/*
 	 * start interrupt service thread
 	 */
-	init_MUTEX_LOCKED(&ps2sd_mc.intr_sem);
 	init_completion(&ps2sd_mc.ack_comp);
 	ps2sd_mc.thread_id = kernel_thread(ps2sd_thread, NULL, CLONE_VM);
 	if (ps2sd_mc.thread_id < 0) {
