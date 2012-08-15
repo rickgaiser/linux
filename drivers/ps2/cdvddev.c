@@ -597,10 +597,12 @@ struct cdrom_device_ops ps2cdvd_dops = {
 	select_speed:		ps2cdvd_select_speed,
 	reset:			ps2cdvd_reset,
 	audio_ioctl:		ps2cdvd_audio_ioctl,
+#if 0 // TBD: Check
 	dev_ioctl:		ps2cdvd_dev_ioctl,
+#endif
 	capability:		CDC_OPEN_TRAY | CDC_LOCK | CDC_SELECT_SPEED |
 				CDC_MEDIA_CHANGED | CDC_RESET |
-				CDC_PLAY_AUDIO | CDC_IOCTLS | CDC_DRIVE_STATUS,
+				CDC_PLAY_AUDIO | CDC_DRIVE_STATUS,
 	n_minors:		1,
 };
 

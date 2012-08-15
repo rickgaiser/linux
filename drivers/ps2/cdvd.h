@@ -23,7 +23,7 @@
 /*
  * macro defines
  */
-//#define PS2CDVD_DEBUG
+#define PS2CDVD_DEBUG
 #ifdef PS2CDVD_DEBUG
 #define DBG_VERBOSE	(1<< 0)
 #define DBG_DIAG	(1<< 1)
@@ -141,6 +141,7 @@ struct ps2cdvd_ctx {
 	volatile int		ievent, event;
 	spinlock_t		ievent_lock;
 	int			thread_id;
+	struct request_queue	*cdvd_queue;
 };
 
 /*
