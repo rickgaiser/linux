@@ -52,6 +52,7 @@ struct ps2cdvd_event {
 };
 
 static DEFINE_SPINLOCK(cdvd_lock);
+static DEFINE_SPINLOCK(cdvd_queue_lock);
 
 /*
  * function prototypes
@@ -59,7 +60,10 @@ static DEFINE_SPINLOCK(cdvd_lock);
 	static void ps2cdvd_request(struct request_queue *);
 	static void ps2cdvd_timer(unsigned long);
 	void ps2cdvd_cleanup(void);
-	static int ps2cdvd_common_open(struct block_device *bdev, fmode_t mode);
+	static int ps2cdvd_bdops_open(struct block_device *bdev, fmode_t mode);
+	static int ps2cdvd_bdops_release(struct gendisk *disk, fmode_t mode);
+	static int ps2cdvd_bdops_mediachanged(struct gendisk *disk);
+	static int ps2cdvd_bdops_ioctl(struct block_device *bdev, fmode_t mode, unsigned cmd, unsigned long arg);
 	static int checkdisc(void);
 	static int spindown(void);
 
@@ -71,7 +75,6 @@ static DEFINE_SPINLOCK(cdvd_lock);
 	int ps2cdvd_debug = DBG_DEFAULT_FLAGS;
 	int ps2cdvd_immediate_ioerr = 0;
 	int ps2cdvd_major = PS2CDVD_MAJOR;
-	int ps2cdvd_read_ahead = 32;
 	int ps2cdvd_spindown = 0;
 	int ps2cdvd_wrong_disc_retry = 0;
 
@@ -90,9 +93,6 @@ static DEFINE_SPINLOCK(cdvd_lock);
 	module_param(ps2cdvd_major, int, 0);
 	MODULE_PARM_DESC(ps2cdvd_major,
 		"Major number for device (0-255)");
-	module_param(ps2cdvd_read_ahead, int, 0);
-	MODULE_PARM_DESC(ps2cdvd_read_ahead,
-		"CDVD read ahead (1-256)");
 	module_param(ps2cdvd_spindown, int, 0);
 	MODULE_PARM_DESC(ps2cdvd_spindown,
 		"CDVD spindown value (0-3600)");
@@ -124,6 +124,9 @@ static DEFINE_SPINLOCK(cdvd_lock);
 		},
 	};
 
+	static LIST_HEAD(cdvd_deferred);
+	static struct gendisk *disk;
+
 	/*
 	 * function bodies
 	 */
@@ -144,10 +147,25 @@ static DEFINE_SPINLOCK(cdvd_lock);
 	static void
 	ps2cdvd_request(struct request_queue *rq)
 	{
-		unsigned int flags;
+		unsigned long flags;
 		struct request *req;
 
 		while ((req = blk_fetch_request(rq)) != NULL) {
+			if (!blk_fs_request(req)) {
+				printk(KERN_DEBUG "ps2cdvd: Non-fs request ignored\n");
+				__blk_end_request_all(req, -EIO);
+				continue;
+			}
+			if (rq_data_dir(req) != READ) {
+				printk(KERN_NOTICE "ps2cdvd: Read only device -");
+				printk(" write request ignored\n");
+				__blk_end_request_all(req, -EIO);
+				continue;
+			}
+			spin_lock_irqsave(&cdvd_queue_lock, flags);
+			list_add_tail(&req->queuelist, &cdvd_deferred); // TBD: Protect with lock?
+			spin_unlock_irqrestore(&cdvd_queue_lock, flags);
+
 			spin_lock_irqsave(&ps2cdvd.ievent_lock, flags);
 			if (ps2cdvd.ievent == EV_NO_EVENT) {
 			    ps2cdvd.ievent = EV_START;
@@ -256,7 +274,7 @@ static DEFINE_SPINLOCK(cdvd_lock);
 	static void
 	ps2cdvd_timer(unsigned long arg)
 	{
-	    unsigned int flags;
+	    unsigned long flags;
 
 	    spin_lock_irqsave(&ps2cdvd.ievent_lock, flags);
 	    if (ps2cdvd.ievent == EV_NO_EVENT) {
@@ -299,29 +317,56 @@ static DEFINE_SPINLOCK(cdvd_lock);
 	static int
 	ps2cdvd_check_cache(void)
 	{
+	    struct list_head *elem, *next;
 	    unsigned long flags;
+	    int rv;
 
-	    while (!QUEUE_EMPTY &&
-		   ps2cdvd.databuf_addr <= CURRENT->sector/4 &&
-		   CURRENT->sector/4 < ps2cdvd.databuf_addr + ps2cdvd.databuf_nsects) {
-		DPRINT(DBG_READ, "REQ %p: sec=%ld  n=%ld  buf=%p\n",
-		       CURRENT, CURRENT->sector,
-		       CURRENT->current_nr_sectors, CURRENT->buffer);
+	    spin_lock_irqsave(&cdvd_queue_lock, flags);
+	    list_for_each_safe(elem, next, &cdvd_deferred) {
+	        struct request *req;
+		unsigned int pos;
+		unsigned int sectors;
+		sector_t start;
+		sector_t end;
+		void *src;
+		void *dst;
+
+		req = list_entry(elem, struct request, queuelist);
+		start = blk_rq_pos(req);
+		end = start + blk_rq_sectors(req);
+
+		/* Check if data is in buffer. */
+		if (ps2cdvd.databuf_addr > start/4)
+			break;
+		if (end/4 > ps2cdvd.databuf_addr + ps2cdvd.databuf_nsects)
+			break;
+		DPRINT(DBG_READ, "REQ %p: sec=%lld  n=%d  buf=%p\n",
+		       req, start,
+		       blk_rq_sectors(req), req->buffer);
+		sectors = blk_rq_sectors(req) / 4;
+		src = ps2cdvd.databuf;
+		dst = req->buffer;
 		if (ps2cdvd.disc_type == SCECdDVDV) {
-			memcpy(CURRENT->buffer,
-			       ps2cdvd.databuf + DVD_DATA_OFFSET + DVD_DATA_SECT_SIZE * (CURRENT->sector/4 - ps2cdvd.databuf_addr),
-			       DATA_SECT_SIZE);
+			src += DVD_DATA_OFFSET + DVD_DATA_SECT_SIZE * (start/4 - ps2cdvd.databuf_addr);
+			/* Copy all sectors. */
+			for (pos = 0; pos < sectors; pos++) {
+				/* Copy one sector from cache to buffer of request. */
+				memcpy(dst, src, DATA_SECT_SIZE);
+				dst += DATA_SECT_SIZE;
+				src += DVD_DATA_SECT_SIZE;
+			}
 		} else {
-			memcpy(CURRENT->buffer,
-			       ps2cdvd.databuf + DATA_SECT_SIZE * (CURRENT->sector/4 - ps2cdvd.databuf_addr),
-			       DATA_SECT_SIZE);
+			/* Copy data from cache to buffer of request. */
+			src += DATA_SECT_SIZE * (start/4 - ps2cdvd.databuf_addr);
+			memcpy(dst, src, sectors * DATA_SECT_SIZE);
 		}
-		spin_lock_irqsave(&io_request_lock, flags);
-		end_request(1);
-		spin_unlock_irqrestore(&io_request_lock, flags);
+		list_del_init(&req->queuelist);
+		__blk_end_request_all(req, 0);
 	    }
 
-	    return (QUEUE_EMPTY);
+	    rv = list_empty(&cdvd_deferred);
+	    spin_unlock_irqrestore(&cdvd_queue_lock, flags);
+	    return rv;
 	}
 
 	static int
@@ -369,12 +414,22 @@ static DEFINE_SPINLOCK(cdvd_lock);
 		if (!ps2cdvd.disc_locked ||
 		    (ps2cdvd.state == STAT_INVALID_DISC &&
 		     !ps2cdvd_wrong_disc_retry)) {
-		    if (!QUEUE_EMPTY)
+		    unsigned long flags;
+
+		    spin_lock_irqsave(&cdvd_queue_lock, flags);
+		    if (!list_empty(&cdvd_deferred)) {
+	    		struct list_head *elem, *next;
 			DPRINT(DBG_DIAG, "abort all pending request\n");
-		    spin_lock_irqsave(&io_request_lock, flags);
-		    while (!QUEUE_EMPTY)
-			end_request(0);
-		    spin_unlock_irqrestore(&io_request_lock, flags);
+
+	    		list_for_each_safe(elem, next, &cdvd_deferred) {
+			        struct request *req;
+
+				req = list_entry(elem, struct request, queuelist);
+				list_del_init(&req->queuelist);
+				__blk_end_request_all(req, -EIO);
+			}
+		    }
+		    spin_unlock_irqrestore(&cdvd_queue_lock, flags);
 		}
 		ps2cdvd_unlock();
 		ev = ps2cdvd_getevent(ps2cdvd_check_interval * HZ);
@@ -425,8 +480,12 @@ static DEFINE_SPINLOCK(cdvd_lock);
 		NEW_STATE(STAT_INVALID_DISC);
 		break;
 
-	    case STAT_READY:
-		if (QUEUE_EMPTY) {
+	    case STAT_READY: {
+		unsigned long flags;
+	        struct request *req;
+		spin_lock_irqsave(&cdvd_queue_lock, flags);
+		if (list_empty(&cdvd_deferred)) {
+		    spin_unlock_irqrestore(&cdvd_queue_lock, flags);
 		    ps2cdvd_unlock();
 		    ev = ps2cdvd_getevent(ps2cdvd_check_interval * HZ);
 		    if (ps2cdvd_lock_interruptible("cdvd thread") != 0)
@@ -436,9 +495,14 @@ static DEFINE_SPINLOCK(cdvd_lock);
 		    case EV_START:
 			break;
 		    case EV_TIMEOUT:
-			if (ps2cdvd_spindown != 0 && ps2cdvd.sectoidle <= 0 && QUEUE_EMPTY
-			    && ps2cdvd.stream_start == 0)
+		        spin_lock_irqsave(&cdvd_queue_lock, flags);
+			if (ps2cdvd_spindown != 0 && ps2cdvd.sectoidle <= 0 && list_empty(&cdvd_deferred)
+			    && ps2cdvd.stream_start == 0) {
+		          spin_unlock_irqrestore(&cdvd_queue_lock, flags);
 			  NEW_STATE(STAT_IDLE);
+                        } else {
+		          spin_unlock_irqrestore(&cdvd_queue_lock, flags);
+			}
 			if (ps2cdvdcall_trayreq(SCECdTrayCheck, &traycount) != 0 ||
 			    traycount != 0 ||
 			    ps2cdvd.traycount != 0) {
@@ -451,6 +515,8 @@ static DEFINE_SPINLOCK(cdvd_lock);
 			goto unlock_out;
 		    }
 		    NEW_STATE(STAT_READY);
+		} else {
+		    spin_unlock_irqrestore(&cdvd_queue_lock, flags);
 		}
 
 		if (ps2cdvdcall_trayreq(SCECdTrayCheck, &traycount) != 0 ||
@@ -465,7 +531,10 @@ static DEFINE_SPINLOCK(cdvd_lock);
 		if (ps2cdvd_check_cache())
 		    NEW_STATE(STAT_READY);
 
-		sn = CURRENT->sector/4;
+		spin_lock_irqsave(&cdvd_queue_lock, flags);
+		req = list_first_entry(&cdvd_deferred, struct request, queuelist);
+		sn = blk_rq_pos(req)/4;
+		spin_unlock_irqrestore(&cdvd_queue_lock, flags);
 		nsects = ps2cdvd_databuf_size;
 
 	    retry:
@@ -509,19 +578,27 @@ static DEFINE_SPINLOCK(cdvd_lock);
 		    /* you got an error and you have not retried */
 		    DPRINT(DBG_DIAG, "error: %s, code=0x%02x (retry...)\n",
 			   ps2cdvd_geterrorstr(res), res);
-		    sn = CURRENT->sector/4;
+		    spin_lock_irqsave(&cdvd_queue_lock, flags);
+		    req = list_first_entry(&cdvd_deferred, struct request, queuelist);
+		    sn = blk_rq_pos(req)/4;
+		    spin_unlock_irqrestore(&cdvd_queue_lock, flags);
 		    nsects = 1;
 		    goto retry;
 		}
 		DPRINT(DBG_DIAG, "error: %s, code=0x%02x\n",
 		       ps2cdvd_geterrorstr(res), res);
-		spin_lock_irqsave(&io_request_lock, flags);
-		end_request(0);		/* I/O error */
-		spin_unlock_irqrestore(&io_request_lock, flags);
+		spin_lock_irqsave(&cdvd_queue_lock, flags);
+		req = list_first_entry(&cdvd_deferred, struct request, queuelist);
+		list_del_init(&req->queuelist);
+		__blk_end_request_all(req, -EIO);
+		spin_unlock_irqrestore(&cdvd_queue_lock, flags);
 		NEW_STATE(STAT_CHECK_DISC);
 		break;
+	    }
 
-	    case STAT_IDLE:
+	    case STAT_IDLE: {
+		unsigned long flags;
+
 		if (ps2cdvd.disc_type != INVALID_DISCTYPE)
 			spindown();
 		ps2cdvd_unlock();
@@ -539,8 +616,13 @@ static DEFINE_SPINLOCK(cdvd_lock);
 		 * XXX, fail safe
 		 * EV_START might be lost
 		 */
-		if (!QUEUE_EMPTY)
+	        spin_lock_irqsave(&cdvd_queue_lock, flags);
+		if (!list_empty(&cdvd_deferred)) {
+		    spin_unlock_irqrestore(&cdvd_queue_lock, flags);
 		    NEW_STATE(STAT_CHECK_DISC);
+		} else {
+		    spin_unlock_irqrestore(&cdvd_queue_lock, flags);
+		}
 		if (ps2cdvdcall_trayreq(SCECdTrayCheck, &traycount) != 0 ||
 		    traycount != 0 ||
 		    ps2cdvd.traycount != 0) {
@@ -549,6 +631,7 @@ static DEFINE_SPINLOCK(cdvd_lock);
 		    NEW_STATE(STAT_CHECK_DISC);
 		}
 		break;
+	    }
 
 	    case STAT_ERROR:
 		ps2cdvd_unlock();
@@ -565,15 +648,26 @@ static DEFINE_SPINLOCK(cdvd_lock);
 	 unlock_out:
 	    ps2cdvd_unlock();
 
-	 out:
+	 out: {
+	    unsigned long flags;
+
 	    DPRINT(DBG_INFO, "the thread is exiting...\n");
 
-	    if (!QUEUE_EMPTY)
+	    spin_lock_irqsave(&cdvd_queue_lock, flags);
+	    if (!list_empty(&cdvd_deferred)) {
+    		struct list_head *elem, *next;
 		DPRINT(DBG_DIAG, "abort all pending request\n");
-	    spin_lock_irqsave(&io_request_lock, flags);
-	    while (!QUEUE_EMPTY)
-		end_request(0);
-	    spin_unlock_irqrestore(&io_request_lock, flags);
+
+    		list_for_each_safe(elem, next, &cdvd_deferred) {
+		        struct request *req;
+
+			req = list_entry(elem, struct request, queuelist);
+			list_del_init(&req->queuelist);
+			__blk_end_request_all(req, -EIO);
+		}
+	    }
+	    spin_unlock_irqrestore(&cdvd_queue_lock, flags);
+	    }
 
 	    /* notify we are exiting */
 	    up(&ps2cdvd.ack_sem);
@@ -843,28 +937,49 @@ static DEFINE_SPINLOCK(cdvd_lock);
 	static struct block_device_operations ps2cdvd_bdops =
 	{
 		owner:			THIS_MODULE,
-		open:			ps2cdvd_common_open,
-		release:		cdrom_release,
-		ioctl:			cdrom_ioctl,
-		check_media_change:	cdrom_media_changed,
+		open:			ps2cdvd_bdops_open,
+		release:		ps2cdvd_bdops_release,
+		media_changed:		ps2cdvd_bdops_mediachanged,
+		locked_ioctl:		ps2cdvd_bdops_ioctl,
 	};
 
 	static int
-	ps2cdvd_common_open(struct block_device *bdev, fmode_t mode)
+	ps2cdvd_bdops_open(struct block_device *bdev, fmode_t mode)
 	{
 
 		switch (MINOR(bdev->bd_inode->i_rdev)) {
+#if 0
 		case 255:
-			filp->f_op = &ps2cdvd_altdev_fops;
+			filp->f_op = &ps2cdvd_altdev_fops; // TBD: check and test
 			break;
+#endif
 		default:
-			return cdrom_open(cdi, bdev, mode);
+			return cdrom_open(&ps2cdvd_info, bdev, mode);
 			break;
 		}
+#if 0 // TBD: Check and test
 		if (filp->f_op && filp->f_op->open)
 			return filp->f_op->open(inode,filp);
+#endif
 
 		return 0;
+	}
+
+	static int ps2cdvd_bdops_release(struct gendisk *disk, fmode_t mode)
+	{
+		cdrom_release(&ps2cdvd_info, mode);
+		return 0;
+	}
+
+	static int ps2cdvd_bdops_mediachanged(struct gendisk *disk)
+	{
+		return cdrom_media_changed(&ps2cdvd_info);
+	}
+
+	static int ps2cdvd_bdops_ioctl(struct block_device *bdev, fmode_t mode, unsigned cmd, unsigned long arg)
+	{
+		/* TBD: Call ps2cdvd_dev_ioctl() also. */
+		return cdrom_ioctl(&ps2cdvd_info, bdev, mode, cmd, arg);
 	}
 
 	static int ps2cdvd_initialized;
@@ -878,8 +993,6 @@ static DEFINE_SPINLOCK(cdvd_lock);
 	int __init ps2cdvd_init(void)
 	{
 		int res;
-		static int blocksizes[1] = { DATA_SECT_SIZE, };
-		static int hardsectsizes[1] = { DATA_SECT_SIZE, };
 
 		/*
 		 * initialize variables
@@ -905,7 +1018,7 @@ static DEFINE_SPINLOCK(cdvd_lock);
 		/*
 		 * allocate buffer
 		 */
-		DPRINT(DBG_VERBOSE, "init: allocate diaklabel buffer\n");
+		DPRINT(DBG_VERBOSE, "init: allocate disklabel buffer\n");
 		ps2cdvd.labelbuf = kmalloc(DVD_DATA_SECT_SIZE, GFP_KERNEL);
 		if (ps2cdvd.labelbuf == NULL) {
 			printk(KERN_ERR "ps2cdvd: Can't allocate buffer\n");
@@ -922,7 +1035,7 @@ static DEFINE_SPINLOCK(cdvd_lock);
 			ps2cdvd_cleanup();
 			return (-1);
 		}
-		ps2cdvd.databuf = ALIGN(ps2cdvd.databufx, BUFFER_ALIGNMENT);
+		ps2cdvd.databuf = (void *) ALIGN((unsigned long) ps2cdvd.databufx, BUFFER_ALIGNMENT);
 		ps2cdvd_initialized |= PS2CDVD_INIT_DATABUF;
 
 		/*
@@ -965,7 +1078,7 @@ static DEFINE_SPINLOCK(cdvd_lock);
 		 * register block device
 		 */
 		DPRINT(DBG_VERBOSE, "init: register block device\n");
-		if ((res = register_blkdev(MAJOR_NR, "ps2cdvd", &ps2cdvd_bdops)) < 0) {
+		if ((res = register_blkdev(MAJOR_NR, "ps2cdvd")) < 0) {
 			printk(KERN_ERR "ps2cdvd: Unable to get major %d for PS2 CD/DVD-ROM\n",
 			       MAJOR_NR);
 			ps2cdvd_cleanup();
@@ -975,26 +1088,39 @@ static DEFINE_SPINLOCK(cdvd_lock);
 		if (MAJOR_NR == 0) MAJOR_NR = res;
 		ps2cdvd_initialized |= PS2CDVD_INIT_BLKDEV;
 
-		blk_init_queue(ps2cdvd_request, &cdvd_lock);
-	blk_queue_headactive(BLK_DEFAULT_QUEUE(MAJOR_NR), 0);
-	blksize_size[MAJOR_NR] = blocksizes;
-	hardsect_size[MAJOR_NR] = hardsectsizes;
-	read_ahead[MAJOR_NR] = ps2cdvd_read_ahead;
+		disk = alloc_disk(1);
+		if (!disk) {
+			printk(KERN_ERR "ps2cdvd: Cannot alloc disk\n");
+			ps2cdvd_cleanup();
+			return (-1);
+		}
+		disk->major = MAJOR_NR;
+		disk->first_minor = 0;
+		disk->minors = 256;
+		strcpy(disk->disk_name, "ps2cdvd");
 
 	/*
 	 * register cdrom device
 	 */
 	DPRINT(DBG_VERBOSE, "init: register cdrom\n");
-	ps2cdvd_info.dev = MKDEV(MAJOR_NR, 0);
-        if (register_cdrom(&ps2cdvd_info) != 0) {
-		printk(KERN_ERR "ps2cdvd: Cannot register PS2 CD/DVD-ROM\n");
+	ps2cdvd.cdvd_queue = blk_init_queue(ps2cdvd_request, &cdvd_lock);
+       	if (register_cdrom(&ps2cdvd_info) != 0) {
+		printk(KERN_ERR "ps2cdvd: Cannot init queue\n");
 		ps2cdvd_cleanup();
 		return (-1);
-        }
+	}
+	disk->fops = &ps2cdvd_bdops;
+	blk_queue_logical_block_size(ps2cdvd.cdvd_queue, DATA_SECT_SIZE);
+	/* Maximum one segment. */
+	blk_queue_max_segments(ps2cdvd.cdvd_queue, 1);
+	blk_queue_max_segment_size(ps2cdvd.cdvd_queue, ps2cdvd_databuf_size * DATA_SECT_SIZE);
+	disk->queue = ps2cdvd.cdvd_queue;
+
 	ps2cdvd_initialized |= PS2CDVD_INIT_CDROM;
 
+	add_disk(disk);
+
 	printk(KERN_INFO "PlayStation 2 CD/DVD-ROM driver\n");
-DPRINT(DBG_READ, "DBG_READ\n");
 
 	return (0);
 }
@@ -1039,10 +1165,18 @@ ps2cdvd_cleanup()
 		unregister_cdrom(&ps2cdvd_info);
 	}
 
-	blksize_size[MAJOR_NR] = NULL;
-
 	ps2cdvd_initialized = 0;
 	ps2cdvd_unlock();
+
+	if (disk) {
+		del_gendisk(disk);
+		disk = NULL;
+	}
+
+	if (ps2cdvd.cdvd_queue) {
+		blk_cleanup_queue(ps2cdvd.cdvd_queue);
+		ps2cdvd.cdvd_queue = NULL;
+	}
 }
 
 module_init(ps2cdvd_init);
