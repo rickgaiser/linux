@@ -25,16 +25,9 @@
 #ifdef CONFIG_R5900_128BIT_SUPPORT
 /* Cast larger R5900 register to smaller 32 bit. */
 #define MIPS_READ_REG_L(reg) ((unsigned long)((reg).lo))
-/* TBD: check. */
-#if 1
 #define MIPS_READ_REG(reg) ((reg).lo)
 #define MIPS_READ_REG_HIGH(reg) ((reg).hi)
 #define MIPS_READ_REG_S(reg) ((long long)(reg).lo)
-#else
-#define MIPS_READ_REG(reg) ((unsigned long)(reg).lo)
-#define MIPS_READ_REG_HIGH(reg) 0
-#define MIPS_READ_REG_S(reg) ((long long)((unsigned long)(reg).lo))
-#endif
 #define MIPS_WRITE_REG(reg) ; ((reg).lo)
 #define MIPS_REG_T unsigned long long
 
@@ -63,7 +56,7 @@ struct pt_regs {
 
 	/* Saved main processor registers. */
 #ifdef CONFIG_R5900_128BIT_SUPPORT
-	/* TBD: Add support for 128 bit. */
+	/* Support for 128 bit. */
 	r5900_reg_t regs[32];
 #else
 	unsigned long regs[32];

@@ -322,9 +322,8 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_struct *ctx)
 	case cop1_op:
 		switch (MIPSInst_RS(ir)) {
 
-#if defined(__mips64) || defined(CONFIG_CPU_R5900)
+#if defined(__mips64) || defined(CONFIG_R5900_128BIT_SUPPORT)
 		case dmfc_op:
-			/* TBD: Check for 64 bit support on R5900. */
 			/* copregister fs -> gpr[rt] */
 			if (MIPSInst_RT(ir) != 0) {
 				MIPS_REG_T tmp;
@@ -334,7 +333,6 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_struct *ctx)
 			break;
 
 		case dmtc_op:
-			/* TBD: Check for 64 bit support on R5900. */
 			/* copregister fs <- rt */
 			DITOREG(MIPS_READ_REG(xcp->regs[MIPSInst_RT(ir)]), MIPSInst_RD(ir));
 			break;
@@ -781,7 +779,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		ieee754dp d;
 		ieee754sp s;
 		int w;
-#if defined(__mips64) || defined(CONFIG_CPU_R5900)
+#if defined(__mips64) || defined(CONFIG_R5900_128BIT_SUPPORT)
 		s64 l;
 #endif
 	} rv;			/* resulting value */
@@ -832,13 +830,11 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 			SPFROMREG(rv.s, MIPSInst_FS(ir));
 			break;
 		case fmovz_op:
-			/* TBD: Check for 64 bit registers. */
 			if (MIPS_READ_REG(xcp->regs[MIPSInst_FT(ir)]) != 0)
 				return 0;
 			SPFROMREG(rv.s, MIPSInst_FS(ir));
 			break;
 		case fmovn_op:
-			/* TBD: Check for 64 bit registers. */
 			if (MIPS_READ_REG(xcp->regs[MIPSInst_FT(ir)]) == 0)
 				return 0;
 			SPFROMREG(rv.s, MIPSInst_FS(ir));
@@ -924,7 +920,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		}
 #endif /* __mips >= 2 */
 
-#if defined(__mips64) || defined(CONFIG_CPU_R5900)
+#if defined(__mips64) || defined(CONFIG_R5900_128BIT_SUPPORT)
 		case fcvtl_op:{
 			ieee754sp fs;
 
@@ -1019,13 +1015,11 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 			DPFROMREG(rv.d, MIPSInst_FS(ir));
 			break;
 		case fmovz_op:
-			/* TBD: Check for 64 bit registers. */
 			if (MIPS_READ_REG(xcp->regs[MIPSInst_FT(ir)]) != 0)
 				return 0;
 			DPFROMREG(rv.d, MIPSInst_FS(ir));
 			break;
 		case fmovn_op:
-			/* TBD: Check for 64 bit registers. */
 			if (MIPS_READ_REG(xcp->regs[MIPSInst_FT(ir)]) == 0)
 				return 0;
 			DPFROMREG(rv.d, MIPSInst_FS(ir));
@@ -1100,7 +1094,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		}
 #endif
 
-#if defined(__mips64) || defined(CONFIG_CPU_R5900)
+#if defined(__mips64) || defined(CONFIG_R5900_128BIT_SUPPORT)
 		case fcvtl_op:{
 			ieee754dp fs;
 
@@ -1175,7 +1169,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		break;
 	}
 
-#if defined(__mips64) || defined(CONFIG_CPU_R5900)
+#if defined(__mips64) || defined(CONFIG_R5900_128BIT_SUPPORT)
 	case l_fmt:{
 		switch (MIPSInst_FUNC(ir)) {
 		case fcvts_op:
@@ -1237,7 +1231,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 	case w_fmt:
 		SITOREG(rv.w, MIPSInst_FD(ir));
 		break;
-#if defined(__mips64) || defined(CONFIG_CPU_R5900)
+#if defined(__mips64) || defined(CONFIG_R5900_128BIT_SUPPORT)
 	case l_fmt:
 		DITOREG(rv.l, MIPSInst_FD(ir));
 		break;
