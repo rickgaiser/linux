@@ -1,5 +1,4 @@
-/* Copyright 2010 Mega Man */
-/* Copyright 2010 Mega Man */
+/* Copyright 2010-2012 Mega Man */
 /* TBD: Unfinished state. Rework code. */
 #include <linux/init.h>
 #include <linux/mm.h>

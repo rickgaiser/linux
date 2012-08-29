@@ -3,7 +3,7 @@
  *  PlayStation 2 DMA buffer memory allocation interface (/dev/ps2mem)
  *
  *	Copyright (C) 2000-2002  Sony Computer Entertainment Inc.
- *	Copyright (C) 2010       Mega Man
+ *	Copyright (C) 2010-2012  Mega Man
  *
  *  This file is subject to the terms and conditions of the GNU General
  *  Public License Version 2. See the file "COPYING" in the main
