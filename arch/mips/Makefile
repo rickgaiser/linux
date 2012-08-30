@@ -35,7 +35,11 @@ endif
 
 ifdef CONFIG_32BIT
 tool-archpref		= $(32bit-tool-archpref)
+ifdef CONFIG_MIPS_N32
+UTS_MACHINE		:= mips64
+else
 UTS_MACHINE		:= mips
+endif
 endif
 ifdef CONFIG_64BIT
 tool-archpref		= $(64bit-tool-archpref)

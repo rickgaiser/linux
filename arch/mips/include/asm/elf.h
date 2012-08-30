@@ -273,6 +273,7 @@ do {									\
 		set_thread_flag(TIF_32BIT_REGS);			\
 		set_thread_flag(TIF_32BIT_ADDR);			\
 		current->thread.abi = &mips_abi;			\
+		set_personality(PER_LINUX32);				\
 	} while (0)
 
 
