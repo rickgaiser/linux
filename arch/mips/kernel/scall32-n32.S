@@ -184,8 +184,8 @@ EXPORT(sysn32_call_table)
 	sys	sys_rt_sigaction	4
 	sys	sys_rt_sigprocmask	4
 	sys	sys_ioctl		3	/* 6015 */
-	sys	sys_pread64		6
-	sys	sys_pwrite64		6
+	sys	sysn32_pread64		0
+	sys	sysn32_pwrite64		0
 	sys	sys_readv		3
 	sys	sys_writev		3
 	sys	sys_access		2	/* 6020 */
@@ -347,7 +347,7 @@ EXPORT(sysn32_call_table)
 	sys	sys_ni_syscall		0	/* res. for afs_syscall */
 	sys	sys_ni_syscall		0	/* res. for security */
 	sys	sys_gettid		0
-	sys	sys_readahead		5
+	sys	sysn32_readahead	0
 	sys	sys_setxattr		5	/* 6180 */
 	sys	sys_lsetxattr		5
 	sys	sys_fsetxattr		5
@@ -374,7 +374,7 @@ EXPORT(sysn32_call_table)
 	sys	sys_io_submit		3
 	sys	sys_io_cancel		3
 	sys	sys_exit_group		1	/* 6205 */
-	sys	sys_lookup_dcookie	4
+	sys	sysn32_lookup_dcookie	0
 	sys	sys_epoll_create	1
 	sys	sys_epoll_ctl		4
 	sys	sys_epoll_wait		3
@@ -384,7 +384,7 @@ EXPORT(sysn32_call_table)
 	sys	sys_set_tid_address	1
 	sys	sys_restart_syscall	0
 	sys	sys_semtimedop		4	/* 6215 */
-	sys	sys_fadvise64_64	7
+	sys	sysn32_fadvise64_64	0
 	sys	sys_statfs64		3
 	sys	sys_fstatfs64		2
 	sys	sys_sendfile64		5
@@ -436,7 +436,7 @@ EXPORT(sysn32_call_table)
 	sys	sys_ppoll		5	/* 6265 */
 	sys	sys_unshare		1
 	sys	sys_splice		6
-	sys	sys_sync_file_range	7
+	sys	sysn32_sync_file_range	0
 	sys	sys_tee			4
 	sys	sys_vmsplice		4	/* 6270 */
 	sys	sys_move_pages		6
@@ -451,7 +451,7 @@ EXPORT(sysn32_call_table)
 	sys	sys_signalfd		3	/* 6280 */
 	sys	sys_ni_syscall		0
 	sys	sys_eventfd		1
-	sys	sys_fallocate		6
+	sys	sysn32_fallocate	0
 	sys	sys_timerfd_create	2
 	sys	sys_timerfd_gettime	2	/* 6285 */
 	sys	sys_timerfd_settime	4
