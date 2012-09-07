@@ -271,7 +271,7 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 		break;
 
 	case lwu_op:
-#ifdef CONFIG_64BIT
+#if defined(CONFIG_64BIT) || defined(CONFIG_R5900_128BIT_SUPPORT)
 		/*
 		 * A 32-bit kernel might be running on a 64-bit processor.  But
 		 * if we're on a 32-bit processor and an i-cache incoherency
@@ -300,21 +300,21 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 #endif
 			"dsll\t%0, %0, 32\n\t"
 			"dsrl\t%0, %0, 32\n\t"
-			"li\t%1, 0\n"
+			"sd\t%0, 0(%1)\n\t"
+			"li\t%0, 0\n"
 			"3:\t.section\t.fixup,\"ax\"\n\t"
-			"4:\tli\t%1, %3\n\t"
+			"4:\tli\t%0, %3\n\t"
 			"j\t3b\n\t"
 			".previous\n\t"
 			".section\t__ex_table,\"a\"\n\t"
 			STR(PTR)"\t1b, 4b\n\t"
 			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
-			: "=&r" (value), "=r" (res)
-			: "r" (addr), "i" (-EFAULT));
+			: "=&r" (res)
+			: "r"(&MIPS_READ_REG(regs->regs[insn.i_format.rt])), "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
 		compute_return_epc(regs);
-		regs->regs[insn.i_format.rt] = value;
 		break;
 #endif /* CONFIG_64BIT */
 
@@ -322,7 +322,7 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 		goto sigill;
 
 	case ld_op:
-#ifdef CONFIG_64BIT
+#if defined(CONFIG_64BIT) || defined(CONFIG_R5900_128BIT_SUPPORT)
 		/*
 		 * A 32-bit kernel might be running on a 64-bit processor.  But
 		 * if we're on a 32-bit processor and an i-cache incoherency
@@ -349,21 +349,21 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 #endif
 			"2:\tldr\t%0, (%2)\n\t"
 #endif
-			"li\t%1, 0\n"
+			"sd\t%0, 0(%1)\n"
+			"li\t%0, 0\n"
 			"3:\t.section\t.fixup,\"ax\"\n\t"
-			"4:\tli\t%1, %3\n\t"
+			"4:\tli\t%0, %3\n\t"
 			"j\t3b\n\t"
 			".previous\n\t"
 			".section\t__ex_table,\"a\"\n\t"
 			STR(PTR)"\t1b, 4b\n\t"
 			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
-			: "=&r" (value), "=r" (res)
-			: "r" (addr), "i" (-EFAULT));
+			: "=&r" (res)
+			: "r"(&MIPS_READ_REG(regs->regs[insn.i_format.rt])), "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
 		compute_return_epc(regs);
-		regs->regs[insn.i_format.rt] = value;
 		break;
 #endif /* CONFIG_64BIT */
 
@@ -453,7 +453,7 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 		break;
 
 	case sd_op:
-#ifdef CONFIG_64BIT
+#if defined(CONFIG_64BIT) || defined(CONFIG_R5900_128BIT_SUPPORT)
 		/*
 		 * A 32-bit kernel might be running on a 64-bit processor.  But
 		 * if we're on a 32-bit processor and an i-cache incoherency
@@ -464,8 +464,8 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 		if (!access_ok(VERIFY_WRITE, addr, 8))
 			goto sigbus;
 
-		value = regs->regs[insn.i_format.rt];
 		__asm__ __volatile__ (
+			"ld %1, 0(%1)\n\t"
 #ifdef __BIG_ENDIAN
 			"1:\tsdl\t%1,(%2)\n"
 			"2:\tsdr\t%1, 7(%2)\n\t"
@@ -492,7 +492,7 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
 		: "=r" (res)
-		: "r" (value), "r" (addr), "i" (-EFAULT));
+		: "r" (&MIPS_READ_REG(regs->regs[insn.i_format.rt])), "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
 		compute_return_epc(regs);
