@@ -176,8 +176,8 @@ EXPORT(sysn32_call_table)
 	sys	sys_fstat64		2	/* 6005 */
 	sys	sys_lstat64		2
 	sys	sys_poll		3
-	sys	sys_lseek		3
-	sys	sys_mips_mmap		6
+	sys	syso64_lseek		0
+	sys	sysn32_mips_mmap	0
 	sys	sys_mprotect		3	/* 6010 */
 	sys	sys_munmap		2
 	sys	sys_brk			1
@@ -378,7 +378,7 @@ EXPORT(sysn32_call_table)
 	sys	sys_epoll_create	1
 	sys	sys_epoll_ctl		4
 	sys	sys_epoll_wait		3
-	sys	sys_remap_file_pages	5	/* 6210 */
+	sys	sys_remap_file_pages	5	/* 6210 TBD: pgoff, is this a file offset. If yes, it can be larger than 32 bit. */
 	sys	sys_rt_sigreturn	0
 	sys	sys_fcntl64		3
 	sys	sys_set_tid_address	1
