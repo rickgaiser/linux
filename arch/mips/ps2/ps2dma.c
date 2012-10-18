@@ -58,7 +58,7 @@ struct page_list *ps2pl_alloc(int pages)
 	    kfree(list);
 	    return NULL;
 	}
-	DPRINT("ps2pl_alloc: %08X\n", list->page[i]);
+	DPRINT("ps2pl_alloc: %p\n", page_address(list->page[i]));
     }
     return list;
 }
@@ -94,7 +94,7 @@ void ps2pl_free(struct page_list *list)
 
     for (i = 0; i < list->pages; i++) {
 	put_page(list->page[i]);
-	DPRINT("ps2pl_free: %08X\n", list->page[i]);
+	DPRINT("ps2pl_free: %p\n", page_address(list->page[i]));
     }
     kfree(list);
 }
@@ -109,8 +109,8 @@ int ps2pl_copy_from_user(struct page_list *list, void *from, long len)
 
     while (len) {
 	size = len > PAGE_SIZE ? PAGE_SIZE : len;
-	DPRINT("ps2pl_copy_from_user: %08X<-%08X %08X\n", list->page[index], from, size);
-	if (copy_from_user((void *)list->page[index++], from, size))
+	DPRINT("ps2pl_copy_from_user: %p<-%p 0x%08x\n", page_address(list->page[index]), from, size);
+	if (copy_from_user(page_address(list->page[index++]), from, size))
 	    return -EFAULT;
 	from = (void *)((unsigned long)from + size);
 	len -= size;
@@ -128,8 +128,8 @@ int ps2pl_copy_to_user(void *to, struct page_list *list, long len)
 
     while (len) {
 	size = len > PAGE_SIZE ? PAGE_SIZE : len;
-	DPRINT("ps2pl_copy_to_user: %08X->%08X %08X\n", list->page[index], to, size);
-	if (copy_to_user(to, (void *)list->page[index++], size))
+	DPRINT("ps2pl_copy_to_user: %p->%p %08x\n", page_address(list->page[index]), to, size);
+	if (copy_to_user(to, page_address(list->page[index++]), size))
 	    return -EFAULT;
 	to = (void *)((unsigned long)to + size);
 	len -= size;
@@ -239,6 +239,8 @@ int ps2dma_make_tag(unsigned long start, int len, struct dma_tag **tagp, struct 
     }
     if ((vma = find_vma(current->mm, start)) == NULL)
 	return -EINVAL;
+    if (vma->vm_start > start)
+        return -EINVAL;
     DPRINT("ps2dma_make_tag: vma %08X-%08X\n", vma->vm_start, vma->vm_end);
 
     /* get buffer type */
@@ -757,7 +759,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 	return -ENOMEM;
     init_dma_dev_request(&usreq->r, &dma_sendl_ops, devch, 0, dma_sendl_free);
 
-    if ((usreq->tag_head = (struct dma_tag *)__get_free_page(GFP_KERNEL)) // TBD: check page reference counter
+    if ((usreq->tag_head = (struct dma_tag *)get_zeroed_page(GFP_KERNEL)) // TBD: check page reference counter
 	== NULL) {
 	kfree(usreq);
 	return -ENOMEM;
@@ -832,7 +834,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 		if (tag >= tag_bottom) {
 		    struct dma_tag *nexthead, *nexttag;
 
-		    if ((nexthead = (struct dma_tag *)__get_free_page(GFP_KERNEL)) == NULL) { // TBD: check page reference counter
+		    if ((nexthead = (struct dma_tag *)get_zeroed_page(GFP_KERNEL)) == NULL) { // TBD: check page reference counter
 			dma_sendl_free((struct dma_request *)usreq, ch);
 			return -ENOMEM;
 		    }
@@ -854,7 +856,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 		int size = (len > PAGE_SIZE - DMA_TRUNIT) ? PAGE_SIZE - DMA_TRUNIT : len;
 		void *nextmem;
 		
-		if ((nextmem = (void *)__get_free_page(GFP_KERNEL)) == NULL) { // TBD: check page reference counter
+		if ((nextmem = (void *)get_zeroed_page(GFP_KERNEL)) == NULL) { // TBD: check page reference counter
 		    dma_sendl_free((struct dma_request *)usreq, ch);
 		    return -ENOMEM;
 		}
@@ -882,7 +884,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 		if (tag >= tag_bottom) {
 		    struct dma_tag *nexthead, *nexttag;
 
-		    if ((nexthead = (struct dma_tag *)__get_free_page(GFP_KERNEL)) == NULL) { // TBD: check page reference counter
+		    if ((nexthead = (struct dma_tag *)get_zeroed_page(GFP_KERNEL)) == NULL) { // TBD: check page reference counter
 			dma_sendl_free((struct dma_request *)usreq, ch);
 			return -ENOMEM;
 		    }
@@ -943,7 +945,7 @@ int ps2dma_send_chain(struct dma_device *dev, struct ps2_pchain *pchain)
     ucreq->tte = pchain->tte;
 
     offset = taddr - vma->vm_start + vma->vm_pgoff;
-    ucreq->taddr = virt_to_bus((void *)(mem->page[offset >> PAGE_SHIFT] + (offset & ~PAGE_MASK)));
+    ucreq->taddr = virt_to_bus((void *)(page_address(mem->page[offset >> PAGE_SHIFT]) + (offset & ~PAGE_MASK)));
 
     result = ps2dma_check_and_add_queue((struct dma_dev_request *)ucreq, 0);
     if (result < 0) {
