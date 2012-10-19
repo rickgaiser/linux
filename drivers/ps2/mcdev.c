@@ -139,7 +139,7 @@ int setup_ps2mc_dev(struct ps2mc_dev *device_info, int minor_n, int i)
 	blk_queue_logical_block_size(device_info->req_que, hardsect_size);
   	device_info->gd->queue = device_info->req_que;
   	device_info->gd->private_data = device_info;
-	sprintf(device_info->gd->disk_name, "ps2mc%d", i);
+	sprintf(device_info->gd->disk_name, "ps2mc%d0", i);
 	device_info->gd->flags = GENHD_FL_REMOVABLE;
 	set_capacity(device_info->gd, (8 * (hardsect_size / KERNEL_SECTOR_SIZE)));
 	return 0;
