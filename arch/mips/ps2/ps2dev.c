@@ -25,6 +25,8 @@
 #include <linux/init.h>
 #include <linux/console.h>
 #include <linux/major.h>
+#include <linux/device.h>
+#include <linux/cdev.h>
 #include <asm/types.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -39,9 +41,11 @@
 #include <asm/mach-ps2/gsfunc.h>
 #include "ps2dev.h"
 
-#define MINOR_FUNC(x)	(MINOR(x) >> 4)
-#define MINOR_UNIT(x)	(MINOR(x) & 0x0f)
+#define MINOR_UNIT(x)	((MINOR(x) - ps2dev_minor) & 0x0f)
+#define FN2MINOR(x) (x << 4)
 
+#define PS2DEV_NR_OFDEVS 6
+#define PS2DEV_COUNT    (PS2DEV_NR_OFDEVS * 16)
 #define PS2MEM_FUNC	0
 #define PS2EVENT_FUNC	1
 #define PS2GS_FUNC	2
@@ -49,9 +53,13 @@
 #define PS2IPU_FUNC	4
 #define PS2SPR_FUNC	5
 
-//#define BINUTILS_R5900_SUPPORT /* TBD: Add support for R5900 instructions to binutils. */
+#define BINUTILS_R5900_SUPPORT /* TBD: Add support for R5900 instructions to binutils. */
 
+static struct class *ps2dev_class;
+static int ps2dev_major = PS2DEV_MAJOR;
+static int ps2dev_minor = 0;
 void *ps2spr_vaddr;		/* scratchpad RAM virtual address */
+static struct cdev ps2dev_cdev[PS2DEV_NR_OFDEVS];
 
 /*
  *  common DMA device functions
@@ -534,14 +542,11 @@ static void ps2vpu0_reset(void)
     VIF0REG(PS2_VIFREG_FBRST) = 1;		/* reset VIF0 */
     set_c0_status(ST0_CU2);
     __asm__ __volatile__(
-	".set	push\n"
-	"	.set	r5900\n"
 	"	sync.l\n"
 	"	cfc2	$8, $vi28\n"
 	"	ori	$8, $8, 0x0002\n"
 	"	ctc2	$8, $vi28\n"
 	"	sync.p\n"
-	"	.set	pop"
 	::: "$8");				/* reset VU0 */
     clear_c0_status(ST0_CU2);
     move_quad(VIF0_FIFO, (unsigned long)&init_vif0code[0]);
@@ -570,14 +575,11 @@ static void ps2vpu1_reset(void)
     VIF1REG(PS2_VIFREG_FBRST) = 1;		/* reset VIF1 */
     set_c0_status(ST0_CU2);
     __asm__ __volatile__(
-	".set	push\n"
-	"	.set	r5900\n"
 	"	sync.l\n"
 	"	cfc2	$8, $vi28\n"
 	"	ori	$8, $8, 0x0200\n"
 	"	ctc2	$8, $vi28\n"
 	"	sync.p\n"
-	"	.set	pop"
 	::: "$8");				/* reset VU1 */
     clear_c0_status(ST0_CU2);
     move_quad(VIF1_FIFO, (unsigned long)&init_vif1code[0]);
@@ -595,7 +597,7 @@ static void set_cop2_usable(int onoff)
 {
     /* get status register of the current process from caller stack frame */
     struct pt_regs *regs = current_thread_info()->regs;
-    unsigned long *status = &regs->cp0_status;
+    unsigned long *status = &regs->cp0_status; // TBD: regs is not a valid pointer here.
 
     /* set/clear COP2 (VU0) usable bit */
     if (onoff)
@@ -610,6 +612,9 @@ static int ps2vpu_open(struct inode *inode, struct file *file)
 {
     struct dma_device *dev;
     int vusw = MINOR_UNIT(inode->i_rdev);
+
+    printk(KERN_ERR "PS2 VPU driver is unstable.\n");
+    return -ENODEV; // TBD: Open leads to crash, therefore device is disabled.
 
     if (vusw < 0 || vusw > 1)
 	return -ENODEV;
@@ -908,6 +913,9 @@ static int ps2spr_open(struct inode *inode, struct file *file)
 {
     struct dma_device *dev;
 
+    printk(KERN_ERR "PS2 SPR driver is unstable.\n");
+    return -ENODEV; // TBD: Open leads to crash, therefore device is disabled.
+
     if (ps2spr_open_count)
 	return -EBUSY;
     ps2spr_open_count++;
@@ -1029,49 +1037,121 @@ struct file_operations ps2spr_fops = {
     get_unmapped_area:	ps2spr_get_unmapped_area,
 };
 
-static int ps2dev_init_open(struct inode *inode, struct file *file)
+static int ps2dev_initialized;
+
+static int ps2dev_add_device(unsigned int func, int offset, int count, const char *name, const char *devname)
 {
-    switch (MINOR_FUNC(inode->i_rdev)) {
-    case PS2MEM_FUNC:
-        file->f_op = &ps2mem_fops;
-        break;
-    case PS2EVENT_FUNC:
-        file->f_op = &ps2ev_fops;
-        break;
-    case PS2GS_FUNC:
-        file->f_op = &ps2gs_fops;
-        break;
-    case PS2VPU_FUNC:
-        file->f_op = &ps2vpu_fops;
-        break;
-    case PS2IPU_FUNC:
-        file->f_op = &ps2ipu_fops;
-        break;
-    case PS2SPR_FUNC:
-        file->f_op = &ps2spr_fops;
-        break;
-    default:
-        return -ENXIO;
+    dev_t dev_id;
+    int rv;
+    int i;
+
+    BUG_ON(func >= PS2DEV_NR_OFDEVS);
+    dev_id = MKDEV(ps2dev_major, ps2dev_minor + FN2MINOR(func) + offset);
+    rv = cdev_add(&ps2dev_cdev[func], dev_id, count - offset);
+    if (rv < 0)
+        return rv;
+
+    if (devname == NULL)
+        devname = name;
+    for (i = offset; i < count; i++) {
+        struct device *d;
+        char buffer[16];
+
+        snprintf(buffer, sizeof(buffer), devname, i);
+        dev_id = MKDEV(ps2dev_major, ps2dev_minor + FN2MINOR(func) + i);
+        d = device_create(ps2dev_class, NULL, dev_id, NULL, buffer);
+        if (IS_ERR(d)) {
+            return PTR_ERR(d);
+        }
     }
-    if (file->f_op && file->f_op->open)
-        return file->f_op->open(inode, file);
     return 0;
 }
 
-static struct file_operations ps2dev_init_fops = {
-    open:		ps2dev_init_open,
-};
+static int ps2dev_remove_device(unsigned int func, int offset, int count)
+{
+    dev_t dev_id;
+    int i;
 
-static int ps2dev_initialized;
+    BUG_ON(func >= PS2DEV_NR_OFDEVS);
+
+    for (i = offset; i < count; i++) {
+        dev_id = MKDEV(ps2dev_major, ps2dev_minor + FN2MINOR(func) + i);
+        device_destroy(ps2dev_class, dev_id);
+    }
+    cdev_del(&ps2dev_cdev[func]);
+    return 0;
+}
+
+static void ps2_dev_remove_devices(void)
+{
+    ps2dev_remove_device(PS2MEM_FUNC, 1, 2);
+    ps2dev_remove_device(PS2GS_FUNC, 0, 1);
+    ps2dev_remove_device(PS2VPU_FUNC, 0, 2);
+    ps2dev_remove_device(PS2IPU_FUNC, 0, 1);
+    ps2dev_remove_device(PS2SPR_FUNC, 0, 1);
+}
+
+static int ps2_dev_add_devices(void)
+{
+    int rv;
+
+    cdev_init(&ps2dev_cdev[PS2MEM_FUNC], &ps2mem_fops);
+    cdev_init(&ps2dev_cdev[PS2EVENT_FUNC], &ps2ev_fops);
+    cdev_init(&ps2dev_cdev[PS2GS_FUNC], &ps2gs_fops);
+    cdev_init(&ps2dev_cdev[PS2VPU_FUNC], &ps2vpu_fops);
+    cdev_init(&ps2dev_cdev[PS2IPU_FUNC], &ps2ipu_fops);
+    cdev_init(&ps2dev_cdev[PS2SPR_FUNC], &ps2spr_fops);
+
+    rv = ps2dev_add_device(PS2MEM_FUNC, 1, 2, "ps2mem", NULL);
+    rv |= ps2dev_add_device(PS2EVENT_FUNC, 0, 1, "ps2event", NULL);
+    rv |= ps2dev_add_device(PS2GS_FUNC, 0, 1, "ps2gs", NULL);
+    rv |= ps2dev_add_device(PS2VPU_FUNC, 0, 2, "ps2vpu", "ps2vpu%d");
+    rv |= ps2dev_add_device(PS2IPU_FUNC, 0, 1, "ps2ipu", NULL);
+    rv |= ps2dev_add_device(PS2SPR_FUNC, 0, 1, "ps2spr", NULL);
+
+    if (rv) {
+        ps2_dev_remove_devices();
+        return -ENOMEM;
+    }
+
+    return 0;
+
+}
+
 
 int __init ps2dev_init(void)
 {
     u64 gs_revision;
-    
-    if (register_chrdev(PS2DEV_MAJOR, "ps2dev", &ps2dev_init_fops)) {
-	printk(KERN_ERR "ps2dev: unable to get major %d for PlayStation 2 devices\n",
-	       PS2DEV_MAJOR);
-	return -1;
+    dev_t dev_id;
+    int rv;
+
+    if (ps2dev_major) {
+        dev_id = MKDEV(ps2dev_major, ps2dev_minor);
+        rv = register_chrdev_region(dev_id, PS2DEV_COUNT, "ps2dev");
+    } else {
+        rv = alloc_chrdev_region(&dev_id, 0, PS2DEV_COUNT, "ps2dev");
+        ps2dev_major = MAJOR(dev_id);
+        ps2dev_minor = MINOR(dev_id);
+    }
+    if (rv) {
+        printk(KERN_ERR "ps2dev: unable to register chrdev region.\n");
+        return rv;
+    }
+
+    ps2dev_class = class_create(THIS_MODULE, "ps2dev");
+    if (IS_ERR(ps2dev_class)) {
+        unregister_chrdev_region(dev_id, PS2DEV_COUNT);
+        printk(KERN_ERR "ps2dev: unable to register class.\n");
+        return PTR_ERR(ps2dev_class);
+    }
+
+    rv = ps2_dev_add_devices();
+    if (rv) {
+        unregister_chrdev_region(dev_id, PS2DEV_COUNT);
+        class_destroy(ps2dev_class);
+        ps2dev_class = NULL;
+        printk(KERN_ERR "ps2dev: unable to allocate devices.\n");
+        return rv;
     }
 
     ps2ev_init();
@@ -1099,10 +1179,15 @@ int __init ps2dev_init(void)
 
 void ps2dev_cleanup(void)
 {
+    dev_t dev_id;
+
     if (!ps2dev_initialized)
 	return;
 
-    unregister_chrdev(PS2DEV_MAJOR, "ps2dev");
+    ps2_dev_remove_devices();
+    dev_id = MKDEV(ps2dev_major, ps2dev_minor);
+    unregister_chrdev_region(dev_id, PS2DEV_COUNT);
+    class_destroy(ps2dev_class);
 
     iounmap(ps2spr_vaddr);
 
@@ -1113,6 +1198,7 @@ void ps2dev_cleanup(void)
     ps2dma_channels[DMA_IPU_to].reset = NULL;
     spin_unlock_irq(&ps2dma_channels[DMA_GIF].lock);
     ps2ev_cleanup();
+
 }
 
 module_init(ps2dev_init);
