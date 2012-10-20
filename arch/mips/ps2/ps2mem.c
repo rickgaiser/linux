@@ -128,7 +128,7 @@ static int ps2mem_ioctl(struct inode *inode, struct file *file,
 
 	/* get a physical address table */
 	for (i = 0; i < list->pages; i++) {
-	    phys = virt_to_bus((void *)list->page[i]);
+	    phys = virt_to_bus(page_address(list->page[i]));
 	    if (copy_to_user(dest, &phys, sizeof(unsigned long)) != 0)
 		return -EFAULT;
 	    dest++;
