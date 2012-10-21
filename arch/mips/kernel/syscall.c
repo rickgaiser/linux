@@ -251,7 +251,7 @@ SYSCALL_DEFINE1(set_thread_area, unsigned long, addr)
 	return 0;
 }
 
-static inline int mips_atomic_set(struct pt_regs *regs,
+static inline int mips_atomic_set(volatile struct pt_regs *regs,
 	unsigned long addr, unsigned long new)
 {
 	unsigned long old, tmp;
