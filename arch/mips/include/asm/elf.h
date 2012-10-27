@@ -21,6 +21,10 @@
 #define EF_MIPS_ARCH_32R2	0x70000000	/* MIPS32 R2 code.  */
 #define EF_MIPS_ARCH_64R2	0x80000000	/* MIPS64 R2 code.  */
 
+/* MIPS CPU type. */
+#define EF_MIPS_MACH		0x00FF0000
+#define EF_MIPS_MACH_5900	0x00920000	/* MIPS R5900 Sony Playstation 2 */
+
 /* The ABI of a file. */
 #define EF_MIPS_ABI_O32		0x00001000	/* O32 ABI.  */
 #define EF_MIPS_ABI_O64		0x00002000	/* O32 extended for 64 bit.  */
@@ -251,15 +255,18 @@ extern struct mips_abi mips_abi_n32;
 #define __SET_PERSONALITY32(ex)						\
 do {									\
 	if ((((ex).e_flags & EF_MIPS_ABI2) != 0) &&			\
-	     ((ex).e_flags & EF_MIPS_ABI) == 0)				\
+	     ((ex).e_flags & EF_MIPS_ABI) == 0) {			\
+		if (((ex).e_flags & EF_MIPS_MACH) == EF_MIPS_MACH_5900)	\
+			set_thread_flag(TIF_R5900FPU);			\
 		__SET_PERSONALITY32_N32();				\
-	else								\
+	} else								\
 		__SET_PERSONALITY32_O32();				\
 } while (0)
 
 #define SET_PERSONALITY(ex)						\
 do {									\
 	clear_thread_flag(TIF_32BIT_REGS);				\
+	clear_thread_flag(TIF_R5900FPU);				\
 	set_thread_flag(TIF_32BIT_ADDR);				\
 									\
 	__SET_PERSONALITY32(ex);					\
@@ -270,6 +277,7 @@ do {									\
 
 #define __SET_PERSONALITY32_O32()					\
 	do {								\
+		set_thread_flag(TIF_R5900FPU);				\
 		set_thread_flag(TIF_32BIT_REGS);			\
 		set_thread_flag(TIF_32BIT_ADDR);			\
 		current->thread.abi = &mips_abi;			\
@@ -309,6 +317,7 @@ do {									\
 #define __SET_PERSONALITY32_O32()					\
 	do {								\
 		set_thread_flag(TIF_32BIT_REGS);			\
+		set_thread_flag(TIF_R5900FPU);				\
 		set_thread_flag(TIF_32BIT_ADDR);			\
 		current->thread.abi = &mips_abi_32;			\
 	} while (0)
@@ -321,9 +330,11 @@ do {									\
 #define __SET_PERSONALITY32(ex)						\
 do {									\
 	if ((((ex).e_flags & EF_MIPS_ABI2) != 0) &&			\
-	     ((ex).e_flags & EF_MIPS_ABI) == 0)				\
+	     ((ex).e_flags & EF_MIPS_ABI) == 0) {			\
+		if (((ex).e_flags & EF_MIPS_MACH) == EF_MIPS_MACH_5900)	\
+			set_thread_flag(TIF_R5900FPU);			\
 		__SET_PERSONALITY32_N32();				\
-	else								\
+	} else								\
 		__SET_PERSONALITY32_O32();				\
 } while (0)
 #else
@@ -333,6 +344,7 @@ do {									\
 #define SET_PERSONALITY(ex)						\
 do {									\
 	clear_thread_flag(TIF_32BIT_REGS);				\
+	clear_thread_flag(TIF_R5900FPU);				\
 	clear_thread_flag(TIF_32BIT_ADDR);				\
 									\
 	if ((ex).e_ident[EI_CLASS] == ELFCLASS32)			\

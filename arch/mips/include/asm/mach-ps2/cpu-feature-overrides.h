@@ -32,7 +32,7 @@
 /* For ABI n32 the 64 bit CPU must be emulated. The 32 bit CPU can't be used.
  * Tasks with TIF_32BIT_REGS set, are ABI o32 which can use the FPU.
  */
-#define cpu_has_fpu (test_thread_flag(TIF_32BIT_REGS))
+#define cpu_has_fpu (test_thread_flag(TIF_R5900FPU))
 #else
 #define cpu_has_fpu 			1
 #endif
