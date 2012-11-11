@@ -167,7 +167,7 @@ cflags-$(CONFIG_CPU_R5432)	+= $(call cc-option,-march=r5400,-march=r5000) \
 			-Wa,--trap
 cflags-$(CONFIG_CPU_R5500)	+= $(call cc-option,-march=r5500,-march=r5000) \
 			-Wa,--trap
-cflags-$(CONFIG_CPU_R5900)	+= -march=r5900 \
+cflags-$(CONFIG_CPU_R5900)	+= -march=r5900 -mtune=r5900 \
 			-Wa,--trap -mno-llsc -Wa,-mhard-ldsd
 cflags-$(CONFIG_CPU_NEVADA)	+= $(call cc-option,-march=rm5200,-march=r5000) \
 			-Wa,--trap
