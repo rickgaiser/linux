@@ -1265,6 +1265,7 @@ do {									\
 	__asm__ __volatile__(						\
 	"	.set	push			\n"			\
 	"	.set	noat			\n"			\
+	"	.set	arch=r5900		\n"			\
 	"	mfhi1	$1\n"					\
 	"	sd		$1, %0\n"					\
 	"	.set	pop\n"					\
@@ -1353,6 +1354,7 @@ do {									\
 	__asm__ __volatile__(						\
 	"	.set	push			\n"			\
 	"	.set	noat			\n"			\
+	"	.set	arch=r5900		\n"			\
 	"	mflo1	$1\n"			\
 	"	sd		$1, %0\n"			\
 	"	.set	pop			\n"			\
@@ -1439,6 +1441,7 @@ do {									\
 	__asm__ __volatile__(						\
 	"	.set	push			\n"			\
 	"	.set	noat			\n"			\
+	"	.set	arch=r5900		\n"			\
 	"	ld		$1, %0\n"	\
 	"	mthi1	$1\n"	\
 	"	.set	pop\n"			\
@@ -1519,6 +1522,7 @@ do {									\
 	__asm__ __volatile__(						\
 	"	.set	push			\n"			\
 	"	.set	noat			\n"			\
+	"	.set	arch=r5900		\n"			\
 	"	ld		$1, %0\n"	\
 	"	mtlo1	$1\n"	\
 	"	.set	pop					\n"	\

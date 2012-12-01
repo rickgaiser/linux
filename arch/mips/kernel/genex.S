@@ -654,9 +654,10 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	ori	k1, _THREAD_MASK
 	xori	k1, _THREAD_MASK
 	LONGI_L	v1, TI_TP_VALUE(k1)
+	.set	push
 	.set	mips3
 	eret
-	.set	mips0
+	.set	pop
 #ifdef CONFIG_CPU_R5900
 	/* There should be nothing which looks like cache instruction. */
 	nop
