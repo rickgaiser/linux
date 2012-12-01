@@ -134,6 +134,46 @@ symbol		=	value
 1:		.asciiz	string;                         \
 		.popsection
 
+#ifdef __ASSEMBLY__
+#ifdef CONFIG_CPU_R5900
+/* ld would be replaced by 2 lw instructions with newer binutils when using
+ * ABI o32. Force use of ld by updating to ISA MIPS III.
+ */
+.macro force_ld to, from
+	.set push
+	.set mips3
+	ld \to, \from
+	.set pop
+.endm
+
+/* sd would be replaced by 2 sw instructions with newer binutils when using
+ * ABI o32. Force use of sd by updating to ISA MIPS III.
+ */
+.macro force_sd to, from
+	.set push
+	.set mips3
+	sd \to, \from
+	.set pop
+.endm
+
+#else
+.macro force_ld to, from
+	.set push
+	ld \to, \from
+	.set pop
+.endm
+
+.macro force_sd to, from
+	.set push
+	sd \to, \from
+	.set pop
+.endm
+#endif
+
+#define LD force_ld
+#define SD force_sd
+#endif
+
 /*
  * MIPS IV pref instruction.
  * Use with .set noreorder only!
@@ -304,13 +344,13 @@ symbol		=	value
 /* Load data register. */
 #define LONGD_L		lq
 /* Load hi/lo register. */
-#define LONGH_L		ld
+#define LONGH_L		force_ld
 /* Load instruction register. */
 #define LONGI_L		lw
 /* Save data register. */
 #define LONGD_S		sq
 /* Save hi/lo register. */
-#define LONGH_S		sd
+#define LONGH_S		force_sd
 /* Save instruction register. */
 #define LONGI_S		sw
 #define LONGD_SLL	dsll

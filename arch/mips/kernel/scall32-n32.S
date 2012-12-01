@@ -32,6 +32,9 @@
 /* This duplicates the definition from <asm/signal.h> */
 #define SIGILL		4		/* Illegal instruction (ANSI).  */
 
+	.set push
+	.set arch=r5900
+
 	.align  5
 NESTED(handle_sys, PT_SIZE, sp)
 	.set	noat
@@ -82,6 +85,7 @@ stack_done:
 	sd	v0, PT_R0(sp)		# set flag for syscall restarting
 1:	sd	v0, PT_R2(sp)		# result
 
+.global n32_syscall_exit
 n32_syscall_exit:
 	local_irq_disable		# make sure need_resched and
 					# signals dont change between
@@ -469,3 +473,5 @@ EXPORT(sysn32_call_table)
 	sys     sys_recvmmsg		5
 	sys     sys_getdents64		3
 	.size	sysn32_call_table,.-sysn32_call_table
+
+	.set pop
