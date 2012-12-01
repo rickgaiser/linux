@@ -283,12 +283,14 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			goto sigbus;
 
 		__asm__ __volatile__ (
+			".set push\n"
 #ifdef __BIG_ENDIAN
 			"1:\tlwl\t%0, (%2)\n"
 			"2:\tlwr\t%0, 3(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
 #ifdef CONFIG_CPU_R5900
+			".set arch=r5900\n\t"
 			/* In an error exception handler the user space could be uncached. */
 			"sync.l\n\t"
 #endif
@@ -301,7 +303,8 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			"dsll\t%0, %0, 32\n\t"
 			"dsrl\t%0, %0, 32\n\t"
 			"sd\t%0, 0(%1)\n\t"
-			"li\t%0, 0\n"
+			"li\t%0, 0\n\t"
+			".set pop\n"
 			"3:\t.section\t.fixup,\"ax\"\n\t"
 			"4:\tli\t%0, %3\n\t"
 			"j\t3b\n\t"
@@ -334,12 +337,14 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			goto sigbus;
 
 		__asm__ __volatile__ (
+			".set push\n"
 #ifdef __BIG_ENDIAN
 			"1:\tldl\t%0, (%2)\n"
 			"2:\tldr\t%0, 7(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
 #ifdef CONFIG_CPU_R5900
+			".set arch=r5900\n\t"
 			/* In an error exception handler the user space could be uncached. */
 			"sync.l\n\t"
 #endif
@@ -350,7 +355,8 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			"2:\tldr\t%0, (%2)\n\t"
 #endif
 			"sd\t%0, 0(%1)\n"
-			"li\t%0, 0\n"
+			"li\t%0, 0\n\t"
+			".set pop\n"
 			"3:\t.section\t.fixup,\"ax\"\n\t"
 			"4:\tli\t%0, %3\n\t"
 			"j\t3b\n\t"
@@ -465,7 +471,9 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			goto sigbus;
 
 		__asm__ __volatile__ (
-			"ld %1, 0(%1)\n\t"
+			".set push\n\t"
+			".set arch=r5900\n\t"
+			"LD %1, 0(%1)\n\t"
 #ifdef __BIG_ENDIAN
 			"1:\tsdl\t%1,(%2)\n"
 			"2:\tsdr\t%1, 7(%2)\n\t"

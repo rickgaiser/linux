@@ -9,6 +9,8 @@
 
 .text
 .global syso64_lseek
+.set push
+.set arch=r5900
 
 syso64_lseek:
 	sd	ra, PT_R2(sp)		/* misuse PT_R2 to save return address. */
@@ -20,3 +22,5 @@ syso64_lseek:
 	 */
 	pextlw	v0, v1, v0
 	jr	ra
+
+.set pop

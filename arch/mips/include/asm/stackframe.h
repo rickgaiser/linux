@@ -215,12 +215,13 @@
 		 * Ideally, these instructions would be shuffled in
 		 * to cover the pipeline delay.
 		 */
+		.set	push
 		.set	mips32
 #ifdef CONFIG_CPU_R5900
 		sync.p
 #endif
 		mfc0	v1, CP0_TCSTATUS
-		.set	mips0
+		.set	pop
 		LONGI_S	v1, PT_TCSTATUS(sp)
 #endif /* CONFIG_MIPS_MT_SMTC */
 		LONGD_S	$4, PT_R4(sp)
@@ -489,7 +490,9 @@
 #endif
 		_ehb
 
+#ifndef CONFIG_CPU_R5900
 		.set	mips0
+#endif
 #endif /* CONFIG_MIPS_MT_SMTC */
 		LONGI_L	v1, PT_EPC(sp)
 		MTC0	v1, CP0_EPC
@@ -514,9 +517,10 @@
 
 		.macro	RESTORE_SP_AND_RET
 		LONGD_L	sp, PT_R29(sp)
+		.set	push
 		.set	mips3
 		eret
-		.set	mips0
+		.set	pop
 		.endm
 
 #endif
