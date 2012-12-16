@@ -53,7 +53,7 @@
 #define PS2IPU_FUNC	4
 #define PS2SPR_FUNC	5
 
-#define BINUTILS_R5900_SUPPORT /* TBD: Add support for R5900 instructions to binutils. */
+//#define BINUTILS_R5900_SUPPORT /* TBD: Add support for R5900 instructions to binutils. */
 
 static struct class *ps2dev_class;
 static int ps2dev_major = PS2DEV_MAJOR;
@@ -543,9 +543,9 @@ static void ps2vpu0_reset(void)
     set_c0_status(ST0_CU2);
     __asm__ __volatile__(
 	"	sync.l\n"
-	"	cfc2	$8, $vi28\n"
+	"	cfc2	$8, $28\n"
 	"	ori	$8, $8, 0x0002\n"
-	"	ctc2	$8, $vi28\n"
+	"	ctc2	$8, $28\n"
 	"	sync.p\n"
 	::: "$8");				/* reset VU0 */
     clear_c0_status(ST0_CU2);
@@ -576,9 +576,9 @@ static void ps2vpu1_reset(void)
     set_c0_status(ST0_CU2);
     __asm__ __volatile__(
 	"	sync.l\n"
-	"	cfc2	$8, $vi28\n"
+	"	cfc2	$8, $28\n"
 	"	ori	$8, $8, 0x0200\n"
-	"	ctc2	$8, $vi28\n"
+	"	ctc2	$8, $28\n"
 	"	sync.p\n"
 	::: "$8");				/* reset VU1 */
     clear_c0_status(ST0_CU2);
