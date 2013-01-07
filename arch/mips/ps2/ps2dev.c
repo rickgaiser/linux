@@ -53,7 +53,7 @@
 #define PS2IPU_FUNC	4
 #define PS2SPR_FUNC	5
 
-//#define BINUTILS_R5900_SUPPORT /* TBD: Add support for R5900 instructions to binutils. */
+#define BINUTILS_R5900_SUPPORT /* TBD: Add support for R5900 instructions to binutils. */
 
 static struct class *ps2dev_class;
 static int ps2dev_major = PS2DEV_MAJOR;
