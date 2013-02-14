@@ -198,7 +198,10 @@ static void ps2con_get_screeninfo(struct ps2_screeninfo *info)
     struct ps2dpy *p = &ps2dpy[con];
 
     p->info = *info;
+
+    acquire_console_sem();
     ps2con_setup(con, 0, 0);
+    release_console_sem();
 }
 
 static const char *ps2con_startup(void)
