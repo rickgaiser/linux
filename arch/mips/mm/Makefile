@@ -41,4 +41,7 @@ obj-$(CONFIG_R5000_CPU_SCACHE)  += sc-r5k.o
 obj-$(CONFIG_RM7000_CPU_SCACHE)	+= sc-rm7k.o
 obj-$(CONFIG_MIPS_CPU_SCACHE)	+= sc-mips.o
 
-EXTRA_CFLAGS += -Werror
+# Disable -Werror on GCC 4.09 or higher.
+EXTRA_CFLAGS += $(shell if [ $(call cc-version) -lt 0409 ] ; then \
+			echo $(call cc-option,-Werror); \
+			fi ;)
