@@ -3,7 +3,8 @@
 #
 
 obj-y				+= cache.o dma-default.o extable.o fault.o \
-				   init.o tlbex.o tlbex-fault.o uasm.o page.o
+				   init.o tlbex.o tlbex-fault.o uasm.o page.o \
+				   page-funcs.o
 
 ifeq ($(CONFIG_CPU_R5900),y)
 obj-$(CONFIG_CPU_R5900)		+= ioremap.o pgtable-32.o
@@ -40,4 +41,7 @@ obj-$(CONFIG_R5000_CPU_SCACHE)  += sc-r5k.o
 obj-$(CONFIG_RM7000_CPU_SCACHE)	+= sc-rm7k.o
 obj-$(CONFIG_MIPS_CPU_SCACHE)	+= sc-mips.o
 
-EXTRA_CFLAGS += -Werror
+# Disable -Werror on GCC 4.09 or higher.
+EXTRA_CFLAGS += $(shell if [ $(call cc-version) -lt 0409 ] ; then \
+			echo $(call cc-option,-Werror); \
+			fi ;)

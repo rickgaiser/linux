@@ -30,12 +30,22 @@ typedef unsigned int UQItype    __attribute__ ((mode (QI)));
   struct DWstruct {Wtype low, high;};
 #endif
 
+#if (__GNUC__ == 4) && (__GNUC_MINOR__ < 9) /* TBD: Not working with newer compiler. */
 #define umul_ppmm(w1, w0, u, v) \
   __asm__ ("multu %2,%3"						\
 	   : "=l" ((USItype) (w0)),					\
 	     "=h" ((USItype) (w1))					\
 	   : "d" ((USItype) (u)),					\
 	     "d" ((USItype) (v)))
+#else
+#define umul_ppmm(w1, w0, u, v) \
+__asm__ ("multu %2,%3\n"					\
+	"mfhi %1\n"						\
+   : "=l" ((USItype) (w0)),					\
+     "=d" ((USItype) (w1))					\
+   : "d" ((USItype) (u)),					\
+     "d" ((USItype) (v)))
+#endif
 
 #define count_leading_zeros(count, x) \
   do {									\

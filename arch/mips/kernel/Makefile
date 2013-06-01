@@ -103,6 +103,9 @@ obj-$(CONFIG_HAVE_STD_PC_SERIAL_PORT)	+= 8250-platform.o
 
 obj-$(CONFIG_MIPS_CPUFREQ)	+= cpufreq/
 
-EXTRA_CFLAGS += -Werror
+# Disable -Werror on GCC 4.09 or higher.
+EXTRA_CFLAGS += $(shell if [ $(call cc-version) -lt 0409 ] ; then \
+			echo $(call cc-option,-Werror); \
+			fi ;)
 
 CPPFLAGS_vmlinux.lds		:= $(KBUILD_CFLAGS)
