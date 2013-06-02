@@ -254,10 +254,10 @@ extern struct mips_abi mips_abi_n32;
 #ifdef CONFIG_R5900_128BIT_SUPPORT
 #define __SET_PERSONALITY32(ex)						\
 do {									\
+	if (((ex).e_flags & EF_MIPS_MACH) == EF_MIPS_MACH_5900)		\
+		set_thread_flag(TIF_R5900FPU);				\
 	if ((((ex).e_flags & EF_MIPS_ABI2) != 0) &&			\
 	     ((ex).e_flags & EF_MIPS_ABI) == 0) {			\
-		if (((ex).e_flags & EF_MIPS_MACH) == EF_MIPS_MACH_5900)	\
-			set_thread_flag(TIF_R5900FPU);			\
 		__SET_PERSONALITY32_N32();				\
 	} else								\
 		__SET_PERSONALITY32_O32();				\
@@ -277,7 +277,6 @@ do {									\
 
 #define __SET_PERSONALITY32_O32()					\
 	do {								\
-		set_thread_flag(TIF_R5900FPU);				\
 		set_thread_flag(TIF_32BIT_REGS);			\
 		set_thread_flag(TIF_32BIT_ADDR);			\
 		current->thread.abi = &mips_abi;			\
@@ -288,6 +287,9 @@ do {									\
 #else
 #define SET_PERSONALITY(ex)						\
 do {									\
+	clear_thread_flag(TIF_R5900FPU);				\
+	if (((ex).e_flags & EF_MIPS_MACH) == EF_MIPS_MACH_5900)		\
+		set_thread_flag(TIF_R5900FPU);				\
 	set_personality(PER_LINUX);					\
 									\
 	current->thread.abi = &mips_abi;				\
@@ -317,7 +319,6 @@ do {									\
 #define __SET_PERSONALITY32_O32()					\
 	do {								\
 		set_thread_flag(TIF_32BIT_REGS);			\
-		set_thread_flag(TIF_R5900FPU);				\
 		set_thread_flag(TIF_32BIT_ADDR);			\
 		current->thread.abi = &mips_abi_32;			\
 	} while (0)
@@ -331,8 +332,6 @@ do {									\
 do {									\
 	if ((((ex).e_flags & EF_MIPS_ABI2) != 0) &&			\
 	     ((ex).e_flags & EF_MIPS_ABI) == 0) {			\
-		if (((ex).e_flags & EF_MIPS_MACH) == EF_MIPS_MACH_5900)	\
-			set_thread_flag(TIF_R5900FPU);			\
 		__SET_PERSONALITY32_N32();				\
 	} else								\
 		__SET_PERSONALITY32_O32();				\
@@ -344,7 +343,6 @@ do {									\
 #define SET_PERSONALITY(ex)						\
 do {									\
 	clear_thread_flag(TIF_32BIT_REGS);				\
-	clear_thread_flag(TIF_R5900FPU);				\
 	clear_thread_flag(TIF_32BIT_ADDR);				\
 									\
 	if ((ex).e_ident[EI_CLASS] == ELFCLASS32)			\

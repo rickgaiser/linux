@@ -28,13 +28,19 @@
 #define cpu_has_ejtag			0
 #define cpu_has_ic_fills_f_dc		0
 #define cpu_has_inclusive_pcaches	0
-#ifdef CONFIG_MIPS_N32
+/* TBD: Currently there is no newer GCC which creates compatible FPU code.
+ * Only GCC 2.95 creates compatible FPU code.
+ * So FPU is always emulated and disabled here.
+ */
+#if 0
 /* For ABI n32 the 64 bit CPU must be emulated. The 32 bit CPU can't be used.
- * Tasks with TIF_32BIT_REGS set, are ABI o32 which can use the FPU.
+ * The r5900 FPU doesn't comply with IEEE 794 which is expected by
+ * most programs.
+ * Tasks with TIF_32BIT_REGS set, are compiled with r5900 FPU support.
  */
 #define cpu_has_fpu (test_thread_flag(TIF_R5900FPU))
 #else
-#define cpu_has_fpu 			1
+#define cpu_has_fpu 			0
 #endif
 
 #endif
