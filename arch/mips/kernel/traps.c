@@ -488,7 +488,9 @@ asmlinkage void do_be(struct pt_regs *regs)
 #define RS     0x03e00000
 #define OFFSET 0x0000ffff
 #define LL     0xc0000000
+#define LLD    0xd0000000
 #define SC     0xe0000000
+#define SCD    0xf0000000
 #define SPEC0  0x00000000
 #define SPEC3  0x7c000000
 #define RD     0x0000f800
@@ -587,6 +589,88 @@ static inline int simulate_sc(struct pt_regs *regs, unsigned int opcode)
 	return 0;
 }
 
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+static inline int simulate_lld(struct pt_regs *regs, unsigned int opcode)
+{
+	unsigned long long value, __user *vaddr;
+	long offset;
+
+	/*
+	 * analyse the lld instruction that just caused a ri exception
+	 * and put the referenced address to addr.
+	 */
+
+	/* sign extend offset */
+	offset = opcode & OFFSET;
+	offset <<= 16;
+	offset >>= 16;
+
+	vaddr = (unsigned long __user *)
+	        ((unsigned long)(MIPS_READ_REG_L(regs->regs[(opcode & BASE) >> 21])) + offset);
+
+	if ((unsigned long)vaddr & 7)
+		return SIGBUS;
+	if (get_user(value, vaddr))
+		return SIGSEGV;
+
+	preempt_disable();
+
+	if (ll_task == NULL || ll_task == current) {
+		ll_bit = 1;
+	} else {
+		ll_bit = 0;
+	}
+	ll_task = current;
+
+	preempt_enable();
+
+	MIPS_WRITE_REG(regs->regs[(opcode & RT) >> 16]) = value;
+
+	return 0;
+}
+
+static inline int simulate_scd(struct pt_regs *regs, unsigned int opcode)
+{
+	unsigned long long __user *vaddr;
+	unsigned long reg;
+	long offset;
+
+	/*
+	 * analyse the sc instruction that just caused a ri exception
+	 * and put the referenced address to addr.
+	 */
+
+	/* sign extend offset */
+	offset = opcode & OFFSET;
+	offset <<= 16;
+	offset >>= 16;
+
+	vaddr = (unsigned long __user *)
+	        ((unsigned long)(MIPS_READ_REG_L(regs->regs[(opcode & BASE) >> 21])) + offset);
+	reg = (opcode & RT) >> 16;
+
+	if ((unsigned long)vaddr & 7)
+		return SIGBUS;
+
+	preempt_disable();
+
+	if (ll_bit == 0 || ll_task != current) {
+		MIPS_WRITE_REG(regs->regs[reg]) = 0;
+		preempt_enable();
+		return 0;
+	}
+
+	preempt_enable();
+
+	if (put_user(MIPS_READ_REG(regs->regs[reg]), vaddr))
+		return SIGSEGV;
+
+	MIPS_WRITE_REG(regs->regs[reg]) = 1;
+
+	return 0;
+}
+#endif
+
 /*
  * ll uses the opcode of lwc0 and sc uses the opcode of swc0.  That is both
  * opcodes are supposed to result in coprocessor unusable exceptions if
@@ -600,6 +684,13 @@ static int simulate_llsc(struct pt_regs *regs, unsigned int opcode)
 		return simulate_ll(regs, opcode);
 	if ((opcode & OPCODE) == SC)
 		return simulate_sc(regs, opcode);
+#ifdef CONFIG_R5900_128BIT_SUPPORT
+	/* lld and scd are not supported by r5900, but it supported mips3. */
+	if ((opcode & OPCODE) == LLD)
+		return simulate_lld(regs, opcode);
+	if ((opcode & OPCODE) == SCD)
+		return simulate_scd(regs, opcode);
+#endif
 
 	return -1;			/* Must be something else ... */
 }
