@@ -259,6 +259,7 @@ do {									\
 	if ((((ex).e_flags & EF_MIPS_ABI2) != 0) &&			\
 	     ((ex).e_flags & EF_MIPS_ABI) == 0) {			\
 		__SET_PERSONALITY32_N32();				\
+		set_personality(PER_LINUX);				\
 	} else								\
 		__SET_PERSONALITY32_O32();				\
 } while (0)
