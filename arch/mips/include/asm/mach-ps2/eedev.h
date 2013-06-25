@@ -26,28 +26,33 @@
 
 /* register defines */
 
-#define IPUREG_CMD		KSEG1ADDR(0x10002000)
-#define IPUREG_CTRL		KSEG1ADDR(0x10002010)
-#define IPUREG_BP		KSEG1ADDR(0x10002020)
-#define IPUREG_TOP		KSEG1ADDR(0x10002030)
+#define IPUREG_CMD		0x10002000
+#define IPUREG_CTRL		0x10002010
+#define IPUREG_BP		0x10002020
+#define IPUREG_TOP		0x10002030
 
-#define GIFREG_BASE		KSEG1ADDR(0x10003000)
-#define GIFREG(x)		(*(volatile u32 *)(GIFREG_BASE + ((x) << 4)))
-#define VIF0REG_BASE		KSEG1ADDR(0x10003800)
-#define VIF0REG(x)		(*(volatile u32 *)(VIF0REG_BASE + ((x) << 4)))
-#define VIF1REG_BASE		KSEG1ADDR(0x10003c00)
-#define VIF1REG(x)		(*(volatile u32 *)(VIF1REG_BASE + ((x) << 4)))
+#define GIFREG_BASE		0x10003000
+#define GIFREG(x)		(inl(GIFREG_BASE + ((x) << 4)))
+#define SET_GIFREG(x, val)	(outl(val, GIFREG_BASE + ((x) << 4)))
+#define VIF0REG_BASE		0x10003800
+#define VIF0REG(x)		(inl(VIF0REG_BASE + ((x) << 4)))
+#define SET_VIF0REG(x, val)		(outl(val, VIF0REG_BASE + ((x) << 4)))
+#define VIF1REG_BASE		0x10003c00
+#define VIF1REG(x)		(inl(VIF1REG_BASE + ((x) << 4)))
+#define SET_VIF1REG(x, val)	(outl(val, VIF1REG_BASE + ((x) << 4)))
 #define VIFnREG(n, x)		\
-	(*(volatile u32 *)(VIF0REG_BASE + ((n) * 0x0400) + ((x) << 4)))
+	(inl(VIF0REG_BASE + ((n) * 0x0400) + ((x) << 4)))
+#define SET_VIFnREG(n, x, val)		\
+	(outl(val, VIF0REG_BASE + ((n) * 0x0400) + ((x) << 4)))
 
-#define VIF0_FIFO		KSEG1ADDR(0x10004000)
-#define VIF1_FIFO		KSEG1ADDR(0x10005000)
-#define GIF_FIFO		KSEG1ADDR(0x10006000)
-#define IPU_O_FIFO		KSEG1ADDR(0x10007000)
-#define IPU_I_FIFO		KSEG1ADDR(0x10007010)
+#define VIF0_FIFO		0x10004000
+#define VIF1_FIFO		0x10005000
+#define GIF_FIFO		0x10006000
+#define IPU_O_FIFO		0x10007000
+#define IPU_I_FIFO		0x10007010
 
-#define GSSREG_BASE1		KSEG1ADDR(0x12000000)
-#define GSSREG_BASE2		KSEG1ADDR(0x12001000)
+#define GSSREG_BASE1		0x12000000
+#define GSSREG_BASE2		0x12001000
 #define GSSREG1(x)		(GSSREG_BASE1 + ((x) << 4))
 #define GSSREG2(x)		(GSSREG_BASE2 + (((x) & 0x0f) << 4))
 
@@ -64,6 +69,7 @@ union _dword {
         } si;
 };
 
+#if 0
 static inline void store_double(unsigned long addr, unsigned long long val)
 {
     union _dword src;
@@ -95,6 +101,7 @@ static inline unsigned long long load_double(unsigned long addr)
 
     return val.di;
 }
+#endif
 
 static inline void move_quad(unsigned long dest, unsigned long src)
 {
