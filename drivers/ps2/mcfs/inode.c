@@ -263,7 +263,7 @@ extern int ps2mcfs_read_super(struct super_block *sb, void *data,
 		printk("ps2mcfs: memory card%d%d doesn't exist\n",
 		       PS2MC_PORT(MINOR(sb->s_dev)),
 		       PS2MC_SLOT(MINOR(sb->s_dev)));
-		return EINVAL;
+		return -EINVAL;
 	}
 
 	sb->s_blocksize_bits = 10;
