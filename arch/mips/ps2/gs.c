@@ -70,12 +70,12 @@ int ps2gs_set_gssreg(int reg, u64 val)
 {
 	if (reg >= PS2_GSSREG_PMODE && reg <= PS2_GSSREG_BGCOLOR) {
 		gssreg[reg] = val;
-		store_double(GSSREG1(reg), val);
+		outq(val, GSSREG1(reg));
 	} else if (reg == PS2_GSSREG_CSR) {
 		val &= 1 << 8;
-		store_double(GSSREG2(reg), val);
+		outq(val, GSSREG2(reg));
 	} else if (reg == PS2_GSSREG_SIGLBLID) {
-		store_double(GSSREG2(reg), val);
+		outq(val, GSSREG2(reg));
 	} else
 		return -1;				/* bad register no. */
 	return 0;
@@ -94,7 +94,7 @@ int ps2gs_get_gssreg(int reg, u64 * val)
 {
 	if (reg == PS2_GSSREG_CSR || reg == PS2_GSSREG_SIGLBLID) {
 		/* readable register */
-		*val = load_double(GSSREG2(reg));
+		*val = inq(GSSREG2(reg));
 	} else if (reg >= 0 && reg <= 0x0e) {
 		/* write only register .. return saved value */
 		*val = gssreg[reg];
@@ -914,14 +914,14 @@ static void gsreset_start(struct dma_request *req, struct dma_channel *ch)
 	if (atomic_inc_return(&greq->info->count) > 1) {
 		switch (greq->info->mode) {
 		case PS2_GSRESET_FULL:
-			store_double(GSSREG2(PS2_GSSREG_CSR), (u64) 0x0200);
+			outq(0x0200ULL, GSSREG2(PS2_GSSREG_CSR));
 			ps2_setup_gs_imr();
 			/* fall through */
 		case PS2_GSRESET_GS:
-			store_double(GSSREG2(PS2_GSSREG_CSR), (u64) 0x0100);
+			outq(0x0100ULL, GSSREG2(PS2_GSSREG_CSR));
 			/* fall through */
 		case PS2_GSRESET_GIF:
-			GIFREG(PS2_GIFREG_CTRL) = 0x00000001;
+			SET_GIFREG(PS2_GIFREG_CTRL, 0x00000001);
 			break;
 		}
 	}

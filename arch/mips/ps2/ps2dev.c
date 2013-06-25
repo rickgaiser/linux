@@ -329,7 +329,7 @@ static int ps2gs_ioctl(struct inode *inode, struct file *file,
 	    return -EFAULT;
 	if (gifreg.reg == PS2_GIFREG_CTRL ||
 	    gifreg.reg == PS2_GIFREG_MODE)
-	    GIFREG(gifreg.reg) = gifreg.val;
+	    SET_GIFREG(gifreg.reg, gifreg.val);
 	else
 	    return -EINVAL;
 	return 0;
@@ -339,10 +339,10 @@ static int ps2gs_ioctl(struct inode *inode, struct file *file,
 	if (gifreg.reg == PS2_GIFREG_STAT ||
 	    (gifreg.reg >= PS2_GIFREG_TAG0 && gifreg.reg <= PS2_GIFREG_P3TAG)) {
 	    if (gifreg.reg != PS2_GIFREG_STAT)
-		GIFREG(PS2_GIFREG_CTRL) = 1 << 3;
+		SET_GIFREG(PS2_GIFREG_CTRL, 1 << 3);
 	    gifreg.val = GIFREG(gifreg.reg);
 	    if (gifreg.reg != PS2_GIFREG_STAT)
-		GIFREG(PS2_GIFREG_CTRL) = 0;
+		SET_GIFREG(PS2_GIFREG_CTRL, 0);
 	} else {
 	    return -EINVAL;
 	}
@@ -434,9 +434,9 @@ static void ps2gif_reset(void)
     int apath;
 
     apath = (GIFREG(PS2_GIFREG_STAT) >> 10) & 3;
-    GIFREG(PS2_GIFREG_CTRL) = 0x00000001;	/* reset GIF */
+    SET_GIFREG(PS2_GIFREG_CTRL, 0x00000001);	/* reset GIF */
     if (apath == 3)
-	store_double(GSSREG2(PS2_GSSREG_CSR), (u64)0x0100);	/* reset GS */
+	outq(0x0100ULL, GSSREG2(PS2_GSSREG_CSR));	/* reset GS */
 }
 
 static int ps2gs_open_count = 0;	/* only one process can open */
@@ -502,7 +502,7 @@ static int ps2vpu_ioctl(struct inode *inode, struct file *file,
 	if (vifreg.reg == PS2_VIFREG_MARK ||
 	    vifreg.reg == PS2_VIFREG_FBRST ||
 	    vifreg.reg == PS2_VIFREG_ERR)
-	    VIFnREG(vusw, vifreg.reg) = vifreg.val;
+	    SET_VIFnREG(vusw, vifreg.reg, vifreg.val);
 	else
 	    return -EINVAL;
 	return 0;
@@ -537,9 +537,9 @@ static u32 init_vif0code[] __attribute__((aligned(DMA_TRUNIT))) = {
 #ifdef BINUTILS_R5900_SUPPORT
 static void ps2vpu0_reset(void)
 {
-    VIF0REG(PS2_VIFREG_MARK) = 0;
-    VIF0REG(PS2_VIFREG_ERR) = 2;
-    VIF0REG(PS2_VIFREG_FBRST) = 1;		/* reset VIF0 */
+    SET_VIF0REG(PS2_VIFREG_MARK, 0);
+    SET_VIF0REG(PS2_VIFREG_ERR, 2);
+    SET_VIF0REG(PS2_VIFREG_FBRST, 1);		/* reset VIF0 */
     set_c0_status(ST0_CU2);
     __asm__ __volatile__(
 	"	sync.l\n"
@@ -549,8 +549,8 @@ static void ps2vpu0_reset(void)
 	"	sync.p\n"
 	::: "$8");				/* reset VU0 */
     clear_c0_status(ST0_CU2);
-    move_quad(VIF0_FIFO, (unsigned long)&init_vif0code[0]);
-    move_quad(VIF0_FIFO, (unsigned long)&init_vif0code[4]);
+    move_quad(KSEG1ADDR(VIF0_FIFO), (unsigned long)&init_vif0code[0]);
+    move_quad(KSEG1ADDR(VIF0_FIFO), (unsigned long)&init_vif0code[4]);
 }
 #endif
 
@@ -570,9 +570,9 @@ static void ps2vpu1_reset(void)
 {
     int apath;
 
-    VIF1REG(PS2_VIFREG_MARK) = 0;
-    VIF1REG(PS2_VIFREG_ERR) = 2;
-    VIF1REG(PS2_VIFREG_FBRST) = 1;		/* reset VIF1 */
+    SET_VIF1REG(PS2_VIFREG_MARK, 0);
+    SET_VIF1REG(PS2_VIFREG_ERR, 2);
+    SET_VIF1REG(PS2_VIFREG_FBRST, 1);		/* reset VIF1 */
     set_c0_status(ST0_CU2);
     __asm__ __volatile__(
 	"	sync.l\n"
@@ -582,13 +582,13 @@ static void ps2vpu1_reset(void)
 	"	sync.p\n"
 	::: "$8");				/* reset VU1 */
     clear_c0_status(ST0_CU2);
-    move_quad(VIF1_FIFO, (unsigned long)&init_vif1code[0]);
-    move_quad(VIF1_FIFO, (unsigned long)&init_vif1code[4]);
+    move_quad(KSEG1ADDR(VIF1_FIFO), (unsigned long)&init_vif1code[0]);
+    move_quad(KSEG1ADDR(VIF1_FIFO), (unsigned long)&init_vif1code[4]);
 
     apath = (GIFREG(PS2_GIFREG_STAT) >> 10) & 3;
     if (apath == 1 || apath == 2) {
-	GIFREG(PS2_GIFREG_CTRL) = 0x00000001;	/* reset GIF */
-	store_double(GSSREG2(PS2_GSSREG_CSR), (u64)0x0100);	/* reset GS */
+	SET_GIFREG(PS2_GIFREG_CTRL, 0x00000001);	/* reset GIF */
+	outq(0x0100ULL, GSSREG2(PS2_GSSREG_CSR));	/* reset GS */
     }
 }
 #endif
@@ -726,10 +726,10 @@ static int ps2ipu_ioctl(struct inode *inode, struct file *file,
     case PS2IOC_SIPUCMD:
 	if (copy_from_user(&val32, (void *)arg, sizeof(val32)))
 	    return -EFAULT;
-	*(volatile u32 *)IPUREG_CMD = val32;
+	outl(val32, IPUREG_CMD);
 	return 0;
     case PS2IOC_GIPUCMD:
-	val64 = load_double(IPUREG_CMD);
+	val64 = inq(IPUREG_CMD);
 	if (val64 & ((u64)1 << 63))
 	    return -EBUSY;		/* data is not valid */
 	val32 = (u32)val64;
@@ -737,27 +737,27 @@ static int ps2ipu_ioctl(struct inode *inode, struct file *file,
     case PS2IOC_SIPUCTRL:
 	if (copy_from_user(&val32, (void *)arg, sizeof(val32)))
 	    return -EFAULT;
-	*(volatile u32 *)IPUREG_CTRL = val32;
+	outl(val32, IPUREG_CTRL);
 	return 0;
     case PS2IOC_GIPUCTRL:
-	val32 = *(volatile u32 *)IPUREG_CTRL;
+	val32 = inl(IPUREG_CTRL);
 	return copy_to_user((void *)arg, &val32, sizeof(val32)) ? -EFAULT : 0;
     case PS2IOC_GIPUTOP:
-	val64 = load_double(IPUREG_TOP);
+	val64 = inq(IPUREG_TOP);
 	if (val64 & ((u64)1 << 63))
 	    return -EBUSY;		/* data is not valid */
 	val32 = (u32)val64;
 	return copy_to_user((void *)arg, &val32, sizeof(val32)) ? -EFAULT : 0;
     case PS2IOC_GIPUBP:
-	val32 = *(volatile u32 *)IPUREG_BP;
+	val32 = inl(IPUREG_BP);
 	return copy_to_user((void *)arg, &val32, sizeof(val32)) ? -EFAULT : 0;
     case PS2IOC_SIPUFIFO:
 	if (copy_from_user(&fifo, (void *)arg, sizeof(fifo)))
 	    return -EFAULT;
-	move_quad(IPU_I_FIFO, (unsigned long)&fifo);
+	move_quad(KSEG1ADDR(IPU_I_FIFO), (unsigned long)&fifo);
 	return 0;
     case PS2IOC_GIPUFIFO:
-	move_quad((unsigned long)&fifo, IPU_O_FIFO);
+	move_quad((unsigned long)&fifo, KSEG1ADDR(IPU_O_FIFO));
 	return copy_to_user((void *)arg, &fifo, sizeof(fifo)) ? -EFAULT : 0;
     }
     return -EINVAL;
@@ -778,41 +778,41 @@ static u32 init_ipu_vq[] __attribute__((aligned(DMA_TRUNIT))) = {
 
 static void wait_ipu_ready(void)
 {
-    while (*(volatile s32 *)IPUREG_CTRL < 0)
+    while (inl(IPUREG_CTRL) < 0)
 	;
 }
 
 static void ps2ipu_reset(void)
 {
-    *(volatile u32 *)IPUREG_CTRL = 1 << 30;		/* reset IPU */
+    outl(1 << 30, IPUREG_CTRL);		/* reset IPU */
     wait_ipu_ready();
-    *(volatile u32 *)IPUREG_CMD = 0x00000000;		/* BCLR */
-    wait_ipu_ready();
-
-    move_quad(IPU_I_FIFO, (unsigned long)&init_ipu_iq[0]);
-    move_quad(IPU_I_FIFO, (unsigned long)&init_ipu_iq[4]);
-    move_quad(IPU_I_FIFO, (unsigned long)&init_ipu_iq[8]);
-    move_quad(IPU_I_FIFO, (unsigned long)&init_ipu_iq[12]);
-    move_quad(IPU_I_FIFO, (unsigned long)&init_ipu_iq[16]);
-    move_quad(IPU_I_FIFO, (unsigned long)&init_ipu_iq[16]);
-    move_quad(IPU_I_FIFO, (unsigned long)&init_ipu_iq[16]);
-    move_quad(IPU_I_FIFO, (unsigned long)&init_ipu_iq[16]);
-    *(volatile u32 *)IPUREG_CMD = 0x50000000;		/* SETIQ (I) */
-    wait_ipu_ready();
-    *(volatile u32 *)IPUREG_CMD = 0x58000000;		/* SETIQ (NI) */
+    outl(0x00000000, IPUREG_CMD);		/* BCLR */
     wait_ipu_ready();
 
-    move_quad(IPU_I_FIFO, (unsigned long)&init_ipu_vq[0]);
-    move_quad(IPU_I_FIFO, (unsigned long)&init_ipu_vq[4]);
-    *(volatile u32 *)IPUREG_CMD = 0x60000000;		/* SETVQ */
+    move_quad(KSEG1ADDR(IPU_I_FIFO), (unsigned long)&init_ipu_iq[0]);
+    move_quad(KSEG1ADDR(IPU_I_FIFO), (unsigned long)&init_ipu_iq[4]);
+    move_quad(KSEG1ADDR(IPU_I_FIFO), (unsigned long)&init_ipu_iq[8]);
+    move_quad(KSEG1ADDR(IPU_I_FIFO), (unsigned long)&init_ipu_iq[12]);
+    move_quad(KSEG1ADDR(IPU_I_FIFO), (unsigned long)&init_ipu_iq[16]);
+    move_quad(KSEG1ADDR(IPU_I_FIFO), (unsigned long)&init_ipu_iq[16]);
+    move_quad(KSEG1ADDR(IPU_I_FIFO), (unsigned long)&init_ipu_iq[16]);
+    move_quad(KSEG1ADDR(IPU_I_FIFO), (unsigned long)&init_ipu_iq[16]);
+    outl(0x50000000, IPUREG_CMD);		/* SETIQ (I) */
+    wait_ipu_ready();
+    outl(0x58000000, IPUREG_CMD);		/* SETIQ (NI) */
     wait_ipu_ready();
 
-    *(volatile u32 *)IPUREG_CMD = 0x90000000;		/* SETTH */
+    move_quad(KSEG1ADDR(IPU_I_FIFO), (unsigned long)&init_ipu_vq[0]);
+    move_quad(KSEG1ADDR(IPU_I_FIFO), (unsigned long)&init_ipu_vq[4]);
+    outl(0x60000000, IPUREG_CMD);		/* SETVQ */
     wait_ipu_ready();
 
-    *(volatile u32 *)IPUREG_CTRL = 1 << 30;		/* reset IPU */
+    outl(0x90000000, IPUREG_CMD);		/* SETTH */
     wait_ipu_ready();
-    *(volatile u32 *)IPUREG_CMD = 0x00000000;		/* BCLR */
+
+    outl(1 << 30, IPUREG_CTRL);		/* reset IPU */
+    wait_ipu_ready();
+    outl(0x00000000, IPUREG_CMD);		/* BCLR */
     wait_ipu_ready();
 }
 

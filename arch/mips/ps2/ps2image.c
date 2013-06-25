@@ -349,9 +349,9 @@ static void storeimage_vif_firstpio(struct storeimage_request *sreq)
     del_timer(&sreq->timer);
     DSPRINT("storeimage_vif_firstpio:\n");
     /* switch bus direction (GS -> EE) */
-    VIF1REG(PS2_VIFREG_STAT) = 0x00800000;
-    store_double(GSSREG2(PS2_GSSREG_BUSDIR), (u64)1);
-    __asm__ __volatile__("sync.l");
+    SET_VIF1REG(PS2_VIFREG_STAT, 0x00800000);
+    outq(1ULL, GSSREG2(PS2_GSSREG_BUSDIR));
+    __asm__ __volatile__("sync.l":::"memory");
 
     if (pio_transfer(sreq->hptr, sreq->hlen, sreq->hdummy) != 0) {
 	storeimage_terminate(sreq, -1);
@@ -396,14 +396,14 @@ static inline void storeimage_terminate(struct storeimage_request *sreq, int res
     if (result != 0) {
 	sreq->result = -EAGAIN;
 	/* GS,VIF1 FIFO reset */
-	store_double(GSSREG2(PS2_GSSREG_CSR), (u64)0x0100);
-	VIF1REG(PS2_VIFREG_FBRST) = 1;
+	outq(0x100ULL, GSSREG2(PS2_GSSREG_CSR));
+	SET_VIF1REG(PS2_VIFREG_FBRST, 1);
     }
 
     /* switch bus direction (EE -> GS) */
-    VIF1REG(PS2_VIFREG_STAT) = 0x00000000;
-    store_double(GSSREG2(PS2_GSSREG_BUSDIR), (u64)0);
-    __asm__ __volatile__("sync.l");
+    SET_VIF1REG(PS2_VIFREG_STAT, 0x00000000);
+    outq(0ULL, GSSREG2(PS2_GSSREG_BUSDIR));
+    __asm__ __volatile__("sync.l":::"memory");
 
     /* send PATH3 unmask VIFcode */
     sreq->r.ops = &storeimage_vif_ops_done;
@@ -476,7 +476,7 @@ static inline int pio_transfer(unsigned char *ptr, int len, int dummy)
 		return -1;
 	    }
         }
-        move_quad((unsigned long)p, VIF1_FIFO);
+        move_quad((unsigned long)p, KSEG1ADDR(VIF1_FIFO));
 	p += DMA_TRUNIT;
 	i -= DMA_TRUNIT;
     }
@@ -489,7 +489,7 @@ static inline int pio_transfer(unsigned char *ptr, int len, int dummy)
 		return -1;
 	    }
         }
-        dummy_read_quad(VIF1_FIFO);
+        dummy_read_quad(KSEG1ADDR(VIF1_FIFO));
 	dummy--;
     }
     if (len) {

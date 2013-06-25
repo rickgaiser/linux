@@ -69,7 +69,7 @@ static void kdma_send_start(struct dma_request *req, struct dma_channel *ch)
 	 */
 	while ((GIFREG(PS2_GIFREG_STAT) & 0x1f000c00) == 0x00000c00) {
 		if (--count <= 0) {
-			GIFREG(PS2_GIFREG_CTRL) = 1;	/* reset GIF */
+			SET_GIFREG(PS2_GIFREG_CTRL, 1);	/* reset GIF */
 			ps2_printf("ps2dma: GS packet is not terminated\n");
 			break;
 		}

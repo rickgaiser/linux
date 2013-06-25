@@ -146,7 +146,7 @@ struct mii_ioctl_data {
 /*
  * SMAP
  */
-#define	SMAP_BASE		0xb4000000
+#define	SMAP_BASE		0x14000000
 #define	SMAP_TXBUFBASE		0x1000
 #define	SMAP_TXBUFSIZE		(4*1024)
 #define	SMAP_RXBUFBASE		0x4000
@@ -280,11 +280,17 @@ struct smapbd {
 #define	SMAP_FIFO_DATA			0x1308
 
 #define	SMAPREG8(dev, offset)	\
-	(*(volatile u_int8_t *)((dev)->base + (offset)))
+	(inb((uint32_t)((dev)->base + (offset))))
+#define	WRITE_SMAPREG8(dev, offset, val)	\
+	(outb(val, (uint32_t)((dev)->base + (offset))))
 #define	SMAPREG16(dev, offset)	\
-	(*(volatile u_int16_t *)((dev)->base + (offset)))
+	(inw((uint32_t)((dev)->base + (offset))))
+#define	WRITE_SMAPREG16(dev, offset, val)	\
+	(outw(val, (uint32_t)((dev)->base + (offset))))
 #define	SMAPREG32(dev, offset)	\
-	(*(volatile u_int32_t *)((dev)->base + (offset)))
+	(inl((uint32_t)((dev)->base + (offset))))
+#define	WRITE_SMAPREG32(dev, offset, val)	\
+	(outl(val, (uint32_t)((dev)->base + (offset))))
 
 #define	SMAP_EEPROM_WRITE_WAIT	100000
 #define	SMAP_PP_GET_Q(dev)	((SMAPREG8((dev), SMAP_PIOPORT_IN) >> 4) & 1)
@@ -292,7 +298,7 @@ struct smapbd {
 #define	SMAP_PP_SET_S(dev, s)	((dev)->ppwc = (s)?((dev)->ppwc | PP_CSEL):((dev)->ppwc & ~PP_CSEL))
 #define	SMAP_PP_CLK_OUT(dev, c)	{ \
 	(dev)->ppwc = (c)?((dev)->ppwc | PP_SCLK):((dev)->ppwc & ~PP_SCLK); \
-	SMAPREG8((dev), SMAP_PIOPORT_OUT) = (dev)->ppwc; \
+	WRITE_SMAPREG8((dev), SMAP_PIOPORT_OUT, (dev)->ppwc); \
 }
 
 /*
@@ -473,8 +479,8 @@ static inline u_int32_t EMAC3REG_READ(struct smap_chan *dev, u_int32_t offset)
 
 static inline void EMAC3REG_WRITE(struct smap_chan *dev, u_int32_t offset, u_int32_t v)
 {
-	SMAPREG16(dev, offset) = ((v >> 16) & 0xFFFF);
-	SMAPREG16(dev, offset + 2) = (v & 0xFFFF);
+	WRITE_SMAPREG16(dev, offset, ((v >> 16) & 0xFFFF));
+	WRITE_SMAPREG16(dev, offset + 2, (v & 0xFFFF));
 }
 
 

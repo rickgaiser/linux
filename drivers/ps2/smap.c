@@ -15,6 +15,9 @@
 
 #include "smap.h"
 
+#define INW(x) inw((uint32_t)(x))
+#define OUTW(val, x) outw(val, (uint32_t)(x))
+
 /*--------------------------------------------------------------------------*/
 
 static void smap_skb_queue_init(struct smap_chan *smap, struct sk_buff_head *head);
@@ -273,12 +276,12 @@ smappiosend:
 
 		spin_lock_irqsave(&smap->spinlock, flags);
 		/* send from memory to FIFO */
-		SMAPREG16(smap,SMAP_TXFIFO_WR_PTR) =
-				smap->txdma_request.sdd[0].f_addr;
+		WRITE_SMAPREG16(smap,SMAP_TXFIFO_WR_PTR,
+				smap->txdma_request.sdd[0].f_addr);
 		datap = (u_int32_t *)smap->txbuf;
 		for (i = 0; i < smap->txdma_request.sdd[0].size; i += 4) {
 							/* memory -> FIFO */
-			SMAPREG32(smap,SMAP_TXFIFO_DATA) = *datap++;
+			WRITE_SMAPREG32(smap, SMAP_TXFIFO_DATA, *datap++);
 		}
 		spin_unlock_irqrestore(&smap->spinlock, flags);
 
@@ -317,13 +320,14 @@ smappiosend:
 		smap->txfreebufsize -= smap->txdma_request.sdd[i].size;
 
 		/* send from FIFO to ethernet */
-		txbd->length = skb->len;
-		txbd->pointer = SMAP_TXBUFBASE + smap->txdma_request.sdd[i].f_addr;
+		OUTW(skb->len, &txbd->length);
+		OUTW(SMAP_TXBUFBASE + smap->txdma_request.sdd[i].f_addr,
+				&txbd->pointer);
 
-		SMAPREG8(smap,SMAP_TXFIFO_FRAME_INC) = 1;
+		WRITE_SMAPREG8(smap,SMAP_TXFIFO_FRAME_INC, 1);
 
-		txbd->ctrl_stat =
-			(SMAP_BD_TX_READY|SMAP_BD_TX_GENFCS|SMAP_BD_TX_GENPAD);
+		OUTW((SMAP_BD_TX_READY|SMAP_BD_TX_GENFCS|SMAP_BD_TX_GENPAD),
+			&txbd->ctrl_stat);
 		smap->txbdusedcnt++;
 
 		/* renew buffer descriptor */
@@ -335,8 +339,9 @@ smappiosend:
 						/* FIFO->ethernet */
 	if (smap->flags & SMAP_F_TXDNV_DISABLE) {
 		smap->flags &= ~SMAP_F_TXDNV_DISABLE;
-		SMAPREG16(smap,SMAP_INTR_ENABLE) |= INTR_TXDNV;
-		SMAPREG16(smap,SMAP_INTR_CLR) = INTR_TXDNV;
+		WRITE_SMAPREG16(smap, SMAP_INTR_ENABLE, SMAPREG16(smap,
+					SMAP_INTR_ENABLE) | INTR_TXDNV);
+		WRITE_SMAPREG16(smap,SMAP_INTR_CLR, INTR_TXDNV);
 	}
 	spin_unlock_irqrestore(&smap->spinlock, flags);
 
@@ -380,17 +385,17 @@ smap_tx_intr(struct net_device *net_dev)
 	unsigned long flags;
 
 	txbd = &smap->txbd[smap->txbdi];
-	txstat = txbd->ctrl_stat;
+	txstat = INW(&txbd->ctrl_stat);
 
 	while (((txstat & SMAP_BD_TX_READY) == 0) && (smap->txbdusedcnt > 0)) {
 		if (smap->flags & SMAP_F_PRINT_PKT) {
 			printk("%s: tx intr: process packet,"
 				"[%d]=stat=0x%04x,len=%d,ptr=0x%04x\n",
 					net_dev->name,smap->txbdi,txstat,
-					txbd->length,txbd->pointer);
+					INW(&txbd->length), INW(&txbd->pointer));
 		}
 		/* txlen is multiple of 4 */
-		txlen = (txbd->length + 3) & ~3;
+		txlen = (INW(&txbd->length) + 3) & ~3;
 		smap->txfreebufsize += txlen;
 
 		error = 0;
@@ -450,13 +455,13 @@ smap_tx_intr(struct net_device *net_dev)
 				}
 			}
 			if ((error > 0) && (smap->flags & SMAP_F_PRINT_MSG)) {
-				printk("%s:Tx intr: [%d]=stat(0x%04x, 0x%04x), len(%d, 0x%04x), ptr(0x%04x)\n", net_dev->name, smap->txbdi,txstat,txbd->ctrl_stat,txbd->length,txbd->length,txbd->pointer);
+				printk("%s:Tx intr: [%d]=stat(0x%04x, 0x%04x), len(%d, 0x%04x), ptr(0x%04x)\n", net_dev->name, smap->txbdi,txstat,INW(&txbd->ctrl_stat),INW(&txbd->length),INW(&txbd->length),INW(&txbd->pointer));
 			}
 		}
 
 		if (error == 0) {
 			smap->net_stats.tx_packets++;
-			smap->net_stats.tx_bytes += txbd->length;
+			smap->net_stats.tx_bytes += INW(&txbd->length);
 		} else {
 			smap->net_stats.tx_errors++;
 		}
@@ -466,16 +471,16 @@ smap_tx_intr(struct net_device *net_dev)
 #if 0
 		spin_lock_irqsave(&smap->spinlock, flags);
 		/* renew txbd */
-		txbd->length = 0;
-		txbd->pointer = 0;
-		txbd->ctrl_stat = 0;
+		OUTW(0, &txbd->length);
+		OUTW(0, &txbd->pointer);
+		OUTW(0, &txbd->ctrl_stat);
 		spin_unlock_irqrestore(&smap->spinlock, flags);
 #endif
 
 		/* renew buffer descriptor */
 		SMAP_BD_NEXT(smap->txbdi);
 		txbd = &smap->txbd[smap->txbdi];
-		txstat = txbd->ctrl_stat;
+		txstat = INW(&txbd->ctrl_stat);
 	}
 
 	if (smap->flags & SMAP_F_OPENED) {
@@ -513,7 +518,7 @@ smap_rx_intr(struct net_device *net_dev)
 
 	for (i = 0; i < SMAP_DMA_ENTRIES; i++) {
 		rxbd = &smap->rxbd[l_rxbdi];
-		rxstat = rxbd->ctrl_stat;
+		rxstat = INW(&rxbd->ctrl_stat);
 
 		if (rxstat & SMAP_BD_RX_EMPTY)
 			break;
@@ -573,13 +578,13 @@ smap_rx_intr(struct net_device *net_dev)
 				}
 			}
 			if (smap->flags & SMAP_F_PRINT_MSG) {
-				printk("%s:Rx intr(%d): [%d]=stat(0x%04x, 0x%04x), len(%d, 0x%04x), ptr(0x%04x)\n", net_dev->name, i, l_rxbdi, rxstat,rxbd->ctrl_stat,rxbd->length,rxbd->length,rxbd->pointer);
+				printk("%s:Rx intr(%d): [%d]=stat(0x%04x, 0x%04x), len(%d, 0x%04x), ptr(0x%04x)\n", net_dev->name, i, l_rxbdi, rxstat,INW(&rxbd->ctrl_stat),INW(&rxbd->length),INW(&rxbd->length),INW(&rxbd->pointer));
 			} 
 			pkt_err |= (1 << i);
 			break;
 		}
 
-		pkt_len = rxbd->length;
+		pkt_len = INW(&rxbd->length);
 
 		if ((pkt_len < SMAP_RXMINSIZE) || (pkt_len > SMAP_RXMAXSIZE)) {
 			if (smap->flags & SMAP_F_PRINT_MSG) {
@@ -599,7 +604,7 @@ smap_rx_intr(struct net_device *net_dev)
 			smap->rxdma_request.sdd[i].i_addr = 0;
 		}
 		smap->rxdma_request.sdd[i].f_addr =
-					(unsigned int)(rxbd->pointer&0x3FFC);
+					(unsigned int)(INW(&rxbd->pointer)&0x3FFC);
 		smap->rxdma_request.sdd[i].size = rxlen;
 		smap->rxdma_request.sdd[i].sdd_misc = pkt_len;
 		smap->rxdma_request.size += rxlen;
@@ -646,8 +651,8 @@ smap_rx_intr(struct net_device *net_dev)
 smappiorecv:
 		spin_lock_irqsave(&smap->spinlock, flags);
 		/* recv from FIFO to memory */
-		SMAPREG16(smap,SMAP_RXFIFO_RD_PTR) =
-			(u_int16_t)smap->rxdma_request.sdd[0].f_addr;
+		WRITE_SMAPREG16(smap,SMAP_RXFIFO_RD_PTR,
+			(u_int16_t)smap->rxdma_request.sdd[0].f_addr);
 		datap = (u_int32_t *)smap->rxbuf;
 		rxlen = smap->rxdma_request.sdd[0].size;
 		for (i = 0; i < rxlen; i += 4) {	/* FIFO -> memory */
@@ -664,14 +669,14 @@ smappiorecv:
 			rxbd = &smap->rxbd[l_rxbdi];
 			printk("%s: rx: fifo->mem done,"
 				"[%d]=stat=0x%04x,len=%d,ptr=0x%04x\n",
-				net_dev->name,l_rxbdi,rxbd->ctrl_stat,
-				rxbd->length,rxbd->pointer);
+				net_dev->name,l_rxbdi,INW(&rxbd->ctrl_stat),
+				INW(&rxbd->length),INW(&rxbd->pointer));
 			if (pioflag) {
 				rxbp = smap->rxbuf;
 			} else {
 				rxbp = (u_int8_t *)(smap->rxdma_request.sdd[i].i_addr);
 			}
-			smap_dump_packet(smap, rxbp, (rxbd->length < 60) ? rxbd->length : 60);
+			smap_dump_packet(smap, rxbp, (INW(&rxbd->length) < 60) ? INW(&rxbd->length) : 60);
 			SMAP_BD_NEXT(l_rxbdi);
 		}
 	}
@@ -736,7 +741,7 @@ end:
 	spin_lock_irqsave(&smap->spinlock, flags);
 	rxbd = &smap->rxbd[smap->rxbdi];
 	for (i = 0; i < rcvpkt; i++) {
-		SMAPREG8(smap,SMAP_RXFIFO_FRAME_DEC) = 1;
+		WRITE_SMAPREG8(smap,SMAP_RXFIFO_FRAME_DEC, 1);
 
 		if (pkt_err & (1 << i)) {
 			smap->net_stats.rx_errors++;
@@ -747,10 +752,10 @@ end:
 
 		/* renew rxbd */
 #if 0
-		rxbd->length = 0;
-		rxbd->pointer = 0;
+		OUTW(0, &rxbd->length);
+		OUTW(0, &rxbd->pointer);
 #endif
-		rxbd->ctrl_stat = SMAP_BD_RX_EMPTY;
+		OUTW(SMAP_BD_RX_EMPTY, &rxbd->ctrl_stat);
 
 		/* renew buffer descriptor */
 		SMAP_BD_NEXT(smap->rxbdi);
@@ -759,8 +764,9 @@ end:
 
 	if ((smap->flags & SMAP_F_RXDNV_DISABLE) && (rcvpkt > 0)) {
 		smap->flags &= ~SMAP_F_RXDNV_DISABLE;
-		SMAPREG16(smap,SMAP_INTR_ENABLE) |= INTR_RXDNV;
-		SMAPREG16(smap,SMAP_INTR_CLR) = INTR_RXDNV;
+		WRITE_SMAPREG16(smap, SMAP_INTR_ENABLE,
+				SMAPREG16(smap,SMAP_INTR_ENABLE) | INTR_RXDNV);
+		WRITE_SMAPREG16(smap, SMAP_INTR_CLR, INTR_RXDNV);
 	}
 
 	smap->rxicnt--;
@@ -894,10 +900,11 @@ static irqreturn_t smap_interrupt(int irq, void *dev_id)
 
 	if (stat & INTR_TXDNV) {
 		/* disable TXDNV interrupt */
-		SMAPREG16(smap,SMAP_INTR_ENABLE) &= ~INTR_TXDNV;
+		WRITE_SMAPREG16(smap, SMAP_INTR_ENABLE,
+			SMAPREG16(smap, SMAP_INTR_ENABLE) & ~INTR_TXDNV);
 		smap->flags |= SMAP_F_TXDNV_DISABLE;
 		/* clear interrupt */
-		SMAPREG16(smap,SMAP_INTR_CLR) = INTR_TXDNV;
+		WRITE_SMAPREG16(smap, SMAP_INTR_CLR, INTR_TXDNV);
 
 		smap->txicnt++;
 		wake_up_interruptible(&smap->wait_smaprun);
@@ -905,10 +912,11 @@ static irqreturn_t smap_interrupt(int irq, void *dev_id)
 	}
 	if (stat & INTR_RXDNV) {
 		/* disable RXDNV interrupt */
-		SMAPREG16(smap,SMAP_INTR_ENABLE) &= ~INTR_RXDNV;
+		WRITE_SMAPREG16(smap,SMAP_INTR_ENABLE,
+			SMAPREG16(smap, SMAP_INTR_ENABLE) & ~INTR_RXDNV);
 		smap->flags |= SMAP_F_RXDNV_DISABLE;
 		/* clear interrupt */
-		SMAPREG16(smap,SMAP_INTR_CLR) = INTR_RXDNV;
+		WRITE_SMAPREG16(smap, SMAP_INTR_CLR, INTR_RXDNV);
 
 		if (smap->flags & SMAP_F_PRINT_MSG) {
 			printk("%s: intr: RX desc not valid\n",net_dev->name);
@@ -917,7 +925,7 @@ static irqreturn_t smap_interrupt(int irq, void *dev_id)
 		wake_up_interruptible(&smap->wait_smaprun);
 	}
 	if (stat & INTR_TXEND) {
-		SMAPREG16(smap,SMAP_INTR_CLR) = INTR_TXEND;
+		WRITE_SMAPREG16(smap, SMAP_INTR_CLR, INTR_TXEND);
 		/* workaround for race condition of TxEND/RxEND */
 		if (SMAPREG8(smap,SMAP_RXFIFO_FRAME_CNT) > 0) {
 			smap->rxicnt++;
@@ -926,7 +934,7 @@ static irqreturn_t smap_interrupt(int irq, void *dev_id)
 		wake_up_interruptible(&smap->wait_smaprun);
 	}
 	if (stat & INTR_RXEND) {
-		SMAPREG16(smap,SMAP_INTR_CLR) = INTR_RXEND;
+		WRITE_SMAPREG16(smap, SMAP_INTR_CLR, INTR_RXEND);
 		/* workaround for race condition of TxEND/RxEND */
 		if ((smap->txbdusedcnt > 0) &&
 		    (smap->txbdusedcnt > SMAPREG8(smap,SMAP_TXFIFO_FRAME_CNT))
@@ -1404,7 +1412,7 @@ smap_timeout_thread(void *arg)
 static void
 smap_clear_all_interrupt(struct smap_chan *smap)
 {
-	SMAPREG16(smap,SMAP_INTR_CLR) = INTR_CLR_ALL;
+	WRITE_SMAPREG16(smap, SMAP_INTR_CLR, INTR_CLR_ALL);
 
 	EMAC3REG_WRITE(smap, SMAP_EMAC3_INTR_STAT, E3_INTR_ALL);
 
@@ -1416,11 +1424,13 @@ smap_interrupt_XXable(struct smap_chan *smap, int enable_flag)
 {
 	if (enable_flag) {
 		/* enable interrupt */
-		SMAPREG16(smap,SMAP_INTR_ENABLE) |= INTR_ENA_ALL;
+		WRITE_SMAPREG16(smap, SMAP_INTR_ENABLE,
+			SMAPREG16(smap, SMAP_INTR_ENABLE) | INTR_ENA_ALL);
 		EMAC3REG_WRITE(smap, SMAP_EMAC3_INTR_ENABLE, E3_INTR_ALL);
 	} else {
 		/* disable interrupt */
-		SMAPREG16(smap,SMAP_INTR_ENABLE) &= ~INTR_ENA_ALL;
+		WRITE_SMAPREG16(smap,SMAP_INTR_ENABLE,
+			SMAPREG16(smap,SMAP_INTR_ENABLE) & ~INTR_ENA_ALL);
 		EMAC3REG_WRITE(smap, SMAP_EMAC3_INTR_ENABLE, 0);
 	}
 	return;
@@ -1468,10 +1478,10 @@ smap_txbd_init(struct smap_chan *smap)
 	smap->txbwp = SMAP_TXBUFBASE;
 	smap->txbds = smap->txbdi = smap->txbdusedcnt = 0;
 	for (i = 0; i < SMAP_BD_MAX_ENTRY; i++, bd++) {
-		bd->ctrl_stat = 0;		/* clear ready bit */
-		bd->reserved = 0;		/* must be zero */
-		bd->length = 0;
-		bd->pointer = 0;
+		OUTW(0, &bd->ctrl_stat);		/* clear ready bit */
+		OUTW(0, &bd->reserved);		/* must be zero */
+		OUTW(0, &bd->length);
+		OUTW(0, &bd->pointer);
 	}
 	spin_unlock_irqrestore(&smap->spinlock, flags);
 	return;
@@ -1488,10 +1498,10 @@ smap_rxbd_init(struct smap_chan *smap)
 	smap->rxbrp = SMAP_RXBUFBASE;
 	smap->rxbdi = 0;
 	for (i = 0; i < SMAP_BD_MAX_ENTRY; i++, bd++) {
-		bd->ctrl_stat = SMAP_BD_RX_EMPTY;	/* set empty bit */
-		bd->reserved = 0;			/* must be zero */
-		bd->length = 0;
-		bd->pointer = 0;
+		OUTW(SMAP_BD_RX_EMPTY, &bd->ctrl_stat);	/* set empty bit */
+		OUTW(0, &bd->reserved);			/* must be zero */
+		OUTW(0, &bd->length);
+		OUTW(0, &bd->pointer);
 	}
 	spin_unlock_irqrestore(&smap->spinlock, flags);
 	return;
@@ -1584,9 +1594,9 @@ smap_fifo_reset(struct smap_chan *smap)
 	struct net_device *net_dev = smap->net_dev;
 
 	/* reset TX FIFO */
-	SMAPREG8(smap,SMAP_TXFIFO_CTRL) = TXFIFO_RESET;
+	WRITE_SMAPREG8(smap, SMAP_TXFIFO_CTRL, TXFIFO_RESET);
 	/* reset RX FIFO */
-	SMAPREG8(smap,SMAP_RXFIFO_CTRL) = RXFIFO_RESET;
+	WRITE_SMAPREG8(smap, SMAP_RXFIFO_CTRL, RXFIFO_RESET);
 
 	/* confirm reset done */
 	for (i = SMAP_LOOP_COUNT; i; i--) {
@@ -1618,7 +1628,7 @@ smap_reg_init(struct smap_chan *smap)
 	(void)smap_clear_all_interrupt(smap);
 
 	/* BD mode */
-	SMAPREG8(smap,SMAP_BD_MODE) = 0;	/* swap */
+	WRITE_SMAPREG8(smap, SMAP_BD_MODE, 0);	/* swap */
 
 	/* reset TX/RX FIFO */
 	(void)smap_fifo_reset(smap);
@@ -2109,7 +2119,7 @@ static void
 smap_eeprom_start_op(struct smap_chan *smap, int op)
 {
 	/* set port direction */    
-	SMAPREG8(smap, SMAP_PIOPORT_DIR) = (PP_SCLK | PP_CSEL | PP_DIN);
+	WRITE_SMAPREG8(smap, SMAP_PIOPORT_DIR, (PP_SCLK | PP_CSEL | PP_DIN));
 
 	/* rise chip select */
 	SMAP_PP_SET_S(smap, 0);
@@ -2269,8 +2279,8 @@ smap_dump_txbd(struct smap_chan *smap)
 	printk("Tx Buffer Descriptor\n");
 	for (i = 0; i < SMAP_BD_MAX_ENTRY; i++, bd++) {
 		printk("%02d: stat(0x%04x),rsv(0x%04x),len(%d,0x%04x),ptr(0x%04x), ",
-					i, bd->ctrl_stat, bd->reserved,
-					bd->length, bd->length, bd->pointer);
+					i, INW(&bd->ctrl_stat), INW(&bd->reserved),
+					INW(&bd->length), INW(&bd->length), INW(&bd->pointer));
 		if ((i%2)==1)
 			printk("\n");
 	}
@@ -2288,8 +2298,8 @@ smap_dump_rxbd(struct smap_chan *smap)
 	printk("Rx Buffer Descriptor\n");
 	for (i = 0; i < SMAP_BD_MAX_ENTRY; i++, bd++) {
 		printk("%02d: stat(0x%04x),rsv(0x%04x),len(%d,0x%04x),ptr(0x%04x), ",
-					i, bd->ctrl_stat, bd->reserved,
-					bd->length, bd->length, bd->pointer);
+					i, INW(&bd->ctrl_stat), INW(&bd->reserved),
+					INW(&bd->length), INW(&bd->length), INW(&bd->pointer));
 		if ((i%2)==1)
 			printk("\n");
 	}
