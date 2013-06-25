@@ -73,10 +73,10 @@
 #define READDMAREG(ch, x)		inl((ch)->base + (x))
 #define WRITEDMAREG(ch, x, value)	outl((value), (ch)->base + (x))
 #define DMABREAK(ch)	\
-    do { unsigned long dummy; \
+    do { \
 	 outl(inl(PS2_D_ENABLER) | (1 << 16), PS2_D_ENABLEW); \
-	 dummy = READDMAREG((ch), PS2_Dn_CHCR); \
-	 dummy = READDMAREG((ch), PS2_Dn_CHCR); \
+	 READDMAREG((ch), PS2_Dn_CHCR); \
+	 READDMAREG((ch), PS2_Dn_CHCR); \
 	 WRITEDMAREG((ch), PS2_Dn_CHCR, CHCR_STOP); \
 	 outl(inl(PS2_D_ENABLER) & ~(1 << 16), PS2_D_ENABLEW); } while (0)
 #define IS_DMA_RUNNING(ch)	((READDMAREG((ch), PS2_Dn_CHCR) & 0x0100) != 0)

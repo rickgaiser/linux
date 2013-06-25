@@ -16,6 +16,7 @@
 #define cpu_has_dsp			1
 #define cpu_has_userlocal		0
 #define cpu_has_64bit_addresses		0
+#define cpu_has_64bit   		1
 #ifdef CONFIG_R5900_128BIT_SUPPORT
 #define cpu_has_64bit_gp_regs		1
 #define cpu_has_64bit_zero_reg		1
