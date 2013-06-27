@@ -461,6 +461,7 @@ static int __devinit smaprpc_probe(struct platform_device *dev)
 
 		return (0);				/* success */
 	}
+	unregister_netdev(net_dev);
 error:
 	printk("Slim PlayStation 2 SMAP(Ethernet) device not found.\n");
 	free_netdev(net_dev);
