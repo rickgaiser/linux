@@ -18,14 +18,14 @@
 #define PS2_GIFREG_P3CNT	9
 #define PS2_GIFREG_P3TAG	10
 //
-#ifdef CONFIG_CPU_R5900
+#ifdef _MIPS_ARCH_R5900
 #define PS2_GIFTAG_CLEAR_TAG(p)	\
 	__asm__ __volatile__ ("sq       $0, (%0)" : : "r"(p))
 #else
 #define PS2_GIFTAG_CLEAR_TAG(p)		*(__u128 *)(p) = 0
 #endif
 
-#if _MIPS_SIM == _ABIN32 || _MIPS_SIM == _ABI64
+#if defined( _ABIN32) || defined(_ABI64)
 typedef unsigned int __u128 __attribute__((mode(TI)));
 #endif
 
