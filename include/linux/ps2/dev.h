@@ -147,7 +147,7 @@ struct ps2_dispfb {
 
 struct ps2_pmode {
     int sw;
-    int mmod, amod, slbg;
+    int mmod, amod, slbg; /* TBD: Don't use comma, because of unknown order. */
     int alp;
 };
 

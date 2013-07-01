@@ -32,31 +32,30 @@
 #include <asm/mach-ps2/dma.h>
 #include "ps2dev.h"
 
-/* TBD: Convert module from Linux 2.4 to 2.6 */
-
 struct vm_area_struct *ps2mem_vma_cache = NULL;
 
 static int ps2mem_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
     struct page_list *list, *newlist;
-    unsigned long offset;
     struct page *page;
-    int index;
 
     ps2mem_vma_cache = NULL;
     list = vma->vm_file->private_data;
-    offset = vmf->pgoff;
-    index = offset >> PAGE_SHIFT;
-    if (list->pages <= index) {
+    if (list == NULL) {
+        return VM_FAULT_SIGBUS; /* no memory - SIGBUS */
+    }
+    if (list->pages <= vmf->pgoff) {
 	/* access to unallocated area - extend buffer */
-	if ((newlist = ps2pl_realloc(list, index + 1)) == NULL)
+	if ((newlist = ps2pl_realloc(list, vmf->pgoff + 1)) == NULL)
 	    return VM_FAULT_SIGBUS; /* no memory - SIGBUS */
 	list = vma->vm_file->private_data = newlist;
     }
     /* TBD: Check if this is working. */
-    page = list->page[index];
+    page = list->page[vmf->pgoff];
     get_page(page);	/* increment page count */
     vmf->page = page;
+
+    //printk("ps2mem_fault: pgoff %u Offset 0x%08x Phys 0x%08x virt 0x%08x\n", vmf->pgoff, vmf->pgoff << PAGE_SHIFT, page_to_pfn(page), page_address(page));
     return 0; /* success */
 }
 
@@ -88,9 +87,9 @@ static int ps2mem_mmap(struct file *file, struct vm_area_struct *vma)
 	pgprot_val(vma->vm_page_prot) = (pgprot_val(vma->vm_page_prot) & ~_CACHE_MASK) | _CACHE_UNCACHED;
 
     ps2mem_vma_cache = NULL;
-    if (vma->vm_pgoff & (PAGE_SIZE - 1))
-	return -ENXIO;
-    pages = (vma->vm_end - vma->vm_start + vma->vm_pgoff) >> PAGE_SHIFT;
+
+    pages = (vma->vm_end - vma->vm_start) >> PAGE_SHIFT;
+    pages += vma->vm_pgoff;
     if (file->private_data == NULL) {
 	/* 1st mmap ... allocate buffer */
 	if ((list = ps2pl_alloc(pages)) == NULL)
@@ -105,6 +104,8 @@ static int ps2mem_mmap(struct file *file, struct vm_area_struct *vma)
 	}	
     }
 
+    vma->vm_flags |= VM_CAN_NONLINEAR;
+    vma->vm_flags |= VM_IO;
     vma->vm_ops = &ps2mem_vmops;
     return 0;
 }
@@ -128,8 +129,8 @@ static int ps2mem_ioctl(struct inode *inode, struct file *file,
 
 	/* get a physical address table */
 	for (i = 0; i < list->pages; i++) {
-	    phys = virt_to_bus(page_address(list->page[i]));
-	    if (copy_to_user(dest, &phys, sizeof(unsigned long)) != 0)
+	    phys = page_to_phys(list->page[i]);
+	    if (copy_to_user(dest, &phys, sizeof(phys)) != 0)
 		return -EFAULT;
 	    dest++;
 	}
