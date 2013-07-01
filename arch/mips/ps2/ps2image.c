@@ -47,7 +47,10 @@ struct loadimage_request {
 
 static void loadimage_start(struct dma_request *req, struct dma_channel *ch)
 {
-    struct loadimage_request *lreq = (struct loadimage_request *)req;
+    struct loadimage_request *lreq =
+        container_of(
+            container_of(req, struct dma_dev_request, r),
+            struct loadimage_request, r);
 
     WRITEDMAREG(ch, PS2_Dn_TADR, virt_to_bus(lreq->tag));
     WRITEDMAREG(ch, PS2_Dn_QWC, 0);
@@ -62,7 +65,10 @@ static unsigned long loadimage_stop(struct dma_request *req, struct dma_channel 
 
 static void loadimage_free(struct dma_request *req, struct dma_channel *ch)
 {
-    struct loadimage_request *lreq = (struct loadimage_request *)req;
+    struct loadimage_request *lreq =
+        container_of(
+            container_of(req, struct dma_dev_request, r),
+            struct loadimage_request, r);
 
     if (lreq->mem)
 	ps2pl_free(lreq->mem);
@@ -138,9 +144,15 @@ int ps2gs_loadimage(struct ps2_image *img, struct dma_device *dev, int async)
 	return result;
     }
 
-    if ((lreq = kmalloc(sizeof(struct loadimage_request) +
+    lreq = kmalloc(sizeof(struct loadimage_request) +
 			(6 + ((size >> PAGE_SHIFT) + 3) * 3) * DMA_TRUNIT,
-			GFP_KERNEL)) == NULL) {
+			GFP_KERNEL);
+    if ((lreq != NULL) && ((((unsigned long)&lreq->tag) & (DMA_TRUNIT - 1)) != 0)) {
+        kfree(lreq);
+        lreq = NULL;
+        printk(KERN_ERR "ps2gs_loadimage: lreq->tag is not DMA aligned.\n");
+    }
+    if (lreq == NULL) {
 	if (mem)
 	    ps2pl_free(mem);
 	kfree(tag);
@@ -182,13 +194,15 @@ int ps2gs_loadimage(struct ps2_image *img, struct dma_device *dev, int async)
     *p++ = PS2_GIFTAG_SET_TOPHALF(0, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
     *p++ = 0;
     kfree(tag);
+    dp = NULL;
+    tag = NULL;
 
     if (!async)
 	lreq->done = &done;
 
-    result = ps2dma_check_and_add_queue((struct dma_dev_request *)lreq, 0);
+    result = ps2dma_check_and_add_queue(&lreq->r, 0);
     if (result < 0) {
-        loadimage_free((struct dma_request *)lreq, ch);
+        loadimage_free(&lreq->r.r, ch);
 	return result;
     }
 
@@ -295,14 +309,16 @@ static struct dma_ops storeimage_vif_ops_done =
 
 static void storeimage_gif_start(struct dma_request *req, struct dma_channel *ch)
 {
-    struct storeimage_gif_request *gifreq = (struct storeimage_gif_request *)req;
+    struct storeimage_gif_request *gifreq = container_of(req, struct storeimage_gif_request, r);
+
     DSPRINT("storeimage_gif_start:\n");
     storeimage_start(gifreq->sreq);
 }
 
 static void storeimage_vif_start(struct dma_request *req, struct dma_channel *ch)
 {
-    struct storeimage_request *sreq = (struct storeimage_request *)req;
+    struct storeimage_request *sreq = container_of(req, struct storeimage_request, r);
+
     DSPRINT("storeimage_vif_start:\n");
     storeimage_start(sreq);
 }
@@ -334,7 +350,8 @@ int ps2gs_storeimage_finish(void)
 
 static int storeimage_vif_isdone(struct dma_request *req, struct dma_channel *ch)
 {
-    struct storeimage_request *sreq = (struct storeimage_request *)req;
+    struct storeimage_request *sreq = container_of(req, struct storeimage_request, r);
+
     DSPRINT("storeimage_vif_isdone:\n");
     sreq->r.ops = &storeimage_vif_ops_dma;
     storeimage_vif_firstpio(sreq);
@@ -359,12 +376,12 @@ static void storeimage_vif_firstpio(struct storeimage_request *sreq)
     }
 
     sreq->vifch->tagp = sreq->tag;
-    storeimage_vif_nextdma((struct dma_request *)sreq, sreq->vifch);
+    storeimage_vif_nextdma(&sreq->r, sreq->vifch);
 }
 
 static int storeimage_vif_nextdma(struct dma_request *req, struct dma_channel *ch)
 {
-    struct storeimage_request *sreq = (struct storeimage_request *)req;
+    struct storeimage_request *sreq = container_of(req, struct storeimage_request, r);
 
     del_timer(&sreq->timer);
     DSPRINT("storeimage_vif_nextdma: %08X\n", ch->tagp);
@@ -434,7 +451,7 @@ static void storeimage_timer_handler(unsigned long ptr)
 
 static void storeimage_vif_free(struct dma_request *req, struct dma_channel *ch)
 {
-    struct storeimage_request *sreq = (struct storeimage_request *)req;
+    struct storeimage_request *sreq = container_of(req, struct storeimage_request, r);
 
     DSPRINT("storeimage_vif_free:\n");
     if (sreq->mem)
@@ -598,9 +615,14 @@ int ps2gs_storeimage(struct ps2_image *img, struct dma_device *dev)
     DSPRINT("hlen=%d hdummy=%d dlen=%d tlen=%d tdummy=%d\n", hlen, hdummy, dlen, tlen, tdummy);
     DSPRINT("%d x %d\n", img->w, img->h);
 
-    if ((sreq = kmalloc(sizeof(struct storeimage_request) +
-			((size >> PAGE_SHIFT) + 3) * DMA_TRUNIT,
-			GFP_KERNEL)) == NULL) {
+    sreq = kmalloc(sizeof(struct storeimage_request) +
+			((size >> PAGE_SHIFT) + 3) * DMA_TRUNIT, GFP_KERNEL);
+    if ((sreq != NULL) && ((((unsigned long)&sreq->tag) & (DMA_TRUNIT - 1)) != 0)) {
+        kfree(sreq);
+        sreq = NULL;
+        printk(KERN_ERR "ps2gs_storeimage: sreq->tag is not DMA aligned.\n");
+    }
+    if (sreq == NULL) {
 	if (recv_mem)
 	    ps2pl_free(recv_mem);
 	kfree(tag);
@@ -633,6 +655,8 @@ int ps2gs_storeimage(struct ps2_image *img, struct dma_device *dev)
     tp->qwc = 0;		/* end of the tags */
     tp++;
     kfree(tag);
+    tag = NULL;
+    dp = NULL;
 
     init_dma_request(&gifreq.r, &storeimage_gif_ops);
     gifreq.sreq = sreq;
@@ -671,8 +695,8 @@ int ps2gs_storeimage(struct ps2_image *img, struct dma_device *dev)
     *p++ = 1;
     *p++ = PS2_GS_TRXDIR;
 
-    ps2dma_add_queue((struct dma_request *)&gifreq, gifch, 1);
-    ps2dma_add_queue((struct dma_request *)sreq, vifch, 1);
+    ps2dma_add_queue(&gifreq.r, gifch, 1);
+    ps2dma_add_queue(&sreq->r, vifch, 1);
     DSPRINT("storeimage: sleep_on\n");
     wait_for_completion(&sreq->c);
     DSPRINT("storeimage: sleep_on end\n");

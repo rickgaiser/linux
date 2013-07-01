@@ -663,10 +663,11 @@ static int ps2vpu_mmap(struct file *file, struct vm_area_struct *vma)
     int vusw = (int)dev->data;
     unsigned long start, offset, len, mlen;
 
-    if (vma->vm_pgoff & (PAGE_SIZE - 1))
-	return -ENXIO;
+    if (vma->vm_pgoff > (~0UL >> PAGE_SHIFT))
+        return -EINVAL;
+
     start = vma->vm_start;
-    offset = vma->vm_pgoff;
+    offset = vma->vm_pgoff << PAGE_SHIFT;
     len = vma->vm_end - vma->vm_start;
     if (offset + len > vumap[vusw].ulen + vumap[vusw].vulen)
 	return -EINVAL;
@@ -850,10 +851,11 @@ static int ps2ipu_mmap(struct file *file, struct vm_area_struct *vma)
 {
     unsigned long start, offset, len;
 
-    if (vma->vm_pgoff & (PAGE_SIZE - 1))
-	return -ENXIO;
+    if (vma->vm_pgoff >= 2)
+        return -EINVAL;
+
     start = vma->vm_start;
-    offset = vma->vm_pgoff;
+    offset = vma->vm_pgoff << PAGE_SHIFT;
     len = vma->vm_end - vma->vm_start;
     if (offset + len > PAGE_SIZE * 2)
 	return -EINVAL;
@@ -867,16 +869,16 @@ static int ps2ipu_mmap(struct file *file, struct vm_area_struct *vma)
 
     /* map IPU registers */
     if (offset < PAGE_SIZE) {
-	/* TBD: Test remap_pfn_range() */
-	if (remap_pfn_range(vma, start, 0x10002000, PAGE_SIZE, vma->vm_page_prot))
+	if (io_remap_pfn_range(vma, vma->vm_start, 0x10002000 >> PAGE_SHIFT,
+			     PAGE_SIZE, vma->vm_page_prot))
 	    return -EAGAIN;
 	start += PAGE_SIZE;
 	len -= PAGE_SIZE;
     }
     /* map IPU FIFO */
     if (len > 0) {
-	/* TBD: Test remap_pfn_range() */
-	if (remap_pfn_range(vma, start, 0x10007000, PAGE_SIZE, vma->vm_page_prot))
+	if (io_remap_pfn_range(vma, vma->vm_start, 0x10007000 >> PAGE_SHIFT,
+			     PAGE_SIZE, vma->vm_page_prot))
 	    return -EAGAIN;
     }
 
@@ -958,8 +960,7 @@ static int ps2spr_mmap(struct file *file, struct vm_area_struct *vma)
 #endif
     vma->vm_flags |= VM_IO;
 
-    /* TBD: Test remap_pfn_range() */
-    if (remap_pfn_range(vma, vma->vm_start, 0x80000000, SPR_SIZE, vma->vm_page_prot))
+    if (io_remap_pfn_range(vma, vma->vm_start, 0x80000000 >> PAGE_SHIFT, SPR_SIZE, vma->vm_page_prot))
 	return -EAGAIN;
     vma->vm_ops = &ps2dev_vmops;
     return 0;

@@ -30,6 +30,7 @@
 #include <asm/pgtable.h>
 #include <asm/irq.h>
 #include <asm/mach-ps2/irq.h>
+#include <asm/page.h>
 
 #include <linux/ps2/dev.h>
 #include <asm/mach-ps2/dma.h>
@@ -46,12 +47,15 @@ struct page_list *ps2pl_alloc(int pages)
     int i;
     struct page_list *list;
 
-    if ((list = kmalloc(sizeof(struct page_list) + pages * sizeof(unsigned long), GFP_KERNEL)) == NULL)
+    list = kmalloc(sizeof(*list) +
+        ((unsigned long) &list->page[pages]) - ((unsigned long) &list->page[0]), GFP_KERNEL);
+    if (list == NULL)
 	return NULL;
     list->pages = pages;
 
     for (i = 0; i < list->pages; i++) {
-	if (!(list->page[i] = alloc_page(GFP_KERNEL))) {
+	list->page[i] = alloc_page(GFP_KERNEL);
+	if (list->page[i] == NULL) {
 	    /* out of memory */
 	    while (--i >= 0)
 		put_page(list->page[i]);
@@ -70,13 +74,17 @@ struct page_list *ps2pl_realloc(struct page_list *list, int newpages)
 
     if (list->pages >= newpages)
 	return list;
-    if ((newlist = kmalloc(sizeof(struct page_list) + newpages * sizeof(unsigned long), GFP_KERNEL)) == NULL)
+    newlist = kmalloc(sizeof(*newlist) +
+        ((unsigned long) &list->page[list->pages]) - ((unsigned long) &list->page[0]), GFP_KERNEL);
+    if (newlist == NULL)
 	return NULL;
 
-    memcpy(newlist->page, list->page, list->pages * sizeof(unsigned long));
+    memcpy(&newlist->page[0], &list->page[0],
+        ((unsigned long) &list->page[list->pages]) - ((unsigned long) &list->page[0]));
     newlist->pages = newpages;
     for (i = list->pages; i < newpages; i++) {
-	if (!(newlist->page[i] = alloc_page(GFP_KERNEL))) {
+	newlist->page[i] = alloc_page(GFP_KERNEL);
+	if (newlist->page[i] == NULL) {
 	    /* out of memory */
 	    while (--i >= list->pages)
 		put_page(newlist->page[i]);
@@ -174,8 +182,13 @@ static int ps2dma_make_tag_mem(unsigned long offset, int len, struct dma_tag **t
     end = offset + len;
     sindex = offset >> PAGE_SHIFT;
     eindex = (end - 1) >> PAGE_SHIFT;
-    if ((tag = kmalloc(sizeof(struct dma_tag) * (eindex - sindex + 2), GFP_KERNEL)) == NULL)
+    tag = kmalloc(sizeof(struct dma_tag) * (eindex - sindex + 2), GFP_KERNEL);
+    if (tag == NULL)
 	return -ENOMEM;
+    if ((((unsigned long)tag) & (DMA_TRUNIT - 1)) != 0)  {
+	printk(KERN_ERR "ps2dma_make_tag_mem: tag is not DMA aligned.\n");
+	return -ENOMEM;
+    }
     *tagp = tag;
 
     while (sindex <= eindex) {
@@ -234,7 +247,7 @@ int ps2dma_make_tag(unsigned long start, int len, struct dma_tag **tagp, struct 
 	ps2mem_vma_cache->vm_end > start + len) {
 	/* hit vma cache */
 	vma = ps2mem_vma_cache;
-	offset = start - vma->vm_start + vma->vm_pgoff;
+	offset = start - vma->vm_start + (vma->vm_pgoff << PAGE_SHIFT);
 	return ps2dma_make_tag_mem(offset, len, tagp, lastp, (struct page_list *)vma->vm_file->private_data);
     }
     if ((vma = find_vma(current->mm, start)) == NULL)
@@ -248,14 +261,14 @@ int ps2dma_make_tag(unsigned long start, int len, struct dma_tag **tagp, struct 
 	if (vma->vm_file->f_op == &ps2spr_fops) {
 	    if (start + len > vma->vm_end)
 		return -EINVAL;			/* illegal address range */
-	    offset = start - vma->vm_start + vma->vm_pgoff;
+	    offset = start - vma->vm_start + (vma->vm_pgoff << PAGE_SHIFT);
 	    return ps2dma_make_tag_spr(offset, len, tagp, lastp);
 	}
 	if (vma->vm_file->f_op == &ps2mem_fops) {
 	    ps2mem_vma_cache = vma;
 	    if (start + len > vma->vm_end)
 		return -EINVAL;			/* illegal address range */
-	    offset = start - vma->vm_start + vma->vm_pgoff;
+	    offset = start - vma->vm_start + (vma->vm_pgoff << PAGE_SHIFT);
 	    return ps2dma_make_tag_mem(offset, len, tagp, lastp, (struct page_list *)vma->vm_file->private_data);
 	}
     }
@@ -266,7 +279,7 @@ int ps2dma_make_tag(unsigned long start, int len, struct dma_tag **tagp, struct 
 
 void ps2dma_dev_end(struct dma_request *req, struct dma_channel *ch)
 {
-    struct dma_dev_request *dreq = (struct dma_dev_request *)req;
+    struct dma_dev_request *dreq = container_of(req, struct dma_dev_request, r);
     unsigned long flags;
     struct dma_devch *devch = dreq->devch;
     struct dma_device *dev = dreq->devch->device;
@@ -296,7 +309,7 @@ void ps2dma_dev_end(struct dma_request *req, struct dma_channel *ch)
 
 static void dma_send_start(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_request *ureq = (struct udma_request *)req;
+    struct udma_request *ureq = container_of(container_of(req, struct dma_dev_request, r), struct udma_request, r);
 
     DPRINT("dma_send_start: %08X %08X\n", ureq->tag->addr, ureq->tag->qwc);
     WRITEDMAREG(ch, PS2_Dn_TADR, virt_to_bus(ureq->tag));
@@ -306,7 +319,7 @@ static void dma_send_start(struct dma_request *req, struct dma_channel *ch)
 
 static void dma_send_spr_start(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_request *ureq = (struct udma_request *)req;
+    struct udma_request *ureq = container_of(container_of(req, struct dma_dev_request, r), struct udma_request, r);
 
     DPRINT("dma_send_spr_start: %08X %08X %08X\n", ureq->tag->addr, ureq->tag->qwc, ureq->saddr);
     WRITEDMAREG(ch, PS2_Dn_SADR, ureq->saddr);
@@ -317,7 +330,7 @@ static void dma_send_spr_start(struct dma_request *req, struct dma_channel *ch)
 
 static unsigned long dma_stop(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_request *ureq = (struct udma_request *)req;
+    struct udma_request *ureq = container_of(container_of(req, struct dma_dev_request, r), struct udma_request, r);
     unsigned long vaddr = ureq->vaddr;
     struct dma_tag *tag = ureq->tag;
     unsigned long eaddr;
@@ -354,7 +367,7 @@ static unsigned long dma_stop(struct dma_request *req, struct dma_channel *ch)
 
 static void dma_free(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_request *ureq = (struct udma_request *)req;
+    struct udma_request *ureq = container_of(container_of(req, struct dma_dev_request, r), struct udma_request, r);
 
     DPRINT("dma_free %08X\n", ureq->mem);
     if (ureq->mem)
@@ -376,7 +389,7 @@ static struct dma_ops dma_send_spr_ops =
 
 static void dma_send_chain_start(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_chain_request *ucreq = (struct udma_chain_request *)req;
+    struct udma_chain_request *ucreq = container_of(container_of(req, struct dma_dev_request, r), struct udma_chain_request, r);
 
     DPRINT("dma_send_chain_start: %08X %d\n", ucreq->taddr, ucreq->tte);
     WRITEDMAREG(ch, PS2_Dn_TADR, ucreq->taddr);
@@ -392,7 +405,7 @@ static unsigned long dma_send_chain_stop(struct dma_request *req, struct dma_cha
 
 static void dma_send_chain_free(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_chain_request *ucreq = (struct udma_chain_request *)req;
+    struct udma_chain_request *ucreq = container_of(container_of(req, struct dma_dev_request, r), struct udma_chain_request, r);
 
     DPRINT("dma_send_chain_free\n");
     kfree(ucreq);
@@ -407,7 +420,7 @@ static struct dma_ops dma_send_chain_ops =
 
 static void dma_recv_start(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_request *ureq = (struct udma_request *)req;
+    struct udma_request *ureq = container_of(container_of(req, struct dma_dev_request, r), struct udma_request, r);
 
     ch->tagp = ureq->tag;
     DPRINT("dma_recv_start: %08X %08X\n", ch->tagp->addr, ch->tagp->qwc);
@@ -419,7 +432,7 @@ static void dma_recv_start(struct dma_request *req, struct dma_channel *ch)
 
 static void dma_recv_spr_start(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_request *ureq = (struct udma_request *)req;
+    struct udma_request *ureq = container_of(container_of(req, struct dma_dev_request, r), struct udma_request, r);
 
     ch->tagp = ureq->tag;
     DPRINT("dma_recv_spr_start: %08X %08X %08X\n", ch->tagp->addr, ch->tagp->qwc, ureq->saddr);
@@ -454,7 +467,7 @@ static struct dma_ops dma_recv_spr_ops =
 
 static void dma_sendl_start(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_sendl_request *usreq = (struct udma_sendl_request *)req;
+    struct udma_sendl_request *usreq = container_of(container_of(req, struct dma_dev_request, r), struct udma_sendl_request, r);
 
     DPRINT("dma_sendl_start: %08X\n", usreq->tag);
 
@@ -465,7 +478,7 @@ static void dma_sendl_start(struct dma_request *req, struct dma_channel *ch)
 
 static void dma_sendl_spr_start(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_sendl_request *usreq = (struct udma_sendl_request *)req;
+    struct udma_sendl_request *usreq = container_of(container_of(req, struct dma_dev_request, r), struct udma_sendl_request, r);
 
     DPRINT("dma_sendl_spr_start: %08X %08X\n", usreq->tag, usreq->saddr);
 
@@ -483,7 +496,7 @@ static unsigned long dma_sendl_stop(struct dma_request *req, struct dma_channel 
 
 static void dma_sendl_free(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_sendl_request *usreq = (struct udma_sendl_request *)req;
+    struct udma_sendl_request *usreq = container_of(container_of(req, struct dma_dev_request, r), struct udma_sendl_request, r);
     void *p, *q;
 
     DPRINT("dma_sendl_free\n");
@@ -505,7 +518,7 @@ static void dma_sendl_free(struct dma_request *req, struct dma_channel *ch)
 static struct dma_ops dma_sendl_ops =
 { dma_sendl_start, NULL, dma_sendl_stop, ps2dma_dev_end };
 static struct dma_ops dma_sendl_spr_ops =
-{ dma_sendl_spr_start, NULL, dma_sendl_stop, ps2dma_dev_end };
+{ dma_sendl_spr_start, NULL, dma_sendl_stop, ps2dma_dev_end }; // TBD: Fix handling of SPR?
 
 /*
  * DMA operations for receive request list
@@ -513,7 +526,7 @@ static struct dma_ops dma_sendl_spr_ops =
 
 static void dma_list_start(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_request_list *ureql = (struct udma_request_list *)req;
+    struct udma_request_list *ureql = container_of(container_of(req, struct dma_dev_request, r), struct udma_request_list, r);
 
     ureql->index = 0;
     ureql->ureq[ureql->index]->r.r.ops->start((struct dma_request *)ureql->ureq[ureql->index], ch);
@@ -521,7 +534,7 @@ static void dma_list_start(struct dma_request *req, struct dma_channel *ch)
 
 static int dma_list_isdone(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_request_list *ureql = (struct udma_request_list *)req;
+    struct udma_request_list *ureql = container_of(container_of(req, struct dma_dev_request, r), struct udma_request_list, r);
     struct udma_request *ureq = ureql->ureq[ureql->index];
 
     if (ureq->r.r.ops->isdone)
@@ -529,7 +542,7 @@ static int dma_list_isdone(struct dma_request *req, struct dma_channel *ch)
 	    return 0;		/* not finished */
 
     if (++ureql->index < ureql->reqs) {
-	ureql->ureq[ureql->index]->r.r.ops->start((struct dma_request *)ureql->ureq[ureql->index], ch);
+	ureql->ureq[ureql->index]->r.r.ops->start(&ureql->ureq[ureql->index]->r.r, ch);
 	return 0;		/* not finished */
     }
     return 1;			/* finished */
@@ -537,19 +550,19 @@ static int dma_list_isdone(struct dma_request *req, struct dma_channel *ch)
 
 static unsigned long dma_list_stop(struct dma_request *req, struct dma_channel *ch)
 {
-    struct udma_request_list *ureql = (struct udma_request_list *)req;
+    struct udma_request_list *ureql = container_of(container_of(req, struct dma_dev_request, r), struct udma_request_list, r);
     struct udma_request *ureq = ureql->ureq[ureql->index];
 
-    return ureq->r.r.ops->stop((struct dma_request *)ureq, ch);
+    return ureq->r.r.ops->stop(&ureq->r.r, ch);
 }
 
 static void dma_list_free(struct dma_request *req, struct dma_channel *ch)
 {
+    struct udma_request_list *ureql = container_of(container_of(req, struct dma_dev_request, r), struct udma_request_list, r);
     int i;
-    struct udma_request_list *ureql = (struct udma_request_list *)req;
 
     for (i = 0; i < ureql->reqs; i++)
-	ureql->ureq[i]->r.free((struct dma_request *)ureql->ureq[i], ch);
+	ureql->ureq[i]->r.free(&ureql->ureq[i]->r.r, ch);
     kfree(ureql);
 }
 
@@ -632,7 +645,7 @@ int ps2dma_write(struct dma_device *dev, struct ps2_packet *pkt, int nonblock)
 	kfree(ureq);
 	return result;
     }
-    result = ps2dma_check_and_add_queue((struct dma_dev_request *)ureq, nonblock);
+    result = ps2dma_check_and_add_queue(&ureq->r, nonblock);
     if (result < 0) {
 	ps2pl_free(ureq->mem);
 	kfree(ureq->tag);
@@ -698,7 +711,7 @@ static int make_send_request(struct udma_request **ureqp,
 
 int ps2dma_send(struct dma_device *dev, struct ps2_packet *pkt, int async)
 {
-    struct udma_request *ureq;
+    struct udma_request *ureq = NULL;
     struct dma_devch *devch = &dev->devch[DMA_SENDCH];
     struct dma_channel *ch = devch->channel;
     volatile int done = 0;
@@ -711,9 +724,9 @@ int ps2dma_send(struct dma_device *dev, struct ps2_packet *pkt, int async)
     if (!async)
 	ureq->done = &done;
 
-    result = ps2dma_check_and_add_queue((struct dma_dev_request *)ureq, 0);
+    result = ps2dma_check_and_add_queue(&ureq->r, 0);
     if (result < 0) {
-	dma_free((struct dma_request *)ureq, ch);
+	dma_free(&ureq->r.r, ch);
 	return result;
     }
 
@@ -783,7 +796,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 	/* alignment check */
 	if ((start & (DMA_TRUNIT - 1)) != 0 ||
 	    (len & (DMA_TRUNIT - 1)) != 0 || len <= 0) {
-	    dma_sendl_free((struct dma_request *)usreq, ch);
+	    dma_sendl_free(&usreq->r.r, ch);
 	    return -EINVAL;
 	}
 
@@ -794,13 +807,13 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 	    /* vma cache miss - get buffer type */
 	    ps2mem_vma_cache = NULL;
 	    if ((vma = find_vma(current->mm, start)) == NULL) {
-		dma_sendl_free((struct dma_request *)usreq, ch);
+		dma_sendl_free(&usreq->r.r, ch);
 		return -EINVAL;
 	    }
 	    if (vma->vm_file != NULL) {
 		if (vma->vm_file->f_op == &ps2mem_fops) {
 		    if (start + len >= vma->vm_end) {
-			dma_sendl_free((struct dma_request *)usreq, ch);
+			dma_sendl_free(&usreq->r.r, ch);
 			return -EINVAL;		/* illegal address range */
 		    }
 		    ps2mem_vma_cache = vma;
@@ -814,7 +827,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 	    unsigned long vaddr, next, end;
 
 	    vma = ps2mem_vma_cache;
-	    offset = start - vma->vm_start + vma->vm_pgoff;
+	    offset = start - vma->vm_start + (vma->vm_pgoff << PAGE_SHIFT);
 	    mem = (struct page_list *)vma->vm_file->private_data;
 	    end = offset + len;
 	    sindex = offset >> PAGE_SHIFT;
@@ -857,7 +870,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 		void *nextmem;
 		
 		if ((nextmem = (void *)get_zeroed_page(GFP_KERNEL)) == NULL) { // TBD: check page reference counter
-		    dma_sendl_free((struct dma_request *)usreq, ch);
+		    dma_sendl_free(&usreq->r.r, ch);
 		    return -ENOMEM;
 		}
 		if (usreq->mem_head != NULL)
@@ -870,7 +883,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 
 		DPRINT(" copy_from_user: %08X <- %08X %08X\n", nextmem, start, size);
 		if (copy_from_user(nextmem, (void *)start, size)) {
-		    dma_sendl_free((struct dma_request *)usreq, ch);
+		    dma_sendl_free(&usreq->r.r, ch);
 		    return -EFAULT;
 		}
 		tag->id = DMATAG_REF;
@@ -885,7 +898,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 		    struct dma_tag *nexthead, *nexttag;
 
 		    if ((nexthead = (struct dma_tag *)get_zeroed_page(GFP_KERNEL)) == NULL) { // TBD: check page reference counter
-			dma_sendl_free((struct dma_request *)usreq, ch);
+			dma_sendl_free(&usreq->r.r, ch);
 			return -ENOMEM;
 		    }
 		    DPRINT(" alloc tag %08X\n", nexthead);
@@ -908,9 +921,9 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
     tag->qwc = 0;
     DPRINT(" tag finish %08X\n", tag);
 
-    result = ps2dma_check_and_add_queue((struct dma_dev_request *)usreq, 0);
+    result = ps2dma_check_and_add_queue(&usreq->r, 0);
     if (result < 0) {
-	dma_sendl_free((struct dma_request *)usreq, ch);
+	dma_sendl_free(&usreq->r.r, ch);
 	return result;
     }
     return 0;
@@ -944,12 +957,12 @@ int ps2dma_send_chain(struct dma_device *dev, struct ps2_pchain *pchain)
     init_dma_dev_request(&ucreq->r, &dma_send_chain_ops, devch, 0, dma_send_chain_free);
     ucreq->tte = pchain->tte;
 
-    offset = taddr - vma->vm_start + vma->vm_pgoff;
+    offset = taddr - vma->vm_start + (vma->vm_pgoff << PAGE_SHIFT);
     ucreq->taddr = virt_to_bus((void *)(page_address(mem->page[offset >> PAGE_SHIFT]) + (offset & ~PAGE_MASK)));
 
-    result = ps2dma_check_and_add_queue((struct dma_dev_request *)ucreq, 0);
+    result = ps2dma_check_and_add_queue(&ucreq->r, 0);
     if (result < 0) {
-	dma_send_chain_free((struct dma_request *)ucreq, ch);
+	dma_send_chain_free(&ucreq->r.r, ch);
 	return result;
     }
     return result;
@@ -1027,9 +1040,9 @@ int ps2dma_recv(struct dma_device *dev, struct ps2_packet *pkt, int async)
     if (!async)
 	ureq->done = &done;
 
-    result = ps2dma_check_and_add_queue((struct dma_dev_request *)ureq, 0);
+    result = ps2dma_check_and_add_queue(&ureq->r, 0);
     if (result < 0) {
-	dma_free((struct dma_request *)ureq, ch);
+	dma_free(&ureq->r.r, ch);
 	return result;
     }
 
@@ -1085,15 +1098,15 @@ int ps2dma_recv_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
     for (i = 0; i < num; i++) {
 	if ((result = make_recv_request(&ureql->ureq[i], dev, ch, &pkts[i], NULL, 1))) {
 	    while (--i >= 0)
-		dma_free((struct dma_request *)ureql->ureq[i], ch);
+		dma_free(&ureql->ureq[i]->r.r, ch);
 	    kfree(ureql);
 	    return result;
 	}
     }
 
-    result = ps2dma_check_and_add_queue((struct dma_dev_request *)ureql, 0);
+    result = ps2dma_check_and_add_queue(&ureql->r, 0);
     if (result < 0) {
-	dma_list_free((struct dma_request *)ureql, ch);
+	dma_list_free(&ureql->r.r, ch);
 	return result;
     }
     return 0;
@@ -1119,21 +1132,24 @@ int ps2dma_stop(struct dma_device *dev, int dir, struct ps2_pstop *pstop)
     reqp = &ch->tail;
     hreq = NULL;
     while (*reqp != NULL) {
+    	struct dma_dev_request *dreq = container_of(*reqp, struct dma_dev_request, r);
 	if ((*reqp)->ops->free == ps2dma_dev_end &&
-	    ((struct dma_dev_request *)*reqp)->devch->device == dev) {
+	    dreq->devch->device == dev) {
 	    if (!stop && reqp == &ch->tail) {
 		/* the request is processing now - stop DMA */
 		if ((pstop->ptr = (void *)(*reqp)->ops->stop(*reqp, ch)))
 		    stop = 1;
 	    } else {
 		if (pstop->ptr == NULL &&
-		    (*reqp)->ops->stop == dma_stop)
-		    pstop->ptr = (void *)((struct udma_request *)(*reqp))->vaddr;
+		    (*reqp)->ops->stop == dma_stop) {
+		    struct udma_request *ureq = container_of(dreq, struct udma_request, r);
+		    pstop->ptr = (void *)ureq->vaddr;
+		}
 	    }
 	    pstop->qct++;
 
 	    next = (*reqp)->next;
-	    ((struct dma_dev_request *)*reqp)->free(*reqp, ch);
+	    dreq->free(*reqp, ch);
 	    *reqp = next;
 	} else {
 	    hreq = *reqp;
