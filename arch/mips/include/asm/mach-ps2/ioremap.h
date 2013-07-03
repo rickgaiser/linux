@@ -24,8 +24,6 @@ static inline phys_t fixup_bigphys_addr(phys_t phys_addr, phys_t size)
 static inline void __iomem *plat_ioremap(phys_t offset, unsigned long size,
 	unsigned long flags)
 {
-	register unsigned long ra __asm__("$31");
-
 	if ((offset >= PS2_IOP_HEAP_BASE) && (offset < CKSEG2)) {
 		/* Memory is already mapped. */
 		if (flags & _CACHE_UNCACHED) {
@@ -44,9 +42,8 @@ static inline void __iomem *plat_ioremap(phys_t offset, unsigned long size,
 			return (void __iomem *)
 				(unsigned long)CKSEG0ADDR(offset);
 		}
-	} else {
-		printk(KERN_ERR "plat_ioremap: Accesses to hardware at 0x%08lx may lead to bus errors (Called from 0x%08lx).\n", offset, ra);
 	}
+	/* Memory will be page mapped by kernel. */
 	return NULL;
 }
 
