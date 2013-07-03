@@ -22,7 +22,11 @@
 #define PACK64(x, y)	((u64)(x) | ((u64)(y) << 32))
 
 #define GSFB_SIZE		(4 * 1024 * 1024)
+#if 0 /* TBD: Find a way to get SPR mapped without EntryLo1 */
 #define SPR_SIZE		16384
+#else
+#define SPR_SIZE		((PAGE_SIZE <= 16384) ? PAGE_SIZE : 16384)
+#endif
 
 /* register defines */
 
