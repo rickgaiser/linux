@@ -12,7 +12,6 @@
  *  $Id$
  */
 
-/* TBD: Unfinished state. Rework code. */
 
 #include <linux/module.h>
 #include <linux/mm.h>
@@ -33,6 +32,7 @@
 #include <asm/pgtable.h>
 #include <asm/mipsregs.h>
 #include <asm/processor.h>
+#include <asm/cop2.h>
 
 #include <linux/ps2/dev.h>
 #include <linux/ps2/gs.h>
@@ -54,6 +54,8 @@
 #define PS2SPR_FUNC	5
 
 #define BINUTILS_R5900_SUPPORT /* TBD: Add support for R5900 instructions to binutils. */
+
+#define SPR_PHYS_ADDR (0x80000000ULL << 6)
 
 static struct class *ps2dev_class;
 static int ps2dev_major = PS2DEV_MAJOR;
@@ -595,15 +597,10 @@ static void ps2vpu1_reset(void)
 
 static void set_cop2_usable(int onoff)
 {
-    /* get status register of the current process from caller stack frame */
-    struct pt_regs *regs = current_thread_info()->regs;
-    unsigned long *status = &regs->cp0_status; // TBD: regs is not a valid pointer here.
-
-    /* set/clear COP2 (VU0) usable bit */
     if (onoff)
-	*status |= ST0_CU2;
+        KSTK_STATUS(current) |= ST0_CU2;
     else
-	*status &= ~ST0_CU2;
+        KSTK_STATUS(current) &= ~ST0_CU2;
 }
 
 static int ps2vpu_open_count[2];	/* only one process can open */
@@ -612,9 +609,6 @@ static int ps2vpu_open(struct inode *inode, struct file *file)
 {
     struct dma_device *dev;
     int vusw = MINOR_UNIT(inode->i_rdev);
-
-    printk(KERN_ERR "PS2 VPU driver is unstable.\n");
-    return -ENODEV; // TBD: Open leads to crash, therefore device is disabled.
 
     if (vusw < 0 || vusw > 1)
 	return -ENODEV;
@@ -684,8 +678,7 @@ static int ps2vpu_mmap(struct file *file, struct vm_area_struct *vma)
 	mlen = vumap[vusw].ulen - offset;
 	if (mlen > len)
 	    mlen = len;
-	/* TBD: Test remap_pfn_range() */
-	if (remap_pfn_range(vma, start, vumap[vusw].ubase + offset, mlen,
+	if (io_remap_pfn_range(vma, start, (vumap[vusw].ubase + offset) >> PAGE_SHIFT, mlen,
 			     vma->vm_page_prot))
 	    return -EAGAIN;
 	start += mlen;
@@ -696,8 +689,7 @@ static int ps2vpu_mmap(struct file *file, struct vm_area_struct *vma)
     /* map VU Mem */
     if (len > 0) {
 	offset -= vumap[vusw].ulen;
-	/* TBD: Test remap_pfn_range() */
-	if (remap_pfn_range(vma, start, vumap[vusw].vubase + offset, len, 
+	if (io_remap_pfn_range(vma, start, (vumap[vusw].vubase + offset) >> PAGE_SHIFT, len, 
 			     vma->vm_page_prot))
 	    return -EAGAIN;
     }
@@ -916,7 +908,6 @@ static int ps2spr_open(struct inode *inode, struct file *file)
     struct dma_device *dev;
 
     printk(KERN_ERR "PS2 SPR driver is unstable.\n");
-    return -ENODEV; // TBD: Open leads to crash, therefore device is disabled.
 
     if (ps2spr_open_count)
 	return -EBUSY;
@@ -941,8 +932,8 @@ static int ps2spr_release(struct inode *inode, struct file *file)
     return 0;
 }
 
-#define SPR_MASK		(~(SPR_SIZE - 1))
-#define SPR_ALIGN(addr)		(((addr) + SPR_SIZE - 1) & SPR_MASK)
+#define SPR_MASK		(~(PAGE_SIZE - 1))
+#define SPR_ALIGN(addr)		((typeof(addr))((((unsigned long) (addr)) + SPR_SIZE - 1) & SPR_MASK))
 
 static int ps2spr_mmap(struct file *file, struct vm_area_struct *vma)
 {
@@ -950,6 +941,8 @@ static int ps2spr_mmap(struct file *file, struct vm_area_struct *vma)
 	return -ENXIO;
     if (vma->vm_end - vma->vm_start != SPR_SIZE)
 	return -EINVAL;
+
+    /* The virtual address must be an even virtual address. */
     if (vma->vm_start != SPR_ALIGN(vma->vm_start))
 	return -EINVAL;
 
@@ -960,8 +953,9 @@ static int ps2spr_mmap(struct file *file, struct vm_area_struct *vma)
 #endif
     vma->vm_flags |= VM_IO;
 
-    if (io_remap_pfn_range(vma, vma->vm_start, 0x80000000 >> PAGE_SHIFT, SPR_SIZE, vma->vm_page_prot))
+    if (io_remap_pfn_range(vma, vma->vm_start, SPR_PHYS_ADDR >> PAGE_SHIFT, SPR_SIZE, vma->vm_page_prot))
 	return -EAGAIN;
+
     vma->vm_ops = &ps2dev_vmops;
     return 0;
 }
@@ -1119,6 +1113,37 @@ static int ps2_dev_add_devices(void)
 
 }
 
+static int vpu_usage(struct notifier_block *nfb, unsigned long action,
+	void *data)
+{
+	switch (action) {
+	case CU2_EXCEPTION:
+                printk("error: CU2_EXCEPTION at 0x%08lx (VPU not enabled?).\n", KSTK_EIP(current));
+                break;
+
+        case CU2_LWC2_OP:
+                printk("error: CU2_LWC2_OP at 0x%08lx\n", KSTK_EIP(current));
+                break;
+
+        case CU2_LDC2_OP:
+                printk("error: CU2_LDC2_OP at 0x%08lx\n", KSTK_EIP(current));
+                break;
+
+        case CU2_SWC2_OP:
+                printk("error: CU2_SWC2_OP at 0x%08lx\n", KSTK_EIP(current));
+                break;
+
+        case CU2_SDC2_OP:
+                printk("error: CU2_SDC2_OP at 0x%08lx\n", KSTK_EIP(current));
+                break;
+	}
+
+	return NOTIFY_OK;		/* Let default notifier send signals */
+}
+
+static struct notifier_block vpu_notifier = {
+	.notifier_call = vpu_usage,
+};
 
 int __init ps2dev_init(void)
 {
@@ -1167,12 +1192,19 @@ int __init ps2dev_init(void)
     ps2gs_get_gssreg(PS2_GSSREG_CSR, &gs_revision);
 
     /* map scratchpad RAM */
-    /* TBD: Check if mapping works. Scatchpad has extra bits in TLB? */
-    ps2spr_vaddr = ioremap_nocache(0x80000000, SPR_SIZE);
+    do {
+            ps2spr_vaddr = ioremap_nocache(SPR_PHYS_ADDR, SPR_SIZE);
+            if (ps2spr_vaddr != SPR_ALIGN(ps2spr_vaddr)) {
+                    printk("ps2dev_init: Scratchpad (SPR) was mapped to a bad virtual address, retrying...\n");
+            }
+    } while(ps2spr_vaddr != SPR_ALIGN(ps2spr_vaddr));
 
     printk("PlayStation 2 device support: GIF, VIF, GS, VU, IPU, SPR\n");
     printk("Graphics Synthesizer revision: %08x\n",
 	   ((u32)gs_revision >> 16) & 0xffff);
+
+    register_cu2_notifier(&vpu_notifier);
+
     ps2dev_initialized = 1;
 
     return 0;
