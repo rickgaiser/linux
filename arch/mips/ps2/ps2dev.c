@@ -908,6 +908,7 @@ static int ps2spr_open(struct inode *inode, struct file *file)
     struct dma_device *dev;
 
     printk(KERN_ERR "PS2 SPR driver is unstable.\n");
+    return -ENOMEM; /* TBD: Mapping is currently not working. */
 
     if (ps2spr_open_count)
 	return -EBUSY;
