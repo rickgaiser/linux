@@ -11,7 +11,7 @@
 #define PS2_HW_BASE 0x10000000
 
 /* Base address for IOP memory. */
-#define PS2_IOP_HEAP_BASE 0xbc000000
+#define PS2_IOP_HEAP_BASE 0x1c000000
 
 extern int ps2_pccard_present;
 extern int ps2_pcic_type;

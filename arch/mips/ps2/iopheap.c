@@ -26,8 +26,8 @@ static DECLARE_MUTEX(iopheap_sem);
 
 EXPORT_SYMBOL(ps2sif_allociopheap);
 EXPORT_SYMBOL(ps2sif_freeiopheap);
-EXPORT_SYMBOL(ps2sif_virttobus);
-EXPORT_SYMBOL(ps2sif_bustovirt);
+EXPORT_SYMBOL(ps2sif_phystobus);
+EXPORT_SYMBOL(ps2sif_bustophys);
 
 int __init ps2sif_initiopheap(void)
 {
@@ -85,12 +85,12 @@ int ps2sif_freeiopheap(dma_addr_t addr)
     return result;
 }
 
-dma_addr_t ps2sif_virttobus(volatile void *a)
+dma_addr_t ps2sif_phystobus(phys_addr_t a)
 {
 	return((unsigned int)a - PS2_IOP_HEAP_BASE);
 }
 
-void *ps2sif_bustovirt(dma_addr_t a)
+phys_addr_t ps2sif_bustophys(dma_addr_t a)
 {
 	return((void *)a + PS2_IOP_HEAP_BASE);
 }

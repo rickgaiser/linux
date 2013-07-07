@@ -88,7 +88,7 @@ static void ps2_wbflush(void)
 	__asm__ __volatile__("sync.l":::"memory");
 
 	/* flush write buffer to bus */
-	readl(ps2sif_bustovirt(0));
+	inl(ps2sif_bustophys(0));
 }
 
 static void ps2_machine_restart(char *command)
@@ -159,7 +159,7 @@ void __init plat_mem_setup(void)
 	 * inb()/inw()/inl()/inq().
 	 * This memory region is uncached.
 	 */
-	set_io_port_base(0xA0000000);
+	set_io_port_base(CKSEG1);
 
 #ifdef CONFIG_SERIAL_PS2_SBIOS_DEFAULT
 	/* Use PS2 SBIOS as default console. */
