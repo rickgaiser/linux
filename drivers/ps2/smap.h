@@ -91,11 +91,11 @@ struct smap_chan {
 
 	ps2sif_clientdata_t cd_smap_tx, cd_smap_tx_end;
 	ps2sif_clientdata_t cd_smap_rx, cd_smap_rx_end;
-	u_int32_t dma_result			__attribute__((aligned(64)));
-	u_int32_t txdma_ibuf			__attribute__((aligned(64)));
-	u_int32_t rxdma_ibuf			__attribute__((aligned(64)));
-	struct smap_dma_request txdma_request	__attribute__((aligned(64)));
-	struct smap_dma_request rxdma_request	__attribute__((aligned(64)));
+	u_int32_t dma_result			__attribute__((aligned(16)));
+	void *txdma_ibuf;
+	void *rxdma_ibuf;
+	struct smap_dma_request txdma_request;
+	struct smap_dma_request rxdma_request;
 };
 /* flags */
 #define	SMAP_F_OPENED		(1<<0)

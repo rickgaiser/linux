@@ -24,16 +24,7 @@ static inline phys_t fixup_bigphys_addr(phys_t phys_addr, phys_t size)
 static inline void __iomem *plat_ioremap(phys_t offset, unsigned long size,
 	unsigned long flags)
 {
-	if ((offset >= PS2_IOP_HEAP_BASE) && (offset < CKSEG2)) {
-		/* Memory is already mapped. */
-		if (flags & _CACHE_UNCACHED) {
-			return (void __iomem *)
-				(unsigned long)CKSEG1ADDR(offset);
-		} else {
-			return (void __iomem *)
-				(unsigned long)CKSEG0ADDR(offset);
-		}
-	} else if ((offset >= PS2_HW_BASE) && (offset < CKSEG0)) {
+	if ((offset >= 0) && (offset < CKSEG0)) {
 		/* Memory is already mapped. */
 		if (flags & _CACHE_UNCACHED) {
 			return (void __iomem *)
