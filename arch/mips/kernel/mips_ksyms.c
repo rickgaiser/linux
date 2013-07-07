@@ -68,3 +68,5 @@ EXPORT_SYMBOL(__divdi3);
 EXPORT_SYMBOL(__udivdi3);
 EXPORT_SYMBOL(__moddi3);
 #endif
+EXPORT_SYMBOL(copy_page);
+EXPORT_SYMBOL(clear_page);
