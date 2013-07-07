@@ -259,9 +259,9 @@ do {									\
 	if ((((ex).e_flags & EF_MIPS_ABI2) != 0) &&			\
 	     ((ex).e_flags & EF_MIPS_ABI) == 0) {			\
 		__SET_PERSONALITY32_N32();				\
-		set_personality(PER_LINUX);				\
 	} else								\
 		__SET_PERSONALITY32_O32();				\
+	set_personality(PER_LINUX);					\
 } while (0)
 
 #define SET_PERSONALITY(ex)						\
@@ -271,9 +271,6 @@ do {									\
 	set_thread_flag(TIF_32BIT_ADDR);				\
 									\
 	__SET_PERSONALITY32(ex);					\
-									\
-	if (current->personality != PER_LINUX32)			\
-		set_personality(PER_LINUX);				\
 } while (0)
 
 #define __SET_PERSONALITY32_O32()					\
@@ -281,11 +278,10 @@ do {									\
 		set_thread_flag(TIF_32BIT_REGS);			\
 		set_thread_flag(TIF_32BIT_ADDR);			\
 		current->thread.abi = &mips_abi;			\
-		set_personality(PER_LINUX32);				\
 	} while (0)
 
 
-#else
+#else /* ! CONFIG_R5900_128BIT_SUPPORT */
 #define SET_PERSONALITY(ex)						\
 do {									\
 	clear_thread_flag(TIF_R5900FPU);				\
