@@ -88,7 +88,7 @@ static void ps2_wbflush(void)
 	__asm__ __volatile__("sync.l":::"memory");
 
 	/* flush write buffer to bus */
-	inl(ps2sif_bustovirt(0));
+	readl(ps2sif_bustovirt(0));
 }
 
 static void ps2_machine_restart(char *command)
