@@ -99,7 +99,7 @@ iopheap_alloc_coherent(struct device *dev, size_t size, int flags)
 
 	addr = ps2sif_allociopheap(size);
 	if (addr != 0) {
-		if (!dma_declare_coherent_memory(dev, (unsigned int) ps2sif_bustovirt(addr),
+		if (!dma_declare_coherent_memory(dev, ps2sif_bustophys(addr),
 						 addr,
 						 size,
 						 flags)) {
@@ -123,7 +123,7 @@ iopheap_free_coherent(struct device *dev)
 	if (!mem)
 		return;
 
-	addr = mem->device_base;
+	addr = ps2sif_bustophys(mem->device_base);
 	dma_release_declared_memory(dev);
 	ps2sif_freeiopheap(addr);
 }

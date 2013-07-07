@@ -2549,11 +2549,12 @@ smap_dma_setup(struct smap_chan *smap)
 		return;
 	}
 	wait_for_completion(&compl);
-	smap->txdma_ibuf = (u_int32_t)KSEG0ADDR(ps2sif_bustovirt(smap->txdma_ibuf));
+	/* Access IOP memory cached. */
+	smap->txdma_ibuf = phys_to_virt(ps2sif_bustophys(smap->txdma_ibuf));
 	smap->flags |= (SMAP_F_DMA_TX_ENABLE|SMAP_F_DMA_ENABLE);
 
 	if (smap->flags & SMAP_F_PRINT_MSG) {
-		printk("%s: dma setup: txdma_ibuf = 0x%08x\n",
+		printk("%s: dma setup: txdma_ibuf = %p\n",
 				smap->net_dev->name, smap->txdma_ibuf);
 	}
 
@@ -2567,11 +2568,12 @@ smap_dma_setup(struct smap_chan *smap)
 		return;
 	}
 	wait_for_completion(&compl);
-	smap->rxdma_ibuf = (u_int32_t)KSEG0ADDR(ps2sif_bustovirt(smap->rxdma_ibuf));
+	/* Access IOP memory cached. */
+	smap->rxdma_ibuf = phys_to_virt(ps2sif_bustophys(smap->rxdma_ibuf));
 	smap->flags |= (SMAP_F_DMA_RX_ENABLE|SMAP_F_DMA_ENABLE);
 
 	if (smap->flags & SMAP_F_PRINT_MSG) {
-		printk("%s: dma setup: rxdma_ibuf = 0x%08x\n",
+		printk("%s: dma setup: rxdma_ibuf = %p\n",
 				smap->net_dev->name, smap->rxdma_ibuf);
 	}
 
