@@ -92,5 +92,5 @@ dma_addr_t ps2sif_phystobus(phys_addr_t a)
 
 phys_addr_t ps2sif_bustophys(dma_addr_t a)
 {
-	return((void *)a + PS2_IOP_HEAP_BASE);
+	return(a + PS2_IOP_HEAP_BASE);
 }
