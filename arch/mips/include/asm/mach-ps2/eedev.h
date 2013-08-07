@@ -22,11 +22,15 @@
 #define PACK64(x, y)	((u64)(x) | ((u64)(y) << 32))
 
 #define GSFB_SIZE		(4 * 1024 * 1024)
-#if 0 /* TBD: Find a way to get SPR mapped without EntryLo1 */
+/* The scratchpad has no physical address, ise the following value to detect
+ * the scratchpad in the TLB handlers.
+ * The TLB handler expects that the highest bit is set.
+ */
+#define SPR_PHYS_ADDR		0x80000000
+/* EntryLo0 flag to use scratchpad instead or normal RAM. */
+#define SCRATCHPAD_RAM		0x80000000
+/* Size of scratchpad memory. */
 #define SPR_SIZE		16384
-#else
-#define SPR_SIZE		((PAGE_SIZE <= 16384) ? PAGE_SIZE : 16384)
-#endif
 
 /* register defines */
 

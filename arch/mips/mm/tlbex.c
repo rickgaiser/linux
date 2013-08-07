@@ -31,6 +31,8 @@
 #include <asm/war.h>
 #include <asm/uasm.h>
 
+#include <asm/mach-ps2/eedev.h>
+
 /*
  * TLB load/store/modify handlers.
  *
@@ -97,6 +99,10 @@ enum label_id {
 #ifdef CONFIG_HUGETLB_PAGE
 	label_tlb_huge_update,
 #endif
+#ifdef CONFIG_CPU_R5900
+	label_scratchpad,
+	label_scratchpad_out,
+#endif
 };
 
 UASM_L_LA(_second_part)
@@ -115,6 +121,10 @@ UASM_L_LA(_r3000_write_probe_fail)
 UASM_L_LA(_large_segbits_fault)
 #ifdef CONFIG_HUGETLB_PAGE
 UASM_L_LA(_tlb_huge_update)
+#endif
+#ifdef CONFIG_CPU_R5900
+UASM_L_LA(_scratchpad)
+UASM_L_LA(_scratchpad_out)
 #endif
 
 /*
@@ -799,7 +809,7 @@ static void __cpuinit build_get_ptep(u32 **p, unsigned int tmp, unsigned int ptr
 	UASM_i_ADDU(p, ptr, ptr, tmp); /* add in offset */
 }
 
-static void __cpuinit build_update_entries(u32 **p, unsigned int tmp,
+static void __cpuinit build_update_entries(u32 **p, struct uasm_label **l, struct uasm_reloc **r, unsigned int tmp,
 					unsigned int ptep)
 {
 	/*
@@ -808,6 +818,14 @@ static void __cpuinit build_update_entries(u32 **p, unsigned int tmp,
 	 */
 #ifdef CONFIG_64BIT_PHYS_ADDR
 	if (cpu_has_64bits) {
+#ifdef CONFIG_CPU_R5900
+		uasm_i_ld(p, tmp, 0, ptep); /* get even pte */
+		uasm_i_dsrl_safe(p, tmp, tmp, ilog2(_PAGE_GLOBAL)); /* convert to entrylo0 */
+		uasm_i_sll(p, tmp, tmp, 6);
+		uasm_il_bltz(p, r, tmp, label_scratchpad); /* Check if scratchpad should be mapped */
+		uasm_i_nop(p); /* branch delay slot */
+
+#endif
 		uasm_i_ld(p, tmp, 0, ptep); /* get even pte */
 		uasm_i_ld(p, ptep, sizeof(pte_t), ptep); /* get odd pte */
 		if (kernel_uses_smartmips_rixi) {
@@ -822,17 +840,79 @@ static void __cpuinit build_update_entries(u32 **p, unsigned int tmp,
 			uasm_i_dsrl_safe(p, ptep, ptep, ilog2(_PAGE_GLOBAL)); /* convert to entrylo1 */
 		}
 		UASM_i_MTC0(p, ptep, C0_ENTRYLO1); /* load it */
+#ifdef CONFIG_CPU_R5900
+		uasm_il_b(p, r, label_scratchpad_out); /* continue */
+		uasm_i_nop(p); /* branch delay slot */
+
+		uasm_l_scratchpad(l, *p);
+
+		UASM_i_MFC0(p, tmp, C0_ENTRYHI);
+		uasm_i_ori(p, tmp, tmp, 1 << 13);
+		uasm_i_xori(p, tmp, tmp, 1 << 13); /* VPN must be 16KB aligned */
+		UASM_i_MTC0(p, tmp, C0_ENTRYHI);
+
+		uasm_i_ld(p, ptep, 0, ptep); /* get even pte */
+		uasm_i_dsrl_safe(p, ptep, ptep, ilog2(_PAGE_GLOBAL)); /* convert to entrylo0 */
+		uasm_i_lui(p, tmp, SCRATCHPAD_RAM >> 16);
+		uasm_i_or(p, ptep, ptep, tmp); /* Set highest bit to use scratchpad. */
+		uasm_i_lui(p, tmp, (SPR_PHYS_ADDR >> 16) >> 6);
+		uasm_i_xor(p, ptep, ptep, tmp); /* Remove wrong physical address. */
+		UASM_i_MTC0(p, ptep, C0_ENTRYLO0); /* load it */
+		uasm_i_lui(p, tmp, SCRATCHPAD_RAM >> 16);
+		uasm_i_xor(p, ptep, ptep, tmp); /* Clear highest bit. */
+		UASM_i_MTC0(p, ptep, C0_ENTRYLO1); /* load it */
+
+		uasm_l_scratchpad_out(l, *p);
+#endif
 	} else {
 		int pte_off_even = sizeof(pte_t) / 2;
 		int pte_off_odd = pte_off_even + sizeof(pte_t);
 
 		/* The pte entries are pre-shifted */
+#ifdef CONFIG_CPU_R5900
+		uasm_i_lw(p, tmp, pte_off_even, ptep); /* get even pte */
+		uasm_i_sll(p, tmp, tmp, 6);
+		uasm_il_bltz(p, r, tmp, label_scratchpad); /* Check if scratchpad should be mapped */
+		uasm_i_nop(p); /* branch delay slot */
+
+#endif
 		uasm_i_lw(p, tmp, pte_off_even, ptep); /* get even pte */
 		UASM_i_MTC0(p, tmp, C0_ENTRYLO0); /* load it */
 		uasm_i_lw(p, ptep, pte_off_odd, ptep); /* get odd pte */
 		UASM_i_MTC0(p, ptep, C0_ENTRYLO1); /* load it */
+#ifdef CONFIG_CPU_R5900
+		uasm_il_b(p, r, label_scratchpad_out); /* continue */
+		uasm_i_nop(p); /* branch delay slot */
+
+		uasm_l_scratchpad(l, *p);
+
+		UASM_i_MFC0(p, tmp, C0_ENTRYHI);
+		uasm_i_ori(p, tmp, tmp, 1 << 13);
+		uasm_i_xori(p, tmp, tmp, 1 << 13); /* VPN must be 16KB aligned */
+		UASM_i_MTC0(p, tmp, C0_ENTRYHI);
+
+		uasm_i_lw(p, ptep, pte_off_even, ptep); /* get even pte */
+		uasm_i_lui(p, tmp, SCRATCHPAD_RAM >> 16);
+		uasm_i_or(p, ptep, ptep, tmp); /* Set highest bit to use scratchpad. */
+		uasm_i_lui(p, tmp, (SPR_PHYS_ADDR >> 16) >> 6);
+		uasm_i_xor(p, ptep, ptep, tmp); /* Remove wrong physical address. */
+		UASM_i_MTC0(p, ptep, C0_ENTRYLO0); /* load it */
+		uasm_i_lui(p, tmp, SCRATCHPAD_RAM >> 16);
+		uasm_i_xor(p, ptep, ptep, tmp); /* Clear highest bit. */
+		UASM_i_MTC0(p, ptep, C0_ENTRYLO1); /* load it */
+
+		uasm_l_scratchpad_out(l, *p);
+#endif
 	}
 #else
+#ifdef CONFIG_CPU_R5900
+	uasm_i_lw(p, tmp, 0, ptep); /* get even pte */
+	uasm_i_srl(p, tmp, tmp, ilog2(_PAGE_GLOBAL)); /* convert to entrylo0 */
+	uasm_i_sll(p, tmp, tmp, 6);
+	uasm_il_bltz(p, r, tmp, label_scratchpad); /* Check if scratchpad should be mapped */
+	uasm_i_nop(p); /* branch delay slot */
+
+#endif
 	UASM_i_LW(p, tmp, 0, ptep); /* get even pte */
 	UASM_i_LW(p, ptep, sizeof(pte_t), ptep); /* get odd pte */
 	if (r45k_bvahwbug())
@@ -857,6 +937,30 @@ static void __cpuinit build_update_entries(u32 **p, unsigned int tmp,
 	if (r4k_250MHZhwbug())
 		UASM_i_MTC0(p, 0, C0_ENTRYLO1);
 	UASM_i_MTC0(p, ptep, C0_ENTRYLO1); /* load it */
+#ifdef CONFIG_CPU_R5900
+	uasm_il_b(p, r, label_scratchpad_out); /* continue */
+	uasm_i_nop(p); /* branch delay slot */
+
+	uasm_l_scratchpad(l, *p);
+
+	UASM_i_MFC0(p, tmp, C0_ENTRYHI);
+	uasm_i_ori(p, tmp, tmp, 1 << 13);
+	uasm_i_xori(p, tmp, tmp, 1 << 13); /* VPN must be 16KB aligned */
+	UASM_i_MTC0(p, tmp, C0_ENTRYHI);
+
+	uasm_i_lw(p, ptep, 0, ptep); /* get even pte */
+	uasm_i_srl(p, tmp, tmp, ilog2(_PAGE_GLOBAL)); /* convert to entrylo0 */
+	uasm_i_lui(p, tmp, SCRATCHPAD_RAM >> 16);
+	uasm_i_or(p, ptep, ptep, tmp); /* Set highest bit to use scratchpad. */
+	uasm_i_lui(p, tmp, (SPR_PHYS_ADDR >> 16) >> 6);
+	uasm_i_xor(p, ptep, ptep, tmp); /* Remove wrong physical address. */
+	UASM_i_MTC0(p, ptep, C0_ENTRYLO0); /* load it */
+	uasm_i_lui(p, tmp, SCRATCHPAD_RAM >> 16);
+	uasm_i_xor(p, ptep, ptep, tmp); /* Clear highest bit. */
+	UASM_i_MTC0(p, ptep, C0_ENTRYLO1); /* load it */
+
+	uasm_l_scratchpad_out(l, *p);
+#endif
 #endif
 }
 
@@ -921,7 +1025,7 @@ static void __cpuinit build_r4000_tlb_refill_handler(void)
 #endif
 
 	build_get_ptep(&p, K0, K1);
-	build_update_entries(&p, K0, K1);
+	build_update_entries(&p, &l, &r, K0, K1);
 	build_tlb_write_entry(&p, &l, &r, tlb_random);
 	uasm_l_leave(&l, p);
 	uasm_i_eret(&p); /* return from trap */
@@ -1408,7 +1512,7 @@ build_r4000_tlbchange_handler_tail(u32 **p, struct uasm_label **l,
 {
 	uasm_i_ori(p, ptr, ptr, sizeof(pte_t));
 	uasm_i_xori(p, ptr, ptr, sizeof(pte_t));
-	build_update_entries(p, tmp, ptr);
+	build_update_entries(p, l, r, tmp, ptr);
 	build_tlb_write_entry(p, l, r, tlb_indexed);
 	uasm_l_leave(l, *p);
 	uasm_i_eret(p); /* return from trap */
