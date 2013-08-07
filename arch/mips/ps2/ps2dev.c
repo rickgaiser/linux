@@ -3,7 +3,7 @@
  *  PlayStation 2 integrated device driver
  *
  *	Copyright (C) 2000-2002  Sony Computer Entertainment Inc.
- *	Copyright (C) 2010       Mega Man
+ *	Copyright (C) 2010-2013  Mega Man
  *
  *  This file is subject to the terms and conditions of the GNU General
  *  Public License Version 2. See the file "COPYING" in the main
@@ -26,6 +26,10 @@
 #include <linux/major.h>
 #include <linux/device.h>
 #include <linux/cdev.h>
+#include <linux/vmalloc.h>
+#include <linux/ps2/dev.h>
+#include <linux/ps2/gs.h>
+
 #include <asm/types.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -34,8 +38,6 @@
 #include <asm/processor.h>
 #include <asm/cop2.h>
 
-#include <linux/ps2/dev.h>
-#include <linux/ps2/gs.h>
 #include <asm/mach-ps2/dma.h>
 #include <asm/mach-ps2/eedev.h>
 #include <asm/mach-ps2/gsfunc.h>
@@ -54,8 +56,6 @@
 #define PS2SPR_FUNC	5
 
 #define BINUTILS_R5900_SUPPORT /* TBD: Add support for R5900 instructions to binutils. */
-
-#define SPR_PHYS_ADDR (0x80000000ULL << 6)
 
 static struct class *ps2dev_class;
 static int ps2dev_major = PS2DEV_MAJOR;
@@ -907,9 +907,6 @@ static int ps2spr_open(struct inode *inode, struct file *file)
 {
     struct dma_device *dev;
 
-    printk(KERN_ERR "PS2 SPR driver is unstable.\n");
-    return -ENOMEM; /* TBD: Mapping is currently not working. */
-
     if (ps2spr_open_count)
 	return -EBUSY;
     ps2spr_open_count++;
@@ -933,7 +930,7 @@ static int ps2spr_release(struct inode *inode, struct file *file)
     return 0;
 }
 
-#define SPR_MASK		(~(PAGE_SIZE - 1))
+#define SPR_MASK		(~(SPR_SIZE - 1))
 #define SPR_ALIGN(addr)		((typeof(addr))((((unsigned long) (addr)) + SPR_SIZE - 1) & SPR_MASK))
 
 static int ps2spr_mmap(struct file *file, struct vm_area_struct *vma)
@@ -954,6 +951,9 @@ static int ps2spr_mmap(struct file *file, struct vm_area_struct *vma)
 #endif
     vma->vm_flags |= VM_IO;
 
+    /* Map scratchpad. SPR_PHYS_ADDR is not a valid physical address, this is
+     * just used to detect scratchpad in the TLB refill handler.
+     */
     if (io_remap_pfn_range(vma, vma->vm_start, SPR_PHYS_ADDR >> PAGE_SHIFT, SPR_SIZE, vma->vm_page_prot))
 	return -EAGAIN;
 
@@ -1150,6 +1150,7 @@ int __init ps2dev_init(void)
 {
     u64 gs_revision;
     dev_t dev_id;
+    struct vm_struct *area;
     int rv;
 
     if (ps2dev_major) {
@@ -1193,12 +1194,16 @@ int __init ps2dev_init(void)
     ps2gs_get_gssreg(PS2_GSSREG_CSR, &gs_revision);
 
     /* map scratchpad RAM */
-    do {
-            ps2spr_vaddr = ioremap_nocache(SPR_PHYS_ADDR, SPR_SIZE);
-            if (ps2spr_vaddr != SPR_ALIGN(ps2spr_vaddr)) {
-                    printk("ps2dev_init: Scratchpad (SPR) was mapped to a bad virtual address, retrying...\n");
-            }
-    } while(ps2spr_vaddr != SPR_ALIGN(ps2spr_vaddr));
+    area = __get_vm_area(2 * SPR_SIZE, VM_IOREMAP, VMALLOC_START, VMALLOC_END);
+    if (area != NULL) {
+	    /* Ensure that virtual address is aligned. */
+	    ps2spr_vaddr = SPR_ALIGN(area->addr + SPR_SIZE);
+
+	    /* This maps 16KByte, even if PM_4K is used. */
+	    add_wired_entry(SCRATCHPAD_RAM | 0x17, 0x17, (unsigned long) ps2spr_vaddr, PM_4K);
+
+	    /* TBD: Unmapping SPR is not possible in ps2dev_cleanup(). */
+    }
 
     printk("PlayStation 2 device support: GIF, VIF, GS, VU, IPU, SPR\n");
     printk("Graphics Synthesizer revision: %08x\n",
@@ -1222,8 +1227,6 @@ void ps2dev_cleanup(void)
     dev_id = MKDEV(ps2dev_major, ps2dev_minor);
     unregister_chrdev_region(dev_id, PS2DEV_COUNT);
     class_destroy(ps2dev_class);
-
-    iounmap(ps2spr_vaddr);
 
     spin_lock_irq(&ps2dma_channels[DMA_GIF].lock);
     ps2dma_channels[DMA_GIF].reset = NULL;
