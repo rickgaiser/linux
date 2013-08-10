@@ -1,25 +1,33 @@
 /*
- *  linux/drivers/ps2/ps2dev.c
+ *  PlayStation 2 timer functions
  *
- *	Copyright (C) 2000-2002  Sony Computer Entertainment Inc.
- *	Copyright (C) 2010       Mega Man
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
- *  This file is subject to the terms and conditions of the GNU General
- *  Public License Version 2. See the file "COPYING" in the main
- *  directory of this archive for more details.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
- *  $Id$
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/* TBD: Unfinished state. Rework code. */
 
 #ifndef __PS2DEV_H
 #define __PS2DEV_H
 
 #include <linux/sched.h>
 #include <linux/param.h>
+#include <linux/ps2/dev.h>
+
 #include <asm/types.h>
 #include <asm/io.h>
-#include <linux/ps2/dev.h>
+
 #include <asm/mach-ps2/dma.h>
 
 #define BUFTYPE_MEM	0	/* DMA buffer is allocated by ps2mem */

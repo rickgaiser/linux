@@ -1,17 +1,22 @@
 /*
- *  ps2dma.c
- *  PlayStation 2 DMA driver
+ *  PlayStation 2 integrated device driver
  *
- *	Copyright (C) 2000-2002  Sony Computer Entertainment Inc.
- *	Copyright (C) 2010       Mega Man
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
- *  This file is subject to the terms and conditions of the GNU General
- *  Public License Version 2. See the file "COPYING" in the main
- *  directory of this archive for more details.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
- *  $Id$
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/* TBD: Unfinished state. Rework code. */
 
 #include <linux/init.h>
 #include <linux/mm.h>
@@ -23,17 +28,18 @@
 #include <linux/timer.h>
 #include <linux/interrupt.h>
 #include <linux/fs.h>
+#include <linux/ps2/dev.h>
 
 #include <asm/types.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/irq.h>
-#include <asm/mach-ps2/irq.h>
 #include <asm/page.h>
 
-#include <linux/ps2/dev.h>
+#include <asm/mach-ps2/irq.h>
 #include <asm/mach-ps2/dma.h>
+
 #include "ps2dev.h"
 
 extern struct file_operations ps2spr_fops, ps2mem_fops;
@@ -518,7 +524,7 @@ static void dma_sendl_free(struct dma_request *req, struct dma_channel *ch)
 static struct dma_ops dma_sendl_ops =
 { dma_sendl_start, NULL, dma_sendl_stop, ps2dma_dev_end };
 static struct dma_ops dma_sendl_spr_ops =
-{ dma_sendl_spr_start, NULL, dma_sendl_stop, ps2dma_dev_end }; // TBD: Fix handling of SPR?
+{ dma_sendl_spr_start, NULL, dma_sendl_stop, ps2dma_dev_end };
 
 /*
  * DMA operations for receive request list
@@ -772,7 +778,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 	return -ENOMEM;
     init_dma_dev_request(&usreq->r, &dma_sendl_ops, devch, 0, dma_sendl_free);
 
-    if ((usreq->tag_head = (struct dma_tag *)get_zeroed_page(GFP_KERNEL)) // TBD: check page reference counter
+    if ((usreq->tag_head = (struct dma_tag *)get_zeroed_page(GFP_KERNEL)) /* TBD: check page reference counter */
 	== NULL) {
 	kfree(usreq);
 	return -ENOMEM;
@@ -847,7 +853,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 		if (tag >= tag_bottom) {
 		    struct dma_tag *nexthead, *nexttag;
 
-		    if ((nexthead = (struct dma_tag *)get_zeroed_page(GFP_KERNEL)) == NULL) { // TBD: check page reference counter
+		    if ((nexthead = (struct dma_tag *)get_zeroed_page(GFP_KERNEL)) == NULL) { /* TBD: check page reference counter */
 			dma_sendl_free((struct dma_request *)usreq, ch);
 			return -ENOMEM;
 		    }
@@ -869,7 +875,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 		int size = (len > PAGE_SIZE - DMA_TRUNIT) ? PAGE_SIZE - DMA_TRUNIT : len;
 		void *nextmem;
 		
-		if ((nextmem = (void *)get_zeroed_page(GFP_KERNEL)) == NULL) { // TBD: check page reference counter
+		if ((nextmem = (void *)get_zeroed_page(GFP_KERNEL)) == NULL) { /* TBD: check page reference counter */
 		    dma_sendl_free(&usreq->r.r, ch);
 		    return -ENOMEM;
 		}
@@ -897,7 +903,7 @@ int ps2dma_send_list(struct dma_device *dev, int num, struct ps2_packet *pkts)
 		if (tag >= tag_bottom) {
 		    struct dma_tag *nexthead, *nexttag;
 
-		    if ((nexthead = (struct dma_tag *)get_zeroed_page(GFP_KERNEL)) == NULL) { // TBD: check page reference counter
+		    if ((nexthead = (struct dma_tag *)get_zeroed_page(GFP_KERNEL)) == NULL) { /* TBD: check page reference counter */
 			dma_sendl_free(&usreq->r.r, ch);
 			return -ENOMEM;
 		    }

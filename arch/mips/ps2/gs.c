@@ -1,20 +1,22 @@
-
 /*
- *  arch/mips/ps2/gs.c
- *
  *  PlayStation 2 miscellaneous Graphics Synthesizer functions
  *
- *	Copyright (C) 2000-2002  Sony Computer Entertainment Inc.
- *	Copyright (C) 2010-2012  Mega Man
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
- *  This file is subject to the terms and conditions of the GNU General
- *  Public License Version 2. See the file "COPYING" in the main
- *  directory of this archive for more details.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
- *  $Id$
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-
-/* TBD: Unfinished state. Rework code. */
 
 #include <linux/types.h>
 #include <linux/init.h>
@@ -27,6 +29,7 @@
 #include <linux/ps2/gs.h>
 
 #include <asm/io.h>
+
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/irq.h>
 #include <asm/mach-ps2/dma.h>
@@ -39,7 +42,7 @@
 #define DMA_ALIGN_SIZE 16
 
 typedef struct gsreg_packet {
-	ps2_giftag giftag;			// 128bit
+	ps2_giftag giftag;			/* 128bit */
 	u64 param[2];
 } gsreg_packet_t;
 
@@ -820,6 +823,7 @@ int ps2gs_screeninfo(struct ps2_screeninfo *info, struct ps2_screeninfo *old)
 		ps2gs_display(1, &display, NULL) < 0 ||
 		ps2gs_dispfb(0, &dispfb, NULL) < 0 ||
 		ps2gs_dispfb(1, &dispfb, NULL) < 0) {
+		/* TBD: Synchronize with framebuffer driver. */
 		ps2gs_screeninfo(&current_screeninfo, NULL);
 		return -1;
 	}

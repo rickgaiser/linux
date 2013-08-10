@@ -1,7 +1,7 @@
 /*
- *  PS2 system setup functions.
+ *  PlayStation 2 system setup functions.
  *
- *  Copyright (C) 2010 - 2011 Mega Man
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 
 #include <asm/bootinfo.h>
 #include <asm/reboot.h>
+
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/dma.h>
 #include <asm/mach-ps2/sifdefs.h>
