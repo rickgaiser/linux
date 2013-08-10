@@ -1,16 +1,22 @@
 /*
- * sbcall.c: SBIOS support routines
+ *  PlayStation 2 SBIOS support routines
  *
- *	Copyright (C) 2000-2002  Sony Computer Entertainment Inc.
- *	Copyright (C) 2010       Mega Man
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2011-2013 Juergen Urban
  *
- * This file is subject to the terms and conditions of the GNU General
- * Public License Version 2. See the file "COPYING" in the main
- * directory of this archive for more details.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
- * $Id$
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/* TBD: Unfinished state. Rework code. */
 
 #include <linux/init.h>
 #include <linux/types.h>
@@ -18,7 +24,9 @@
 #include <linux/module.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
+
 #include <asm/io.h>
+
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/irq.h>
 #include <asm/mach-ps2/sifdefs.h>
@@ -422,6 +430,6 @@ void ps2sif_exit(void)
     sbios(SB_SIFEXITCMD, 0);
     free_irq(IRQ_DMAC_5, NULL);
     sbios(SB_SIFEXIT, 0);
-    /* TBD: Check exit. */
+    /* TBD: Test exit. */
     free_irq(IRQ_DMAC_6, NULL);
 }

@@ -1,18 +1,22 @@
 /*
- *  arch/mips/ps2/dma.c
+ *  Playstation 2 DMA functions.
  *
- *  PlayStation 2 DMA driver
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
- *	Copyright (C) 2000-2002  Sony Computer Entertainment Inc.
- *	Copyright (C) 2010       Mega Man
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
- *  This file is subject to the terms and conditions of the GNU General
- *  Public License Version 2. See the file "COPYING" in the main
- *  directory of this archive for more details.
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
  *
- *  $Id$
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/* TBD: Unfinished state. Rework code. */
 
 #include <linux/types.h>
 #include <linux/init.h>
@@ -28,6 +32,7 @@
 #include <asm/irq.h>
 #include <asm/pgtable.h>
 #include <asm/cacheflush.h>
+
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/irq.h>
 #include <asm/mach-ps2/dma.h>
@@ -271,7 +276,7 @@ void __init ps2dma_init(void)
 
     for (i = 0; i < sizeof(ps2dma_channels) / sizeof(ps2dma_channels[0]); i++) {
     	spin_lock_init(&ps2dma_channels[i].lock);
-	/* TBD: Verify interrupt configuration. */
+
 	if (request_irq(ps2dma_channels[i].irq, ps2dma_intr_handler,
 			0, ps2dma_channels[i].device,
 			&ps2dma_channels[i]))

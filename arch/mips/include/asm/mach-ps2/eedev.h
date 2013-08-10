@@ -1,16 +1,23 @@
 /*
- * linux/include/asm-mips/ps2/eedev.h
+ *  PlayStation 2 Emotion Engine
  *
- *	Copyright (C) 2000-2002  Sony Computer Entertainment Inc.
- *	Copyright (C) 2010       Mega Man
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
- * This file is subject to the terms and conditions of the GNU General
- * Public License Version 2. See the file "COPYING" in the main
- * directory of this archive for more details.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
- * $Id$
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/* TBD: Unfinished state. Rework code. */
+
 #ifndef __ASM_PS2_EEDEV_H
 #define __ASM_PS2_EEDEV_H
 
@@ -77,40 +84,7 @@ union _dword {
         } si;
 };
 
-#if 0
-static inline void store_double(unsigned long addr, unsigned long long val)
-{
-    union _dword src;
-
-    src.di=val;
-    __asm__ __volatile__(
-        "	.set push\n"
-        "	.set arch=r5900\n"
-        "	pextlw         $8,%1,%0\n"
-        "	sd             $8,(%2)\n"
-        "	.set   pop"
-        : : "r"(src.si.lo), "r"(src.si.hi), "r" (addr) : "$8");
-}
-
-static inline unsigned long long load_double(unsigned long addr)
-{
-    union _dword val;
-
-    __asm__ __volatile__(
-	"	.set	push\n"
-	"	.set	arch=r5900\n"
-	"	ld	$8,(%2)\n"
-		/* 63-32th bits must be same as 31th bit */
-	"	dsra	%1,$8,32\n" 
-	"	dsll	%0,$8,32\n" 
-	"	dsra	%0,%0,32\n"
-	"	.set	pop"
-	: "=r" (val.si.lo), "=r" (val.si.hi) : "r" (addr) : "$8");
-
-    return val.di;
-}
-#endif
-
+/* TBD: Use offical I/O functions of kernel instead. */
 static inline void move_quad(unsigned long dest, unsigned long src)
 {
     __asm__ __volatile__(

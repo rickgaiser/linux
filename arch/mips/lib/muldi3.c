@@ -1,5 +1,5 @@
-/* Copyright 2010 Mega Man */
-/* TBD: Code is copied from libgcc. The code should work, but is untested. */
+/* Code is copied from libgcc. */
+
 #define W_TYPE_SIZE (4 * BITS_PER_UNIT)
 #define Wtype	SItype
 #define UWtype	USItype

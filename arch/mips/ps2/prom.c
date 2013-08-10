@@ -1,5 +1,22 @@
-/* Copyright 2010-2012 Mega Man */
-/* TBD: Unfinished state. Rework code. */
+/*
+ *  Playstation 2 SBIOS/PROM handling.
+ *
+ *  Copyright (C) 2010-2013 Juergen Urban
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
 #include <linux/init.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
@@ -11,6 +28,7 @@
 #include <asm/addrspace.h>
 #include <asm/bootinfo.h>
 #include <asm/sections.h>
+
 #include <asm/mach-ps2/bootinfo.h>
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/sbios.h>
@@ -75,16 +93,4 @@ void __init prom_init(void)
 
 void __init prom_free_prom_memory(void)
 {
-	unsigned long end;
-
-	/*
-	 * Free everything below the kernel itself but leave
-	 * the first page reserved for the exception handlers.
-	 * The first 0x10000 Bytes contain the SBIOS.
-	 */
-
-	end = __pa(&_text);
-
-	/* TBD: Check if this is necessary or wrong. */
-	// TBD: free_init_pages("unused PROM memory", 0x10000, end);
 }

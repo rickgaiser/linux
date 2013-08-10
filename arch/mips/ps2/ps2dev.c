@@ -1,17 +1,22 @@
 /*
- *  linux/drivers/ps2/ps2dev.c
  *  PlayStation 2 integrated device driver
  *
- *	Copyright (C) 2000-2002  Sony Computer Entertainment Inc.
- *	Copyright (C) 2010-2013  Mega Man
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
- *  This file is subject to the terms and conditions of the GNU General
- *  Public License Version 2. See the file "COPYING" in the main
- *  directory of this archive for more details.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
- *  $Id$
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-
 
 #include <linux/module.h>
 #include <linux/mm.h>
@@ -41,6 +46,7 @@
 #include <asm/mach-ps2/dma.h>
 #include <asm/mach-ps2/eedev.h>
 #include <asm/mach-ps2/gsfunc.h>
+
 #include "ps2dev.h"
 
 #define MINOR_UNIT(x)	((MINOR(x) - ps2dev_minor) & 0x0f)
@@ -54,8 +60,6 @@
 #define PS2VPU_FUNC	3
 #define PS2IPU_FUNC	4
 #define PS2SPR_FUNC	5
-
-#define BINUTILS_R5900_SUPPORT /* TBD: Add support for R5900 instructions to binutils. */
 
 static struct class *ps2dev_class;
 static int ps2dev_major = PS2DEV_MAJOR;
@@ -536,7 +540,6 @@ static u32 init_vif0code[] __attribute__((aligned(DMA_TRUNIT))) = {
     PS2_VIF_SET_CODE(0,      0, PS2_VIF_NOP, 0),
 };
 
-#ifdef BINUTILS_R5900_SUPPORT
 static void ps2vpu0_reset(void)
 {
     SET_VIF0REG(PS2_VIFREG_MARK, 0);
@@ -554,7 +557,6 @@ static void ps2vpu0_reset(void)
     move_quad(KSEG1ADDR(VIF0_FIFO), (unsigned long)&init_vif0code[0]);
     move_quad(KSEG1ADDR(VIF0_FIFO), (unsigned long)&init_vif0code[4]);
 }
-#endif
 
 static u32 init_vif1code[] __attribute__((aligned(DMA_TRUNIT))) = {
     PS2_VIF_SET_CODE(0x0404, 0, PS2_VIF_STCYCL, 0),
@@ -567,7 +569,6 @@ static u32 init_vif1code[] __attribute__((aligned(DMA_TRUNIT))) = {
     PS2_VIF_SET_CODE(0,      0, PS2_VIF_ITOP, 0),
 };
 
-#ifdef BINUTILS_R5900_SUPPORT
 static void ps2vpu1_reset(void)
 {
     int apath;
@@ -593,7 +594,6 @@ static void ps2vpu1_reset(void)
 	outq(0x0100ULL, GSSREG2(PS2_GSSREG_CSR));	/* reset GS */
     }
 }
-#endif
 
 static void set_cop2_usable(int onoff)
 {
@@ -624,14 +624,10 @@ static int ps2vpu_open(struct inode *inode, struct file *file)
     dev->data = (void *)vusw;
 
     if (vusw == 0) {
-#ifdef BINUTILS_R5900_SUPPORT
 	ps2vpu0_reset();
-#endif
 	set_cop2_usable(1);
     } else if (vusw == 1) {
-#ifdef BINUTILS_R5900_SUPPORT
 	ps2vpu1_reset();
-#endif
     }
     return 0;
 }
@@ -1185,10 +1181,8 @@ int __init ps2dev_init(void)
     ps2ev_init();
     spin_lock_irq(&ps2dma_channels[DMA_GIF].lock);
     ps2dma_channels[DMA_GIF].reset = ps2gif_reset;
-#ifdef BINUTILS_R5900_SUPPORT
     ps2dma_channels[DMA_VIF0].reset = ps2vpu0_reset;
     ps2dma_channels[DMA_VIF1].reset = ps2vpu1_reset;
-#endif
     ps2dma_channels[DMA_IPU_to].reset = ps2ipu_reset;
     spin_unlock_irq(&ps2dma_channels[DMA_GIF].lock);
     ps2gs_get_gssreg(PS2_GSSREG_CSR, &gs_revision);

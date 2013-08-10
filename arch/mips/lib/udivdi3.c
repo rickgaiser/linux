@@ -1,5 +1,5 @@
-/* Copyright 2010 Mega Man */
-/* TBD: Code is copied from libgcc. The code should work, but is untested. */
+/* Code is copied from libgcc. */
+
 /* number of bits in an addressable storage unit */
 #define BITS_PER_UNIT 8
 #define W_TYPE_SIZE (4 * BITS_PER_UNIT)
@@ -137,6 +137,7 @@ __udivmoddi4 (UDWtype n, UDWtype d, UDWtype *rp)
 {
   const DWunion nn = {.ll = n};
   const DWunion dd = {.ll = d};
+  DWunion ww;
   DWunion rr;
   UWtype d0, d1, n0, n1, n2;
   UWtype q0, q1;
@@ -341,7 +342,9 @@ __udivmoddi4 (UDWtype n, UDWtype d, UDWtype *rp)
 	}
     }
 
-  const DWunion ww = {{.low = q0, .high = q1}};
+  ww.s.low = q0;
+  ww.s.high = q1;
+
   return ww.ll;
 }
 
