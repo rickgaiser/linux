@@ -6,8 +6,9 @@
  * Copyright (C) 1995, 96, 97, 98, 99, 2000, 01 by Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  * Copyright (C) 2001 MIPS Technologies, Inc.
- * Copyright (C) 2012 Mega Man
+ * Copyright (C) 2012-2013 Juergen Urban
  */
+
 #include <linux/errno.h>
 #include <asm/asm.h>
 #include <asm/asmmacro.h>

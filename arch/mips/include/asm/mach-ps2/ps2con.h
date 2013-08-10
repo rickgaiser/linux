@@ -1,8 +1,27 @@
+/*
+ *  PlayStation 2 Graphic console
+ *
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2010-2013 Juergen Urban
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
 #ifndef _VIDEO_PS2CON_H
 #define _VIDEO_PS2CON_H
 
-/* TBD: Unfinished state. Rework code. */
-
+/* TBD: Please use framebuffer driver instead! */
 #include <linux/types.h>
 #include <linux/kd.h>
 #include <linux/console_struct.h>
@@ -59,6 +78,5 @@ void ps2con_gsp_init(void);
 u64 *ps2con_gsp_alloc(int request, int *avail);
 void ps2con_gsp_send(int len, int flushall);
 int ps2con_get_resolution(int mode, int w, int h, int rate);
-
 
 #endif /* _VIDEO_PS2CON_H */

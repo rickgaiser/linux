@@ -1,14 +1,23 @@
 /*
- *  powerbutton.c: PlayStation 2 power button handling
+ *  Playstation 2 ower button handling
  *
- *        Copyright (C) 2000-2002  Sony Computer Entertainment Inc.
- *        Copyright (C) 2012       Mega Man
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
- * This file is subject to the terms and conditions of the GNU General
- * Public License Version 2. See the file "COPYING" in the main
- * directory of this archive for more details.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+
 #include <linux/init.h>
 #include <linux/types.h>
 #include <linux/module.h>
@@ -17,6 +26,7 @@
 #include <linux/semaphore.h>
 
 #include <asm/signal.h>
+
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/sifdefs.h>
 #include <asm/mach-ps2/sbios.h>

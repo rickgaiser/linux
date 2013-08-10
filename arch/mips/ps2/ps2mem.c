@@ -1,17 +1,22 @@
 /*
- *  linux/drivers/ps2/ps2mem.c
  *  PlayStation 2 DMA buffer memory allocation interface (/dev/ps2mem)
  *
- *	Copyright (C) 2000-2002  Sony Computer Entertainment Inc.
- *	Copyright (C) 2010-2012  Mega Man
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
- *  This file is subject to the terms and conditions of the GNU General
- *  Public License Version 2. See the file "COPYING" in the main
- *  directory of this archive for more details.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
- *  $Id$
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/* TBD: Unfinished state. Rework code. */
 
 #include <linux/module.h>
 #include <linux/mm.h>
@@ -22,14 +27,16 @@
 #include <linux/slab.h>
 #include <linux/mman.h>
 #include <linux/fs.h>
+#include <linux/ps2/dev.h>
+
 #include <asm/uaccess.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/io.h>
 #include <asm/addrspace.h>
 
-#include <linux/ps2/dev.h>
 #include <asm/mach-ps2/dma.h>
+
 #include "ps2dev.h"
 
 struct vm_area_struct *ps2mem_vma_cache = NULL;
@@ -50,12 +57,10 @@ static int ps2mem_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	    return VM_FAULT_SIGBUS; /* no memory - SIGBUS */
 	list = vma->vm_file->private_data = newlist;
     }
-    /* TBD: Check if this is working. */
     page = list->page[vmf->pgoff];
     get_page(page);	/* increment page count */
     vmf->page = page;
 
-    //printk("ps2mem_fault: pgoff %u Offset 0x%08x Phys 0x%08x virt 0x%08x\n", vmf->pgoff, vmf->pgoff << PAGE_SHIFT, page_to_pfn(page), page_address(page));
     return 0; /* success */
 }
 

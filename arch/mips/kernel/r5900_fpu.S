@@ -1,19 +1,22 @@
-/* Copyright 2010-2011 Mega Man */
-/* TBD: Unfinished state. Rework code. */
 /*
- * This file is subject to the terms and conditions of the GNU General Public
- * License.  See the file "COPYING" in the main directory of this archive
- * for more details.
+ *  FPU handling on MIPS r5900. Copied from r4k_fpu.c.
  *
- * Copyright (C) 1996, 98, 99, 2000, 01 Ralf Baechle
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
- * Multi-arch abstraction and asm macros for easier reading:
- * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
- * Carsten Langgaard, carstenl@mips.com
- * Copyright (C) 2000 MIPS Technologies, Inc.
- * Copyright (C) 1999, 2001 Silicon Graphics, Inc.
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+
 #include <asm/asm.h>
 #include <asm/errno.h>
 #include <asm/fpregdef.h>
@@ -38,8 +41,6 @@
 
 LEAF(_save_fp_context)
 	cfc1	t1, fcr31
-
-// XXX: Check FPU handler
 
 	/* Store the 32 32-bit registers */
 	EX	swc1 $f0, SC_FPREGS+0(a0)

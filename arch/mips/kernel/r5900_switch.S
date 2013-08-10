@@ -1,16 +1,20 @@
-/* Copyright 2010 Mega Man */
-/* TBD: Unfinished state. Rework code. */
 /*
- * This file is subject to the terms and conditions of the GNU General Public
- * License.  See the file "COPYING" in the main directory of this archive
- * for more details.
+ *  Context switch on MIPS r5900. Copied from r4k_switch.c.
  *
- * Copyright (C) 1994, 1995, 1996, 1998, 1999, 2002, 2003 Ralf Baechle
- * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- * Copyright (C) 1994, 1995, 1996, by Andreas Busse
- * Copyright (C) 1999 Silicon Graphics, Inc.
- * Copyright (C) 2000 MIPS Technologies, Inc.
- *    written by Carsten Langgaard, carstenl@mips.com
+ *  Copyright (C) 2010-2013 Juergen Urban
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #include <asm/asm.h>
 #include <asm/cachectl.h>
@@ -188,30 +192,6 @@ LEAF(_init_fpu)
 
 	li	t1, -1				# SNaN
 
-#if 0 // XXX: def CONFIG_64BIT
-	sll	t0, t0, 5
-	bgez	t0, 1f				# 16 / 32 register mode?
-
-	dmtc1	t1, $f1
-	dmtc1	t1, $f3
-	dmtc1	t1, $f5
-	dmtc1	t1, $f7
-	dmtc1	t1, $f9
-	dmtc1	t1, $f11
-	dmtc1	t1, $f13
-	dmtc1	t1, $f15
-	dmtc1	t1, $f17
-	dmtc1	t1, $f19
-	dmtc1	t1, $f21
-	dmtc1	t1, $f23
-	dmtc1	t1, $f25
-	dmtc1	t1, $f27
-	dmtc1	t1, $f29
-	dmtc1	t1, $f31
-1:
-#endif
-
-#if 1 //XXX: def CONFIG_CPU_MIPS32
 	mtc1	t1, $f0
 	mtc1	t1, $f1
 	mtc1	t1, $f2
@@ -244,24 +224,5 @@ LEAF(_init_fpu)
 	mtc1	t1, $f29
 	mtc1	t1, $f30
 	mtc1	t1, $f31
-#else
-	.set	mips3
-	dmtc1	t1, $f0
-	dmtc1	t1, $f2
-	dmtc1	t1, $f4
-	dmtc1	t1, $f6
-	dmtc1	t1, $f8
-	dmtc1	t1, $f10
-	dmtc1	t1, $f12
-	dmtc1	t1, $f14
-	dmtc1	t1, $f16
-	dmtc1	t1, $f18
-	dmtc1	t1, $f20
-	dmtc1	t1, $f22
-	dmtc1	t1, $f24
-	dmtc1	t1, $f26
-	dmtc1	t1, $f28
-	dmtc1	t1, $f30
-#endif
 	jr	ra
 	END(_init_fpu)

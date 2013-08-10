@@ -1,7 +1,7 @@
 /*
- *  PS2 timer functions.
+ *  PlayStation 2 timer functions
  *
- *  Copyright (C) 2011 Mega Man
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/kernel_stat.h>
