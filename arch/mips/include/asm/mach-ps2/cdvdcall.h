@@ -139,7 +139,7 @@ static __inline__ int ps2cdvdcall_mmode(int media)
 	return (res);
 }
 
-#ifdef PS2LIBCDVD_H
+#ifdef PS2LIBCDVD_H /* TBD: Move definition of SCECdErFAIL. */
 static __inline__ int ps2cdvdcall_geterror(void)
 {
 	int res;

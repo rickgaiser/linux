@@ -1,24 +1,28 @@
 /*
- *  linux/drivers/ps2/ps2sysproc.c
+ *  PlayStation 2 ps2sysproc
  *
- *	Copyright (C) 2001  Sony Computer Entertainment Inc.
- *	Copyright (C) 2011  Mega Man
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
- * This file is subject to the terms and conditions of the GNU General
- * Public License Version 2. See the file "COPYING" in the main
- * directory of this archive for more details.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
- * $Id$
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-
 
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/init.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
-#define INIT_PROC	(1<< 3)
-static int init_flags;
 
 /* sysvers */
 #include <asm/mach-ps2/bootinfo.h>
@@ -27,7 +31,8 @@ static int init_flags;
 #include <asm/mach-ps2/sysconf.h>
 #include <asm/mach-ps2/ps2.h>
 
-
+#define INIT_PROC	(1<< 3)
+static int init_flags;
 
 static int proc_calc_metrics(char *page, char **start, off_t off,
 				 int count, int *eof, int len)

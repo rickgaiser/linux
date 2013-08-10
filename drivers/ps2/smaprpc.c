@@ -1,21 +1,27 @@
-
 /*
- *  smap.c -- PlayStation 2 Ethernet device driver
+ *  PlayStation 2 Ethernet device driver
  *
- *	Copyright (C) 2001, 2002  Sony Computer Entertainment Inc.
- *	Copyright (C) 2009 - 2011 Mega Man
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
- *  This file is subject to the terms and conditions of the GNU General
- *  Public License Version 2. See the file "COPYING" in the main
- *  directory of this archive for more details.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
- *  This driver is intended to be used with the slim PSTwo
- *  and the smaprpc.irx module of kernelloader.
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 #if defined(linux)
 
 #include <linux/platform_device.h>
+
 #include <asm/mach-ps2/sbios.h>
 
 #include "smaprpc.h"
@@ -533,7 +539,7 @@ static void __exit smaprpc_exit(void)
 module_init(smaprpc_init);
 module_exit(smaprpc_exit);
 
-MODULE_AUTHOR("Mega Man");
+MODULE_AUTHOR("Juergen Urban");
 MODULE_DESCRIPTION("PlayStation 2 ethernet device driver for slim PSTwo");
 MODULE_LICENSE("GPL");
 

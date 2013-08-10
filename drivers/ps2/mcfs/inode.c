@@ -1,14 +1,23 @@
 /*
+ *  PlayStation 2 Memory Card File System driver
  *
- *        Copyright (C) 2000, 2002  Sony Computer Entertainment Inc.
- *        Copyright (C) 2012 Mega Man
+ *  Copyright (C) 2000-2002 Sony Computer Entertainment Inc.
+ *  Copyright (C) 2010-2013 Juergen Urban
  *
- * This file is subject to the terms and conditions of the GNU General
- * Public License Version 2. See the file "COPYING" in the main
- * directory of this archive for more details.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; version 2 of the License.
  *
- * $Id$
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 
@@ -36,8 +45,6 @@ int ps2mcfs_write_inode(struct inode *, struct writeback_control *);
 int ps2mcfs_statfs(struct dentry *, struct kstatfs *);
 void ps2mcfs_umount_begin(struct super_block *);
 
-//##################
-
 /*
 * The Linux kernel has changed, so I had to make changes in order to compile
 * this code. i_blksize is no longer a member of struct inode. However,
@@ -59,9 +66,6 @@ static inline unsigned int blksize_bits(unsigned int size)
 return bits;
 }
 
-//###################
-
-
 struct inode *ps2mcfs_iget(struct super_block *sb, unsigned long ino)
 {
             struct inode *inode;
@@ -72,16 +76,15 @@ struct inode *ps2mcfs_iget(struct super_block *sb, unsigned long ino)
             if(!(inode->i_state & I_NEW))
                           return inode;
 
-            // Your implementation specific code like initializeing atime, ctime, mtime, address_space mapping etc. ( depends on what you wanna do with a new inode )
+            /* TBD: Your implementation specific code like initializeing atime,
+	     * ctime, mtime, address_space mapping etc. ( depends on what you
+	     * wanna do with a new inode )
+	     */
        
             unlock_new_inode(inode);
             return inode;  
            
 }
-// change: ".read_inode    = myfs_read_inode"  into  ".read_inode = myfs_iget"
-
-
-//##################
 
 /*
  * Decrement the use count of the ps2mcfs_dirent.
@@ -324,7 +327,7 @@ void ps2mcfs_read_inode(struct inode *inode)
 	TRACE("ps2mcfs_read_inode(inode=%p): ino=%ld\n", inode, inode->i_ino);
 
 	/*
-	 * XXX, Why this function doesn't return some value?
+	 * TBD: Why this function doesn't return some value?
 	 */
 	inode->i_nlink = 0;
 	inode->i_op = NULL;
@@ -407,7 +410,7 @@ int ps2mcfs_update_inode(struct inode *inode)
 	inode->i_mode = buf.mode & ~((mode_t)de->root->opts.umask);
 	inode->i_size = buf.size;
 
-	inode->i_atime = inode->i_ctime = CURRENT_TIME;	/* XXX */
+	inode->i_atime = inode->i_ctime = CURRENT_TIME;	/* TBD */
 	inode->i_blkbits = blksize_bits(inode->i_sb->s_blocksize);
 	inode->i_blocks = (buf.size + inode->i_sb->s_blocksize - 1) / inode->i_sb->s_blocksize;
 	inode->i_uid = de->root->opts.uid;
