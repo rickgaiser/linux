@@ -853,12 +853,12 @@ static void __cpuinit build_update_entries(u32 **p, struct uasm_label **l, struc
 
 		uasm_i_ld(p, ptep, 0, ptep); /* get even pte */
 		uasm_i_dsrl_safe(p, ptep, ptep, ilog2(_PAGE_GLOBAL)); /* convert to entrylo0 */
-		uasm_i_lui(p, tmp, SCRATCHPAD_RAM >> 16);
+		uasm_i_lui(p, tmp, (int16_t) (SCRATCHPAD_RAM >> 16));
 		uasm_i_or(p, ptep, ptep, tmp); /* Set highest bit to use scratchpad. */
-		uasm_i_lui(p, tmp, (SPR_PHYS_ADDR >> 16) >> 6);
+		uasm_i_lui(p, tmp, (int16_t) ((SPR_PHYS_ADDR >> 16) >> 6));
 		uasm_i_xor(p, ptep, ptep, tmp); /* Remove wrong physical address. */
 		UASM_i_MTC0(p, ptep, C0_ENTRYLO0); /* load it */
-		uasm_i_lui(p, tmp, SCRATCHPAD_RAM >> 16);
+		uasm_i_lui(p, tmp, (int16_t) (SCRATCHPAD_RAM >> 16));
 		uasm_i_xor(p, ptep, ptep, tmp); /* Clear highest bit. */
 		UASM_i_MTC0(p, ptep, C0_ENTRYLO1); /* load it */
 
@@ -892,12 +892,12 @@ static void __cpuinit build_update_entries(u32 **p, struct uasm_label **l, struc
 		UASM_i_MTC0(p, tmp, C0_ENTRYHI);
 
 		uasm_i_lw(p, ptep, pte_off_even, ptep); /* get even pte */
-		uasm_i_lui(p, tmp, SCRATCHPAD_RAM >> 16);
+		uasm_i_lui(p, tmp, (int16_t) (SCRATCHPAD_RAM >> 16));
 		uasm_i_or(p, ptep, ptep, tmp); /* Set highest bit to use scratchpad. */
-		uasm_i_lui(p, tmp, (SPR_PHYS_ADDR >> 16) >> 6);
+		uasm_i_lui(p, tmp, (int16_t) ((SPR_PHYS_ADDR >> 16) >> 6));
 		uasm_i_xor(p, ptep, ptep, tmp); /* Remove wrong physical address. */
 		UASM_i_MTC0(p, ptep, C0_ENTRYLO0); /* load it */
-		uasm_i_lui(p, tmp, SCRATCHPAD_RAM >> 16);
+		uasm_i_lui(p, tmp, (int16_t) (SCRATCHPAD_RAM >> 16));
 		uasm_i_xor(p, ptep, ptep, tmp); /* Clear highest bit. */
 		UASM_i_MTC0(p, ptep, C0_ENTRYLO1); /* load it */
 
@@ -950,12 +950,12 @@ static void __cpuinit build_update_entries(u32 **p, struct uasm_label **l, struc
 
 	uasm_i_lw(p, ptep, 0, ptep); /* get even pte */
 	uasm_i_srl(p, tmp, tmp, ilog2(_PAGE_GLOBAL)); /* convert to entrylo0 */
-	uasm_i_lui(p, tmp, SCRATCHPAD_RAM >> 16);
+	uasm_i_lui(p, tmp, (int16_t) (SCRATCHPAD_RAM >> 16));
 	uasm_i_or(p, ptep, ptep, tmp); /* Set highest bit to use scratchpad. */
-	uasm_i_lui(p, tmp, (SPR_PHYS_ADDR >> 16) >> 6);
+	uasm_i_lui(p, tmp, (int16_t) ((SPR_PHYS_ADDR >> 16) >> 6));
 	uasm_i_xor(p, ptep, ptep, tmp); /* Remove wrong physical address. */
 	UASM_i_MTC0(p, ptep, C0_ENTRYLO0); /* load it */
-	uasm_i_lui(p, tmp, SCRATCHPAD_RAM >> 16);
+	uasm_i_lui(p, tmp, (int16_t) (SCRATCHPAD_RAM >> 16));
 	uasm_i_xor(p, ptep, ptep, tmp); /* Clear highest bit. */
 	UASM_i_MTC0(p, ptep, C0_ENTRYLO1); /* load it */
 
