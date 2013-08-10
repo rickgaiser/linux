@@ -526,10 +526,9 @@ static void ps2_paintsimg8_16(struct ps2_screeninfo *info, int sx, int sy, int w
 	*gsp++ = 0;
 	*gsp++ = PS2_GS_TRXDIR;
 
-	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(sizeof(palette[0]) * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
+	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16((sizeof(palette[0]) / 2) * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
 	*gsp++ = 0;
 
-	/* TBD: This is really slow at 1280x1024 */
 	gsp = ps2_addpattern8_16(gsp, data, width, height, palette, lineoffset);
 	packetlen = ((void *) ALIGN16(gsp)) - gsp_h;
 	ps2con_gsp_send(packetlen, 0);
