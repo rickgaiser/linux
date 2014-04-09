@@ -25,7 +25,7 @@
 #define PS2_GIFTAG_CLEAR_TAG(p)		*(__u128 *)(p) = 0
 #endif
 
-#if defined( _ABIN32) || defined(_ABI64)
+#if !(_MIPS_SIM == _ABIO32)
 typedef unsigned int __u128 __attribute__((mode(TI)));
 #endif
 
