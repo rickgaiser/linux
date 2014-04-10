@@ -23,6 +23,7 @@
 
 /* Cache operations. */
 void (*flush_cache_all)(void);
+EXPORT_SYMBOL(flush_cache_all);
 void (*__flush_cache_all)(void);
 void (*flush_cache_mm)(struct mm_struct *mm);
 void (*flush_cache_range)(struct vm_area_struct *vma, unsigned long start,
