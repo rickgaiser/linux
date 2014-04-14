@@ -1,4 +1,4 @@
-EXTRA_CFLAGS := -Werror
+EXTRA_CFLAGS :=
 
 obj-$(CONFIG_OPROFILE) += oprofile.o
 
