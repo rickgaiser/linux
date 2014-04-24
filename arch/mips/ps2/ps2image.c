@@ -133,6 +133,14 @@ int ps2gs_loadimage(struct ps2_image *img, struct dma_device *dev, int async)
 	return -EINVAL;
     size = DMA_ALIGN(size);
 
+    if (img->fbp & ~0x3fff) {
+	return -EINVAL;
+    }
+
+    if (img->fbw & ~0x3f) {
+	return -EINVAL;
+    }
+
     switch (result = ps2dma_make_tag((unsigned long)img->ptr, size, &tag, NULL, &mem)) {
     case BUFTYPE_MEM:
     case BUFTYPE_SPR:
@@ -585,6 +593,14 @@ int ps2gs_storeimage(struct ps2_image *img, struct dma_device *dev)
 	return -EINVAL;
 
     DSPRINT("storeimage: %d x %d  %08X (%d,%d)\n", img->w, img->h, img->ptr, img->x, img->y);
+
+    if (img->fbp & ~0x3fff) {
+	return -EINVAL;
+    }
+
+    if (img->fbw & ~0x3f) {
+	return -EINVAL;
+    }
 
     /* make DMA tags (including PIO transferred area) */
     switch (result = ps2dma_make_tag((unsigned long)img->ptr, DMA_ALIGN(size), &tag, NULL, &recv_mem)) {
