@@ -831,11 +831,16 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 		var->yoffset = 0;
 	}
 
+	if (var->nonstd > 3) {
+		printk("ps2fb: unsupported crtmode %d (nonstd)\n", var->nonstd);
+		return -EINVAL;
+	}
+
 	/* TBD: Should use crtmode set by set crtmode application via /dev/ps2gs */
-	res = ps2con_get_resolution(crtmode, var->xres, var->yres, 60 /* TBD: calculate rate. */);
+	res = ps2con_get_resolution(var->nonstd, var->xres, var->yres, 60 /* TBD: calculate rate. */);
 	if (res < 0) {
 		/* Resolution is not supported in this crtmode. */
-		printk("ps2fb: %dx%d is not supported in crtmode %d\n", var->xres, var->yres, crtmode);
+		printk("ps2fb: %dx%d is not supported in crtmode %d\n", var->xres, var->yres, var->nonstd);
 		return -EINVAL;
 	}
 
@@ -862,12 +867,12 @@ static void ps2fb_switch_mode(struct fb_info *info)
 
 	/* Activate screen mode. */
 	par->screeninfo.psm = PS2_GS_PSMCT32;
-	par->screeninfo.mode = crtmode;
+	par->screeninfo.mode = info->var.nonstd;
 	par->screeninfo.w = info->var.xres;
 	par->redraw_xres = info->var.xres;
 	par->screeninfo.h = info->var.yres;
 	par->redraw_yres = info->var.yres;
-	par->screeninfo.res = ps2con_get_resolution(crtmode,
+	par->screeninfo.res = ps2con_get_resolution(par->screeninfo.mode,
 		info->var.xres, info->var.yres, 60 /* TBD: calculate rate. */);
 	if (info->var.bits_per_pixel == 16) {
 		par->screeninfo.psm = PS2_GS_PSMCT16;
@@ -1385,9 +1390,11 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 	par->opencnt = 0;
 
     ps2con_initinfo(&par->screeninfo);
-	if (crtmode < 0) {
+	if ((crtmode < 0) || (crtmode > 3)) {
 		/* Set default to old crtmode parameter. */
-		crtmode = par->screeninfo.mode;
+		info->var.nonstd = par->screeninfo.mode;
+	} else {
+	    info->var.nonstd = crtmode;
 	}
 
 
@@ -1420,7 +1427,7 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
      * This should give a reasonable default video mode. The following is
      * done when we can set a video mode. 
      */
-	switch (crtmode) {
+	switch (info->var.nonstd) {
 	case PS2_GS_PAL:
 		retval = fb_find_mode(&info->var, info, mode_option, pal_modes, ARRAY_SIZE(pal_modes), NULL, 32);
 		break;
@@ -1434,7 +1441,7 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 		retval = fb_find_mode(&info->var, info, mode_option, NULL, 0, NULL, 32);
 		break;
 	default:
-		printk("ps2fb: unknown crtmode %d\n", crtmode);
+		printk("ps2fb: unknown crtmode %d\n", info->var.nonstd);
 		retval = fb_find_mode(&info->var, info, mode_option, NULL, 0, NULL, 32);
 		break;
 	}
