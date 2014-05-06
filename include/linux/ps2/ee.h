@@ -22,7 +22,19 @@
 #define PS2_GIFTAG_CLEAR_TAG(p)	\
 	__asm__ __volatile__ ("sq       $0, (%0)" : : "r"(p))
 #else
+#if (_MIPS_SIM == _ABIO32)
+#define PS2_GIFTAG_CLEAR_TAG(p) \
+	do { \
+		unsigned long *k = p; \
+		\
+		k[0] = 0; \
+		k[1] = 0; \
+		k[2] = 0; \
+		k[3] = 0; \
+	} while(0)
+#else
 #define PS2_GIFTAG_CLEAR_TAG(p)		*(__u128 *)(p) = 0
+#endif
 #endif
 
 #if !(_MIPS_SIM == _ABIO32)
