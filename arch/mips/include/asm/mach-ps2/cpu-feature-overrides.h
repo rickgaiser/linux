@@ -50,7 +50,7 @@
  * Only GCC 2.95 creates compatible FPU code.
  * So FPU is always emulated and disabled here.
  */
-#if 0
+#if 1
 /* For ABI n32 the 64 bit CPU must be emulated. The 32 bit CPU can't be used.
  * The r5900 FPU doesn't comply with IEEE 794 which is expected by
  * most programs.
