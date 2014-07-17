@@ -12,7 +12,10 @@
  * Author:
  * L. Haag
  *
- * $Log: r3964.h,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:39:00  kloader
+ * Initial revision
+ *
  * Revision 1.4  2005/12/21 19:54:24  Kurt Huwig <kurt huwig de>
  * Fixed HZ usage on 2.6 kernels
  * Removed unnecessary include

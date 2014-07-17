@@ -1,4 +1,4 @@
-/* $Revision: 3.0 $$Date: 1998/11/02 14:20:59 $
+/* $Revision$$Date$
  * linux/include/linux/cyclades.h
  *
  * This file was initially written by
@@ -6,7 +6,10 @@
  * Ivan Passos <ivan@cyclades.com>.
  *
  * This file contains the general definitions for the cyclades.c driver
- *$Log: cyclades.h,v $
+ *$Log$
+ *Revision 1.1  2010/09/27 19:38:38  kloader
+ *Initial revision
+ *
  *Revision 3.1  2002/01/29 11:36:16  henrique
  *added throttle field on struct cyclades_port to indicate whether the
  *port is throttled or not

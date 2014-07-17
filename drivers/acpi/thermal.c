@@ -1,5 +1,5 @@
 /*
- *  acpi_thermal.c - ACPI Thermal Zone Driver ($Revision: 41 $)
+ *  acpi_thermal.c - ACPI Thermal Zone Driver ($Revision$)
  *
  *  Copyright (C) 2001, 2002 Andy Grover <andrew.grover@intel.com>
  *  Copyright (C) 2001, 2002 Paul Diefenbaugh <paul.s.diefenbaugh@intel.com>

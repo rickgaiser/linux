@@ -23,7 +23,10 @@
  */
 
 /*
- * $Log: cumana_NCR5380.h,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:25:19  kloader
+ * Initial revision
+ *
  */
 
 #ifndef MAC_NCR5380_H

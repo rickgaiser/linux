@@ -40,7 +40,7 @@
  * $FreeBSD$
  */
 
-VERSION = "$Id: //depot/aic7xxx/aic7xxx/aic7xxx.seq#58 $"
+VERSION = "$Id$"
 PATCH_ARG_LIST = "struct ahc_softc *ahc"
 PREFIX = "ahc_"
 

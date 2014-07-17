@@ -1,4 +1,4 @@
-/* $Id: divasfunc.c,v 1.23.4.2 2004/08/28 20:03:53 armin Exp $
+/* $Id$
  *
  * Low level driver for Eicon DIVA Server ISDN cards.
  *

@@ -1,5 +1,5 @@
 /*
- * $Id: sbecom_inline_linux.h,v 1.2 2007/08/15 22:51:35 rickd PMCC4_3_1B $
+ * $Id$
  */
 
 #ifndef _INC_SBECOM_INLNX_H_
@@ -25,11 +25,14 @@
  * One Stop Systems, Inc.  Escondido, California  U.S.A.
  *-----------------------------------------------------------------------------
  * RCS info:
- * RCS revision: $Revision: 1.2 $
- * Last changed on $Date: 2007/08/15 22:51:35 $
- * Changed by $Author: rickd $
+ * RCS revision: $Revision$
+ * Last changed on $Date$
+ * Changed by $Author$
  *-----------------------------------------------------------------------------
- * $Log: sbecom_inline_linux.h,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:28:38  kloader
+ * Initial revision
+ *
  * Revision 1.2  2007/08/15 22:51:35  rickd
  * Remove duplicate version.h entry.
  *

@@ -9,7 +9,7 @@
  * ==============================================================
  *
  * static char rcsid[] =
- * "$Revision: 1.36.1.4 $$Date: 1995/03/29 06:14:14 $";
+ * "$Revision$$Date$";
  *
  *  linux/kernel/cyclades.c
  *
@@ -23,7 +23,10 @@
  *
  * This version does not support shared irq's.
  *
- * $Log: cyclades.c,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:26:33  kloader
+ * Initial revision
+ *
  * Revision 1.36.1.4  1995/03/29  06:14:14  bentson
  * disambiguate between Cyclom-16Y and Cyclom-32Ye;
  *

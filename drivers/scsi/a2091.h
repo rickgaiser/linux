@@ -1,7 +1,7 @@
 #ifndef A2091_H
 #define A2091_H
 
-/* $Id: a2091.h,v 1.4 1997/01/19 23:07:09 davem Exp $
+/* $Id$
  *
  * Header file for the Commodore A2091 Zorro II SCSI controller for Linux
  *

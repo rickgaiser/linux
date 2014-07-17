@@ -1,4 +1,4 @@
-// $Id: strcop.h,v 1.3 2003/10/22 13:27:12 henriken Exp $
+// $Id$
 
 // Streamcop meta-data configuration structs
 

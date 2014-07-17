@@ -1,4 +1,4 @@
-/* $Id: sys_cris.c,v 1.6 2004/03/11 11:38:40 starvik Exp $
+/* $Id$
  *
  * linux/arch/cris/kernel/sys_cris.c
  *

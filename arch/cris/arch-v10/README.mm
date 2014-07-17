@@ -2,7 +2,10 @@ Memory management for CRIS/MMU
 ------------------------------
 HISTORY:
 
-$Log: README.mm,v $
+$Log$
+Revision 1.1  2010/09/27 19:45:49  kloader
+Initial revision
+
 Revision 1.1  2001/12/17 13:59:27  bjornw
 Initial revision
 

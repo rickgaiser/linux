@@ -1,5 +1,5 @@
 /*
- * $Id: musycc.c,v 2.1 2007/08/15 23:32:17 rickd PMCC4_3_1B $
+ * $Id$
  */
 
 unsigned int max_intcnt = 0;
@@ -25,11 +25,14 @@ unsigned int max_bh = 0;
  * One Stop Systems, Inc.  Escondido, California  U.S.A.
  *-----------------------------------------------------------------------------
  * RCS info:
- * RCS revision: $Revision: 2.1 $
- * Last changed on $Date: 2007/08/15 23:32:17 $
- * Changed by $Author: rickd $
+ * RCS revision: $Revision$
+ * Last changed on $Date$
+ * Changed by $Author$
  *-----------------------------------------------------------------------------
- * $Log: musycc.c,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:28:38  kloader
+ * Initial revision
+ *
  * Revision 2.1  2007/08/15 23:32:17  rickd
  * Use 'if 0' instead of GNU comment delimeter to avoid line wrap induced compiler errors.
  *
@@ -69,7 +72,7 @@ unsigned int max_bh = 0;
  */
 
 char        SBEid_pmcc4_musyccc[] =
-"@(#)musycc.c - $Revision: 2.1 $      (c) Copyright 2004-2006 SBE, Inc.";
+"@(#)musycc.c - $Revision$      (c) Copyright 2004-2006 SBE, Inc.";
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 

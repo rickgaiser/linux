@@ -13,9 +13,12 @@
  * General Public License for more details.
  *
  *
- * $Id: aha152x.c,v 2.7 2004/01/24 11:42:59 fischer Exp $
+ * $Id$
  *
- * $Log: aha152x.c,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:25:14  kloader
+ * Initial revision
+ *
  * Revision 2.7  2004/01/24 11:42:59  fischer
  * - gather code that is not used by PCMCIA at the end
  * - move request_region for !PCMCIA case to detection

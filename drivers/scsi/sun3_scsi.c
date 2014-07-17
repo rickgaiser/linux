@@ -46,7 +46,10 @@
  */
 
 /*
- * $Log: sun3_NCR5380.c,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:25:20  kloader
+ * Initial revision
+ *
  */
 
 #define AUTOSENSE

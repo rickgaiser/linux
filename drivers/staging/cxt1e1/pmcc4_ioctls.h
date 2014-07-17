@@ -1,4 +1,4 @@
-/* RCSid: $Header: /home/rickd/projects/pmcc4/include/pmcc4_ioctls.h,v 2.0 2005/09/28 00:10:09 rickd PMCC4_3_1B $
+/* RCSid: $Header$
  */
 
 #ifndef _INC_PMCC4_IOCTLS_H_
@@ -23,11 +23,14 @@
  * SBE, Inc.  San Ramon, California  U.S.A.
  *-----------------------------------------------------------------------------
  * RCS info:
- * RCS revision: $Revision: 2.0 $
- * Last changed on $Date: 2005/09/28 00:10:09 $
- * Changed by $Author: rickd $
+ * RCS revision: $Revision$
+ * Last changed on $Date$
+ * Changed by $Author$
  *-----------------------------------------------------------------------------
- * $Log: pmcc4_ioctls.h,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:28:39  kloader
+ * Initial revision
+ *
  * Revision 2.0  2005/09/28 00:10:09  rickd
  * Add GNU license info. Switch Ioctls to sbe_ioc.h usage.
  *

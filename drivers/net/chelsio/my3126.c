@@ -1,4 +1,4 @@
-/* $Date: 2005/11/12 02:13:49 $ $RCSfile: my3126.c,v $ $Revision: 1.15 $ */
+/* $Date$ $RCSfile$ $Revision$ */
 #include "cphy.h"
 #include "elmer0.h"
 #include "suni1x10gexp_regs.h"

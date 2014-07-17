@@ -8,7 +8,7 @@
  *     last modfied: Mon Apr 11 16:06:33 2005
  *
  *   by /n/asic/design/tools/rdesc/src/rdes2c --outfile bif_dma_defs.h ../../inst/bif/rtl/bif_dma_regs.r
- *      id: $Id: bif_dma_defs.h,v 1.2 2005/04/24 18:30:58 starvik Exp $
+ *      id: $Id$
  * Any changes here will be lost.
  *
  * -*- buffer-read-only: t -*-

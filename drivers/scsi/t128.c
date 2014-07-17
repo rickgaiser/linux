@@ -103,7 +103,10 @@
  */
  
 /*
- * $Log: t128.c,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:25:21  kloader
+ * Initial revision
+ *
  */
 
 #include <asm/system.h>

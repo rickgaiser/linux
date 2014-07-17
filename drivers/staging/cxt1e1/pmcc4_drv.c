@@ -1,5 +1,5 @@
 /*
- * $Id: pmcc4_drv.c,v 3.1 2007/08/15 23:32:17 rickd PMCC4_3_1B $
+ * $Id$
  */
 
 
@@ -23,11 +23,14 @@
  * One Stop Systems, Inc.  Escondido, California  U.S.A.
  *-----------------------------------------------------------------------------
  * RCS info:
- * RCS revision: $Revision: 3.1 $
- * Last changed on $Date: 2007/08/15 23:32:17 $
- * Changed by $Author: rickd $
+ * RCS revision: $Revision$
+ * Last changed on $Date$
+ * Changed by $Author$
  *-----------------------------------------------------------------------------
- * $Log: pmcc4_drv.c,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:28:38  kloader
+ * Initial revision
+ *
  * Revision 3.1  2007/08/15 23:32:17  rickd
  * Use 'if 0' instead of GNU comment delimeter to avoid line wrap induced compiler errors.
  *
@@ -81,7 +84,7 @@
  */
 
 char        OSSIid_pmcc4_drvc[] =
-"@(#)pmcc4_drv.c - $Revision: 3.1 $   (c) Copyright 2002-2007 One Stop Systems, Inc.";
+"@(#)pmcc4_drv.c - $Revision$   (c) Copyright 2002-2007 One Stop Systems, Inc.";
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 

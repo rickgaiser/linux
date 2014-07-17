@@ -22,7 +22,7 @@
  * BEGIN_DESC
  * 
  *  File: 
- *      @(#)	pa/spmath/float.h		$Revision: 1.1 $
+ *      @(#)	pa/spmath/float.h		$Revision$
  * 
  *  Purpose:
  *      <<please update with a synopis of the functionality provided by this file>>

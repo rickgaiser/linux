@@ -61,7 +61,10 @@
 
 /***
  *
- * $Log: ltpc.c,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:33:01  kloader
+ * Initial revision
+ *
  * Revision 1.1.2.1  2000/03/01 05:35:07  jgarzik
  * at and tr cleanup
  *

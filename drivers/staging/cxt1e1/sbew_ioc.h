@@ -1,5 +1,5 @@
 /*
- * $Id: sbew_ioc.h,v 1.0 2005/09/28 00:10:10 rickd PMCC4_3_1B $
+ * $Id$
  */
 
 #ifndef _INC_SBEWIOC_H_
@@ -25,11 +25,14 @@
  *
  *-----------------------------------------------------------------------------
  * RCS info:
- * RCS revision: $Revision: 1.0 $
- * Last changed on $Date: 2005/09/28 00:10:10 $
- * Changed by $Author: rickd $
+ * RCS revision: $Revision$
+ * Last changed on $Date$
+ * Changed by $Author$
  *-----------------------------------------------------------------------------
- * $Log: sbew_ioc.h,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:28:39  kloader
+ * Initial revision
+ *
  * Revision 1.0  2005/09/28 00:10:10  rickd
  * Initial revision
  *

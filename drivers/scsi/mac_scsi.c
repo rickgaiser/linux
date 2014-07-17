@@ -26,7 +26,10 @@
  */
 
 /*
- * $Log: mac_NCR5380.c,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:25:24  kloader
+ * Initial revision
+ *
  */
 
 #include <linux/types.h>

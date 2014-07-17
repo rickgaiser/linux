@@ -34,7 +34,7 @@ GNU General Public License for more details.
 This section contains comments describing changes made to this file.
 Notice that changes are listed in reverse chronological order.
 
-$Header: //source/qcom/qct/multimedia2/AdspSvc/7XXX/qdsp5cmd/video/qdsp5vfecmdi.h#2 $ $DateTime: 2008/07/30 10:50:23 $ $Author: pavanr $
+$Header$ $DateTime: 2008/07/30 10:50:23 $ $Author$
 Revision History:
 
 when       who     what, where, why

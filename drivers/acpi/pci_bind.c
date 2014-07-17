@@ -1,5 +1,5 @@
 /*
- *  pci_bind.c - ACPI PCI Device Binding ($Revision: 2 $)
+ *  pci_bind.c - ACPI PCI Device Binding ($Revision$)
  *
  *  Copyright (C) 2001, 2002 Andy Grover <andrew.grover@intel.com>
  *  Copyright (C) 2001, 2002 Paul Diefenbaugh <paul.s.diefenbaugh@intel.com>

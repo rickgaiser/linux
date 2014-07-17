@@ -1,8 +1,8 @@
 /*****************************************************************************
  *                                                                           *
  * File: elmer0.h                                                            *
- * $Revision: 1.6 $                                                          *
- * $Date: 2005/06/21 22:49:43 $                                              *
+ * $Revision$                                                          *
+ * $Date$                                              *
  * Description:                                                              *
  *  part of the Chelsio 10Gb Ethernet Driver.                                *
  *                                                                           *

@@ -35,7 +35,10 @@
  */
 
 /*
- * $Log: t128.h,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:25:31  kloader
+ * Initial revision
+ *
  */
 
 #ifndef T128_H

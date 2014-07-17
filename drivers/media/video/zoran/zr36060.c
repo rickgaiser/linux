@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2002 Laurent Pinchart <laurent.pinchart@skynet.be>
  *
- * $Id: zr36060.c,v 1.1.2.22 2003/05/06 09:35:36 rbultje Exp $
+ * $Id$
  *
  * ------------------------------------------------------------------------
  *

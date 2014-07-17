@@ -28,7 +28,10 @@
  */
 
 /*
- * $Log: eql.c,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:30:27  kloader
+ * Initial revision
+ *
  * Revision 1.2  1996/04/11 17:51:52  guru
  * Added one-line eql_remove_slave patch.
  *

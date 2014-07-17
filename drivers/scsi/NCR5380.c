@@ -27,7 +27,10 @@
  */
 
 /*
- * $Log: NCR5380.c,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:25:22  kloader
+ * Initial revision
+ *
 
  * Revision 1.10 1998/9/2	Alan Cox
  *				(alan@lxorguk.ukuu.org.uk)

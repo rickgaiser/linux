@@ -1,5 +1,5 @@
 /*
- * $Id: comet_tables.c,v 1.2 2005/10/17 23:55:27 rickd PMCC4_3_1B $
+ * $Id$
  */
 
 /*-----------------------------------------------------------------------------
@@ -21,11 +21,14 @@
  * SBE, Inc.  San Ramon, California  U.S.A.
  *-----------------------------------------------------------------------------
  * RCS info:
- * RCS revision: $Revision: 1.2 $
- * Last changed on $Date: 2005/10/17 23:55:27 $
- * Changed by $Author: rickd $
+ * RCS revision: $Revision$
+ * Last changed on $Date$
+ * Changed by $Author$
  *-----------------------------------------------------------------------------
- * $Log: comet_tables.c,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:28:38  kloader
+ * Initial revision
+ *
  * Revision 1.2  2005/10/17 23:55:27  rickd
  * Note that 75 Ohm transmit waveform is not supported on PMCC4.
  *
@@ -39,7 +42,7 @@
  */
 
 char SBEid_pmcc4_comet_tblc[] =
-  "@(#)comet_tables.c - $Revision: 1.2 $      (c) Copyright 2004-2005 SBE, Inc.";
+  "@(#)comet_tables.c - $Revision$      (c) Copyright 2004-2005 SBE, Inc.";
 
 
 #include <linux/types.h>

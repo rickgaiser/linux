@@ -1,5 +1,5 @@
 /*
- * $Id: pmcc4_defs.h,v 1.0 2005/09/28 00:10:09 rickd PMCC4_3_1B $
+ * $Id$
  */
 
 #ifndef _INC_PMCC4_DEFS_H_
@@ -26,11 +26,14 @@
  * SBE, Inc.  San Ramon, California  U.S.A.
  *-----------------------------------------------------------------------------
  * RCS info:
- * RCS revision: $Revision: 1.0 $
- * Last changed on $Date: 2005/09/28 00:10:09 $
- * Changed by $Author: rickd $
+ * RCS revision: $Revision$
+ * Last changed on $Date$
+ * Changed by $Author$
  *-----------------------------------------------------------------------------
- * $Log: pmcc4_defs.h,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:28:38  kloader
+ * Initial revision
+ *
  * Revision 1.0  2005/09/28 00:10:09  rickd
  * Initial revision
  *

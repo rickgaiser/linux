@@ -10,7 +10,10 @@
  *	as published by the Free Software Foundation; either version
  *	2 of the License, or (at your option) any later version.
  *
- * $Log: pc300.h,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:31:26  kloader
+ * Initial revision
+ *
  * Revision 3.12  2002/03/07 14:17:09  henrique
  * License data fixed
  *

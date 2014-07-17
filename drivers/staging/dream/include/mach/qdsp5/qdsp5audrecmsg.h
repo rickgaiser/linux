@@ -35,7 +35,7 @@ GNU General Public License for more details.
 This section contains comments describing changes made to this file.
 Notice that changes are listed in reverse chronological order.
 
- $Header: //source/qcom/qct/multimedia2/Audio/drivers/QDSP5Driver/QDSP5Interface/main/latest/qdsp5audrecmsg.h#3 $
+ $Header$
 
 ============================================================================*/
 

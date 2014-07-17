@@ -22,7 +22,10 @@
  */
 
 /*
- * $Log: NCR5380.h,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:25:21  kloader
+ * Initial revision
+ *
  */
 
 #ifndef NCR5380_H

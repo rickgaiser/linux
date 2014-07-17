@@ -1,5 +1,5 @@
 /*
- * $Id: musycc.h,v 1.3 2005/09/28 00:10:08 rickd PMCC4_3_1B $
+ * $Id$
  */
 
 #ifndef _INC_MUSYCC_H_
@@ -25,11 +25,14 @@
  * SBE, Inc.  San Ramon, California  U.S.A.
  *-----------------------------------------------------------------------------
  * RCS info:
- * RCS revision: $Revision: 1.3 $
- * Last changed on $Date: 2005/09/28 00:10:08 $
- * Changed by $Author: rickd $
+ * RCS revision: $Revision$
+ * Last changed on $Date$
+ * Changed by $Author$
  *-----------------------------------------------------------------------------
- * $Log: musycc.h,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:28:38  kloader
+ * Initial revision
+ *
  * Revision 1.3  2005/09/28 00:10:08  rickd
  * Add GNU license info. Add PMCC4 PCI/DevIDs.  Implement new
  * musycc reg&bits namings. Use PORTMAP_0 GCD grouping.

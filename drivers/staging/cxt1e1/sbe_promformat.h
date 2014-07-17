@@ -1,5 +1,5 @@
 /*
- * $Id: sbe_promformat.h,v 2.2 2005/09/28 00:10:09 rickd PMCC4_3_1B $
+ * $Id$
  */
 
 #ifndef _INC_SBE_PROMFORMAT_H_
@@ -25,11 +25,14 @@
  *
  *-----------------------------------------------------------------------------
  * RCS info:
- * RCS revision: $Revision: 2.2 $
- * Last changed on $Date: 2005/09/28 00:10:09 $
- * Changed by $Author: rickd $
+ * RCS revision: $Revision$
+ * Last changed on $Date$
+ * Changed by $Author$
  *-----------------------------------------------------------------------------
- * $Log: sbe_promformat.h,v $
+ * $Log$
+ * Revision 1.1  2010/09/27 19:28:38  kloader
+ * Initial revision
+ *
  * Revision 2.2  2005/09/28 00:10:09  rickd
  * Add EEPROM sample from C4T1E1 board.
  *
