@@ -58,6 +58,7 @@
 static int ps2fb_init(void);
 
 struct ps2fb_priv {
+	int is_blanked;
 	int is_kicked;
 	int mapped;
 	struct task_struct *task;
@@ -1014,6 +1015,7 @@ ssize_t ps2fb_write(struct fb_info *info, const char __user *buf,
 	/* TBD: implement writing of framebuffer. */
 	return count;
 }
+#endif
 
 /**
  *      ps2fb_blank - NOT a required function. Blanks the display.
@@ -1039,10 +1041,25 @@ ssize_t ps2fb_write(struct fb_info *info, const char __user *buf,
 static int ps2fb_blank(int blank_mode, struct fb_info *info)
 {
 	DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
-    /* ... */
-    return 0;
+
+	switch (blank_mode) {
+	case FB_BLANK_POWERDOWN:
+	case FB_BLANK_HSYNC_SUSPEND:
+	case FB_BLANK_VSYNC_SUSPEND:
+	case FB_BLANK_NORMAL:
+		ps2gs_blank(1);
+		ps2fb.is_blanked = 1;
+		break;
+
+	default:
+		ps2gs_blank(0);
+		ps2fb.is_blanked = 0;
+		break;
+	}
+	return 0;
 }
 
+#if 0 /* TBD: Implement functions. */
 /**
  *	ps2fb_sync - NOT a required function. Normally the accel engine 
  *		     for a graphics card take a specific amount of time.
@@ -1331,7 +1348,7 @@ static int ps2fbd(void *arg)
 static irqreturn_t ps2fb_vsync_interrupt(int irq, void *ptr)
 {
 	if (irq == IRQ_GS_VSYNC){
-		if (ps2fb.task && ps2fb.mapped){
+		if (ps2fb.task && !ps2fb.is_blanked && ps2fb.mapped){
 			ps2fb.is_kicked = 1;
 			wake_up_process(ps2fb.task);
 		}
@@ -1347,7 +1364,6 @@ static struct fb_ops ps2fb_ops = {
 #if 0 /* TBD: Implement functions. */
 	.fb_read = ps2fb_read,
 	.fb_write = ps2fb_write,
-	.fb_blank = ps2fb_blank,
 	.fb_sync = ps2fb_sync,
 	/** TBD: .fb_ioctl = ps2fb_ioctl, */
 #endif
@@ -1358,6 +1374,7 @@ static struct fb_ops ps2fb_ops = {
 	.fb_copyarea = ps2fb_copyarea,
 	.fb_imageblit = ps2fb_imageblit,
 	.fb_mmap = ps2fb_mmap,
+	.fb_blank = ps2fb_blank,
 };
 
 
@@ -1494,6 +1511,7 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	ps2fb.is_blanked = 0;
 	ps2fb.is_kicked = 0;
 	ps2fb.task = task;
 
