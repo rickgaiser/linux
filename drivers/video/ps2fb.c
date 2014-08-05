@@ -11,6 +11,9 @@
 #include <linux/init.h>
 #include <linux/vmalloc.h>
 #include <linux/platform_device.h>
+#include <linux/console.h>
+#include <linux/kthread.h>
+#include <linux/freezer.h>
 #include <linux/ps2/gs.h>
 
 #include <asm/page.h>
@@ -21,6 +24,8 @@
 #include <asm/mach-ps2/eedev.h>
 #include <asm/mach-ps2/dma.h>
 #include <asm/mach-ps2/ps2con.h>
+
+#define DEVICE_NAME "ps2fb"
 
 /** Bigger 1 bit color images will be devided into smaller images with the following maximum width. */
 #define PATTERN_MAX_X 16
@@ -51,20 +56,21 @@
 #endif
 
 static int ps2fb_init(void);
-static void ps2fb_redraw_timer_handler(unsigned long dev_addr);
+
+struct ps2fb_priv {
+	int is_kicked;
+	int mapped;
+	struct task_struct *task;
+};
+static struct ps2fb_priv ps2fb;
 
 struct ps2fb_par
 {
 	u32 pseudo_palette[PAL_COLORS];
 	u32 opencnt;
-	int mapped;
 	struct ps2_screeninfo screeninfo;
 	int redraw_xres;
 	int redraw_yres;
-};
-
-static struct timer_list redraw_timer = {
-    function: ps2fb_redraw_timer_handler
 };
 
 static char *mode_option __devinitdata;
@@ -247,8 +253,7 @@ static int ps2fb_release(struct fb_info *info, int user)
 		par->opencnt--;
 		if (par->opencnt == 0) {
 			/* Redrawing shouldn't be needed after closing by application. */
-			del_timer(&redraw_timer);
-			par->mapped = 0;
+			ps2fb.mapped = 0;
 		}
 	}
     return 0;
@@ -714,14 +719,6 @@ static void ps2fb_redraw(struct fb_info *info)
 	}
 }
 
-static void ps2fb_redraw_timer_handler(unsigned long data)
-{
-	ps2fb_redraw((void *) data);
-	/* Redraw every 20 ms. */
-	redraw_timer.expires = jiffies + HZ / 50;
-	add_timer(&redraw_timer);
-}
-
 /**
  *      ps2fb_check_var - Optional function. Validates a var passed in. 
  *      @var: frame buffer variable screen structure
@@ -861,9 +858,8 @@ static void ps2fb_switch_mode(struct fb_info *info)
 	int maxredrawline;
 
 	DPRINTK("ps2fb: %dx%d\n", info->var.xres, info->var.yres);
-	if (par->mapped != 0) {
-		del_timer(&redraw_timer);
-	}
+
+	/* TDB:	Lock redraw task */
 
 	/* Activate screen mode. */
 	par->screeninfo.psm = PS2_GS_PSMCT32;
@@ -894,18 +890,14 @@ static void ps2fb_switch_mode(struct fb_info *info)
 	DPRINTK("ps2fb: smem_len 0x%08lx\n", info->fix.smem_len);
 	DPRINTK("ps2fb: line_length 0x%08lx\n", info->fix.line_length);
 
-	if (par->mapped != 0) {
+	if (ps2fb.mapped != 0) {
 		/* Make screen black when mapped the first time. */
 		memset((void *) info->fix.smem_start, 0, info->fix.smem_len);
 
 		/* TBD: Copy current frame buffer to memory. */
-
-		/* Restart timer for redrawing screen, because application could use mmap. */
-		redraw_timer.data = (unsigned long) info;
-   		redraw_timer.expires = jiffies + HZ / 50;
-		/* TBD: Use vbl interrupt handler instead. */
-   		add_timer(&redraw_timer);
 	}
+
+	/* TDB:	Unlock redraw task */
 }
 
 /**
@@ -1267,7 +1259,6 @@ static int ps2fb_mmap(struct fb_info *info,
 	unsigned long size = vma->vm_end - vma->vm_start;
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 	unsigned long page, pos;
-    struct ps2fb_par *par = info->par;
 
 	if (offset + size > info->fix.smem_len) {
 		return -EINVAL;
@@ -1307,21 +1298,46 @@ static int ps2fb_mmap(struct fb_info *info,
 
 	vma->vm_flags |= VM_RESERVED;	/* avoid to swap out this VMA */
 
-	if (par->mapped == 0) {
-		par->mapped = 1;
+	if (ps2fb.mapped == 0) {
+		ps2fb.mapped = 1;
 
 		/* Make screen black when mapped the first time. */
 		memset((void *) info->fix.smem_start, 0, info->fix.smem_len);
 
 		/* TBD: Copy current frame buffer to memory. */
-
-		/* Start timer for redrawing screen, because application could use mmap. */
-		redraw_timer.data = (unsigned long) info;
-   		redraw_timer.expires = jiffies + HZ / 50;
-		/* TBD: Use vbl interrupt handler instead. */
-   		add_timer(&redraw_timer);
 	}
 	return 0;
+}
+
+static int ps2fbd(void *arg)
+{
+	struct fb_info *info = arg;
+
+	set_freezable();
+	while (!kthread_should_stop()) {
+		try_to_freeze();
+		set_current_state(TASK_INTERRUPTIBLE);
+		if (ps2fb.is_kicked) {
+			ps2fb.is_kicked = 0;
+			acquire_console_sem();
+			ps2fb_redraw(info);
+			release_console_sem();
+		}
+		schedule();
+	}
+	return 0;
+}
+
+static irqreturn_t ps2fb_vsync_interrupt(int irq, void *ptr)
+{
+	if (irq == IRQ_GS_VSYNC){
+		if (ps2fb.task && ps2fb.mapped){
+			ps2fb.is_kicked = 1;
+			wake_up_process(ps2fb.task);
+		}
+	}
+
+	return IRQ_HANDLED;
 }
 
 static struct fb_ops ps2fb_ops = {
@@ -1351,6 +1367,7 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
     struct fb_info *info;
     struct ps2fb_par *par;
     struct device *device = &pdev->dev; /* or &pdev->dev */
+    struct task_struct *task;
     int cmap_len, retval;	
 
 	/* TBD: move to other function? */
@@ -1464,6 +1481,22 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
     if (fb_alloc_cmap(&info->cmap, cmap_len, 0))
 	return -ENOMEM;
 
+	retval = devm_request_irq(device, IRQ_GS_VSYNC, ps2fb_vsync_interrupt,
+				  IRQF_SHARED, DEVICE_NAME, device);
+	if (retval) {
+		DPRINTK("ps2fb: devm_request_irq failed %d\n", retval);
+		return -EINVAL;
+	}
+
+	task = kthread_run(ps2fbd, info, DEVICE_NAME);
+	if (IS_ERR(task)) {
+		DPRINTK("ps2fb: kthread_run failed\n");
+		return -EINVAL;
+	}
+
+	ps2fb.is_kicked = 0;
+	ps2fb.task = task;
+
 	if (register_framebuffer(info) < 0) {
 		fb_dealloc_cmap(&info->cmap);
 		return -EINVAL;
@@ -1471,8 +1504,6 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 	DPRINTK(KERN_INFO "fb%d: %s frame buffer device\n", info->node,
 		info->fix.id);
 	platform_set_drvdata(pdev, info);
-
-    init_timer(&redraw_timer);
 
     return 0;
 }
@@ -1499,7 +1530,7 @@ static struct platform_driver ps2fb_driver = {
 	.probe = ps2fb_probe,
 	.remove = __devexit_p(ps2fb_remove),
 	.driver = {
-		.name = "ps2fb",
+		.name = DEVICE_NAME,
 	},
 };
 
@@ -1553,7 +1584,7 @@ static int __init ps2fb_init(void)
 
 	DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
 
-	if (fb_get_options("ps2fb", &option))
+	if (fb_get_options(DEVICE_NAME, &option))
 		return -ENODEV;
 	ps2fb_setup(option);
 #else
