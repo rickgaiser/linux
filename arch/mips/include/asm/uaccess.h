@@ -140,6 +140,17 @@
 	__put_user_check((x), (ptr), sizeof(*(ptr)))
 
 /*
+ * Same as put_user() but for use in atomic operations when preemption in the
+ * kernel configuration.
+ * This will not cause scheduling via might_fault() -> might_sleep() ->
+ * cond_resched().
+ * do_page_fault() for mips uses in_atomic() to detect this and will
+ * just cause a pagefault in the application.
+ */
+#define put_user_atomic(x,ptr)	\
+	__put_user_check_atomic((x), (ptr), sizeof(*(ptr)))
+
+/*
  * get_user: - Get a simple variable from user space.
  * @x:   Variable to store result.
  * @ptr: Source address, in user space.
@@ -392,6 +403,24 @@ do {									\
 	int __pu_err = -EFAULT;						\
 									\
 	might_fault();							\
+	if (likely(access_ok(VERIFY_WRITE,  __pu_addr, size))) {	\
+		switch (size) {						\
+		case 1: __put_user_asm("sb", __pu_addr); break;		\
+		case 2: __put_user_asm("sh", __pu_addr); break;		\
+		case 4: __put_user_asm("sw", __pu_addr); break;		\
+		case 8: __PUT_USER_DW(__pu_addr); break;		\
+		default: __put_user_unknown(); break;			\
+		}							\
+	}								\
+	__pu_err;							\
+})
+
+#define __put_user_check_atomic(x, ptr, size)				\
+({									\
+	__typeof__(*(ptr)) __user *__pu_addr = (ptr);			\
+	__typeof__(*(ptr)) __pu_val = (x);				\
+	int __pu_err = -EFAULT;						\
+									\
 	if (likely(access_ok(VERIFY_WRITE,  __pu_addr, size))) {	\
 		switch (size) {						\
 		case 1: __put_user_asm("sb", __pu_addr); break;		\

@@ -579,10 +579,9 @@ static inline int simulate_sc(struct pt_regs *regs, unsigned int opcode)
 		return 0;
 	}
 
-	preempt_enable();
-
-	if (put_user(MIPS_READ_REG(regs->regs[reg]), vaddr))
+	if (put_user_atomic(MIPS_READ_REG(regs->regs[reg]), vaddr))
 		return SIGSEGV;
+	preempt_enable();
 
 	MIPS_WRITE_REG(regs->regs[reg]) = 1;
 
@@ -660,10 +659,9 @@ static inline int simulate_scd(struct pt_regs *regs, unsigned int opcode)
 		return 0;
 	}
 
-	preempt_enable();
-
-	if (put_user(MIPS_READ_REG(regs->regs[reg]), vaddr))
+	if (put_user_atomic(MIPS_READ_REG(regs->regs[reg]), vaddr))
 		return SIGSEGV;
+	preempt_enable();
 
 	MIPS_WRITE_REG(regs->regs[reg]) = 1;
 
