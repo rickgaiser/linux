@@ -27,6 +27,7 @@
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/sifdefs.h>
 #include <asm/mach-ps2/sbios.h>
+#include <asm/mach-ps2/dma.h>
 
 static DECLARE_MUTEX(iopheap_sem);
 
@@ -62,6 +63,11 @@ dma_addr_t ps2sif_allociopheap(int size)
     struct sbr_ioph_alloc_arg arg;
     int result;
     int err;
+
+    /* Ensure that we don't write to memory behind the allocated memory when it
+     * will be used for DMA transfer.
+     */
+    size = (size + DMA_TRUNIT) & ~(DMA_TRUNIT - 1);
     
     arg.size = size;
 
@@ -71,6 +77,9 @@ dma_addr_t ps2sif_allociopheap(int size)
 
     if (err < 0)
 		return 0;
+    if (result & (DMA_TRUNIT - 1)) {
+	    printk(KERN_ERR "ps2sif_allociopheap memory is not aligned 0x%08x.\n", result);
+    }
     return result;
 }
 

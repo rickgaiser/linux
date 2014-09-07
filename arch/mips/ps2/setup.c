@@ -37,6 +37,8 @@
 #include <asm/mach-ps2/sifdefs.h>
 #include <asm/mach-ps2/sbios.h>
 
+#include "loadfile.h"
+
 void (*__wbflush)(void);
 
 EXPORT_SYMBOL(__wbflush);
@@ -174,6 +176,9 @@ void ps2_dev_init(void)
 	ps2sif_init();
 	ps2rtc_init();
 	ps2_powerbutton_init();
+#ifdef CONFIG_SYSFS_IOP_MODULES
+	ps2_loadfile_init();
+#endif
 	platform_device_register(&usb_ohci_device);
 
 	switch (ps2_pccard_present) {
