@@ -125,7 +125,7 @@ int __ps2sif_dmastat_wait(unsigned int id, long state)
     return (res);
 }
 
-void ps2sif_writebackdcache(void *addr, int size)
+void ps2sif_writebackdcache(const void *addr, int size)
 {
     dma_cache_wback_inv((unsigned long)addr, size);
 }

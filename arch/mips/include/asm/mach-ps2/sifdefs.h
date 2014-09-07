@@ -21,6 +21,8 @@
 #ifndef __ASM_PS2_SIFDEFS_H
 #define __ASM_PS2_SIFDEFS_H
 
+#include <linux/types.h>
+
 /*
  * SIF DMA defines
  */
@@ -29,17 +31,17 @@
 #define SIF_DMA_INT_O	0x4
 
 typedef struct {
-	unsigned int	data;
-	unsigned int	addr;
-	unsigned int	size;
-	unsigned int	mode;
+	uint32_t data;
+	uint32_t addr;
+	uint32_t size;
+	uint32_t mode;
 } ps2sif_dmadata_t;
 
 extern unsigned int ps2sif_setdma(ps2sif_dmadata_t *sdd, int len);
 extern int ps2sif_dmastat(unsigned int id);
 extern unsigned int __ps2sif_setdma_wait(ps2sif_dmadata_t *, int, long);
 extern int __ps2sif_dmastat_wait(unsigned int, long);
-extern void ps2sif_writebackdcache(void *, int);
+extern void ps2sif_writebackdcache(const void *, int);
 
 #define ps2sif_setdma_wait(sdd, len)			\
 	__ps2sif_setdma_wait((sdd), (len), TASK_UNINTERRUPTIBLE)
@@ -122,7 +124,16 @@ typedef struct _sif_queue_data {
 /* calling error */
 #define SIF_RPCE_GETP	1	/* fail to get packet data */
 #define SIF_RPCE_SENDP	2	/* fail to send dma packet */
+#define E_IOP_INTR_CONTEXT 100
+#define E_IOP_DEPENDANCY 200
+#define E_LF_NOT_IRX 201
+#define E_LF_FILE_IO_ERROR 204
+#define E_LF_FILE_NOT_FOUND 203
+#define E_IOP_NO_MEMORY 400
 #define E_SIF_PKT_ALLOC 0xd610	/* Can't allocate SIF packet. */
+#define E_SIF_PKT_SEND 0xd611
+#define E_SIF_RPC_BIND 0xd612
+#define E_SIF_RPC_CALL 0xd613
 
 /* functions */
 
