@@ -10,6 +10,8 @@
 #include <linux/sched.h>
 
 #include <asm/cacheflush.h>
+#include <asm/page.h>
+#include <asm/addrspace.h>
 
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/sifdefs.h>
@@ -21,7 +23,6 @@
 #define LOADFILE_SID 0x80000006
 #define LF_PATH_MAX 252
 #define LF_ARG_MAX 252
-// TBD: #define USE_DMA 1
 
 enum _lf_functions {
 	LF_F_MOD_LOAD = 0,
@@ -267,65 +268,71 @@ static int load_module_buffer(dma_addr_t ptr, const char *args, int arg_len, int
 	return rv;
 }
 
-static unsigned int iop_cmp(dma_addr_t addr, const unsigned char *buf, unsigned int size)
-{
-	volatile unsigned char *p;
-	int i;
-
-	p = phys_to_virt(ps2sif_bustophys(addr));
-	for (i = 0; i < size; i++) {
-		if (buf[i] != p[i]) {
-			printk(KERN_ERR "DMA copy failed at offset 0x%08x 0x%02x 0x%02x\n", i, buf[i], p[i]);
-		}
-	}
-
-	return size;
-}
-
-#ifdef USE_DMA
 /** Write iop memory address. */
 static unsigned int iop_write(dma_addr_t addr, const void *buf, unsigned int size)
 {
 	ps2sif_dmadata_t sdd;
 	unsigned int qid;
 	int rv = size;
+	unsigned int pos;
+	uint32_t kseg;
+	uint32_t virtbase;
+	unsigned int transfersize;
+
+	virtbase = (uint32_t) buf;
+
+	if ((virtbase & (DMA_TRUNIT - 1)) != 0) {
+		printk("iop_write: buffer not DMA aligned %p.\n", buf);
+		return -EINVAL;
+	}
+
+	kseg = KSEGX(virtbase);
 
 	size = (size + DMA_TRUNIT - 1) & ~(DMA_TRUNIT - 1);
 
-	ps2sif_writebackdcache(buf, size);
+	for (pos = 0; pos < size; pos += transfersize) {
+		uint32_t maxsize;
 
-	/* Copy module to IOP memory using DMA. */
-	sdd.data = (uint32_t) buf;
-	sdd.addr = addr;
-	sdd.size = size;
-	sdd.mode = 0;
-
-	qid = ps2sif_setdma_wait_interruptible(&sdd, 1);
-	if (qid != 0) {
-		if (ps2sif_dmastat_wait_interruptible(qid) >= 0) {
-			rv = -ERESTARTSYS;
+		transfersize = size - pos;
+		maxsize = (virtbase + pos) & (PAGE_SIZE - 1);
+		maxsize = PAGE_SIZE - maxsize;
+		if (transfersize > maxsize) {
+			transfersize = maxsize;
 		}
-	} else {
-		rv = -ERESTART;
+		if ((kseg == KSEG0) || (kseg == KSEG2)) {
+			/* Memory is cached. */
+			ps2sif_writebackdcache((void *) (virtbase + pos), transfersize);
+		}
+
+		/* Copy module to IOP memory using DMA. */
+		if ((kseg == KSEG2) || (kseg == KSEG3)) {
+			/* Address was mapped via vmalloc, get physical address. */
+			sdd.data = (uint32_t) PFN_PHYS(vmalloc_to_pfn((void *) (virtbase + pos)));
+		} else if ((kseg == KSEG0) || (kseg == KSEG1)) {
+			sdd.data = (uint32_t) virt_to_phys((void *) (virtbase + pos));
+		} else {
+			/* Can't convert virtual address to physical. */
+			printk("iop_write: buffer address %p not supported.\n", buf);
+			rv = -EADDRNOTAVAIL;
+			break;
+		}
+		sdd.addr = addr + pos;
+		sdd.size = transfersize;
+		sdd.mode = 0;
+
+		qid = ps2sif_setdma_wait_interruptible(&sdd, 1);
+		if (qid != 0) {
+			if (ps2sif_dmastat_wait_interruptible(qid) >= 0) {
+				rv = -ERESTARTSYS;
+				break;
+			}
+		} else {
+			rv = -ERESTART;
+			break;
+		}
 	}
 	return rv;
 }
-#else
-/** Write iop memory address. */
-static unsigned int iop_write(dma_addr_t addr, const uint8_t *buf, unsigned int size)
-{
-	volatile uint8_t *p;
-	int i;
-
-	p = phys_to_virt(ps2sif_bustophys(addr));
-	for (i = 0; i < size; i++) {
-		p[i] = buf[i];
-		__asm__ __volatile__("sync.l");
-	}
-
-	return size;
-}
-#endif
 
 int ps2_load_module_buffer(const void *ptr, int size, const char *args, int arg_len, int *mod_res)
 {
@@ -336,11 +343,6 @@ int ps2_load_module_buffer(const void *ptr, int size, const char *args, int arg_
 	if (iop_addr != 0) {
 		rv = iop_write(iop_addr, ptr, size);
 		if (rv >= 0) {
-			/* TBD: Fix DMA transfer so that the following will not
-			 * fail.
-			 */
-			iop_cmp(iop_addr, ptr, size);
-
 			/* Load module. */
 			rv = load_module_buffer(iop_addr, args, arg_len, mod_res);
 		}
