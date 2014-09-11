@@ -28,7 +28,7 @@ static __inline__ int ps2sdcall_init(int flag, int *resiop)
 	arg.flag = flag;
 	do {
 		if (sbios_rpc(SBR_SOUND_INIT, &arg, resiop) < 0)
-			return (-1);
+			return (-EIO);
 	} while (*resiop == -1);
 
 	return (0);
