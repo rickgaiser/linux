@@ -24,6 +24,8 @@
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/soundcard.h>
+#include <linux/platform_device.h>
+
 #include <asm/io.h>
 #include <asm/addrspace.h>
 #include <asm/uaccess.h>
@@ -144,8 +146,7 @@ char *dmastatnames[] = {
 /*
  * function prototypes
  */
-void ps2sd_cleanup(void);
-static int ps2sd_init(void);
+static void ps2sd_cleanup(void);
 
 static loff_t ps2sd_llseek(struct file *, loff_t, int);
 static ssize_t ps2sd_read(struct file *, char *, size_t, loff_t *);
@@ -191,10 +192,10 @@ int ps2sd_nunits = ARRAYSIZEOF(ps2sd_units);
 struct ps2sd_mixer_context ps2sd_mixers[1];
 int ps2sd_nmixers = ARRAYSIZEOF(ps2sd_mixers);
 struct ps2sd_mixer_channel mixer_dummy_channel;
-int ps2sd_dmabufsize = PS2SD_DEFAULT_DMA_BUFSIZE;
-int ps2sd_iopbufsize = PS2SD_DEFAULT_IOP_BUFSIZE;
-int ps2sd_max_dmabufsize = PS2SD_MAX_DMA_BUFSIZE;
-int ps2sd_max_iopbufsize = PS2SD_MAX_IOP_BUFSIZE;
+int ps2sd_dmabufsize = PS2SD_DEFAULT_DMA_BUFSIZE * 1024;
+int ps2sd_iopbufsize = PS2SD_DEFAULT_IOP_BUFSIZE * 1024;
+int ps2sd_max_dmabufsize = PS2SD_MAX_DMA_BUFSIZE * 1024;
+int ps2sd_max_iopbufsize = PS2SD_MAX_IOP_BUFSIZE * 1024;
 int ps2sd_normal_debug;
 #ifdef CONFIG_T10000_DEBUG_HOOK
 int ps2sd_debug_hook = 0;
@@ -1634,8 +1635,10 @@ ps2sd_attach_unit(struct ps2sd_unit_context *devc, int core, int dmach,
 	       "core%d: clear PCM buffer %lx %dbytes res=%d resiop=%d\n", 
 	       devc->core, ps2sd_units[0].iopbuf,
 	       MIN(ps2sd_max_iopbufsize, 4096), res, resiop);
-	if (res < 0)
+	if (res < 0) {
+		res = -EIO;
 		goto unlock_and_return;
+	}
 
 	/*
 	 * install DMA callback routine
@@ -1646,6 +1649,7 @@ ps2sd_attach_unit(struct ps2sd_unit_context *devc, int core, int dmach,
 	       core, res, resiop);
 	if (res < 0) {
 		printk(KERN_CRIT "ps2sd: SetTransCallback failed\n");
+		res = -EIO;
 		goto unlock_and_return;
 	}
 	devc->init |= PS2SD_INIT_DMACALLBACK;
@@ -2531,8 +2535,7 @@ ps2sd_print_debug_flags(void)
 }
 #endif
 
-static int __init
-ps2sd_init(void)
+static int __devinit ps2sd_probe(struct platform_device *dev)
 {
 	int i, res, resiop;
 
@@ -2547,12 +2550,14 @@ ps2sd_init(void)
 #ifdef PS2SD_DEBUG
 	if (ps2sd_debug == -1) {
 		ps2sd_print_debug_flags();
+		res = -EINVAL;
 		goto error_out;
 	}
 #endif
 
 	if ((ps2sd_mc.lock = ps2sif_getlock(PS2LOCK_SOUND)) == NULL) {
 		printk(KERN_ERR "ps2sd: Can't get lock\n");
+		res = -EIO;
 		goto error_out;
 	}
 
@@ -2560,16 +2565,13 @@ ps2sd_init(void)
 	ps2sd_mc.iopzero = ps2sif_allociopheap(PS2SD_SPU2PCMBUFSIZE);
 	if(ps2sd_mc.iopzero == 0) {
 		printk(KERN_ERR "ps2sd: can't alloc iop heap\n");
+		res = -ENOMEM;
 		goto error_out;
 	}
 	DPRINT(DBG_INFO, "allocate %d bytes on IOP 0x%p\n",
 	       PS2SD_SPU2PCMBUFSIZE, ps2sd_mc.iopzero);
 
 	/* adjust buffer size */
-	ps2sd_max_iopbufsize *= 1024;
-	ps2sd_max_dmabufsize *= 1024;
-	ps2sd_iopbufsize *= 1024;
-	ps2sd_dmabufsize *= 1024;
 	ps2sd_max_iopbufsize = adjust_bufsize(ps2sd_max_iopbufsize);
 	ps2sd_max_dmabufsize = ALIGN(ps2sd_max_dmabufsize,
 				     ps2sd_max_iopbufsize);
@@ -2592,8 +2594,12 @@ ps2sd_init(void)
 	ps2sdcall_set_reg(SB_SOUND_REG_MVOLR(1), 0);
 	ps2sdcall_set_reg(SB_SOUND_REG_MVOLL(1), 0);
 
-	if (ps2sdcall_init(SB_SOUND_INIT_COLD, &resiop) < 0 || resiop < 0) {
+	res = ps2sdcall_init(SB_SOUND_INIT_COLD, &resiop);
+	if (res != 0 || resiop < 0) {
 		ps2sif_unlock(ps2sd_mc.lock);
+		if (res == 0) {
+			res = -EIO;
+		}
 		goto error_out;
 	}
 	ps2sd_mc.init |= PS2SD_INIT_IOP;
@@ -2622,16 +2628,19 @@ ps2sd_init(void)
 	/* Initialize mutex, if interrupts happens before starting thread. */
 	init_MUTEX_LOCKED(&ps2sd_mc.intr_sem);
 #endif
-	if (ps2sd_attach_unit(&ps2sd_units[0], 0, 0, &ps2sd_mixers[0],
-			      UNIT0_FLAGS) < 0)
+	res = ps2sd_attach_unit(&ps2sd_units[0], 0, 0, &ps2sd_mixers[0],
+			      UNIT0_FLAGS);
+	if (res < 0)
 		goto error_out;
 
-	if (ps2sd_attach_unit(&ps2sd_units[1], 1, 1, &ps2sd_mixers[0],
-			      UNIT1_FLAGS) < 0)
+	res = ps2sd_attach_unit(&ps2sd_units[1], 1, 1, &ps2sd_mixers[0],
+			      UNIT1_FLAGS);
+	if (res < 0)
 		goto error_out;
 
-	if (ps2sd_attach_unit(&ps2sd_units[2], 1, 1, &ps2sd_mixers[0],
-			      UNIT2_FLAGS) < 0)
+	res = ps2sd_attach_unit(&ps2sd_units[2], 1, 1, &ps2sd_mixers[0],
+			      UNIT2_FLAGS);
+	if (res < 0)
 		goto error_out;
 	ps2sd_units[2].iopmemlist = &ps2sd_unit2_iopmemlist;
 
@@ -2643,6 +2652,7 @@ ps2sd_init(void)
 	ps2sd_mc.thread_id = kernel_thread(ps2sd_thread, NULL, CLONE_VM);
 	if (ps2sd_mc.thread_id < 0) {
 		printk(KERN_ERR "ps2sd: can't start thread\n");
+		res = ps2sd_mc.thread_id;
 		goto error_out;
 	}
 	/* wait for the thread to start */
@@ -2709,14 +2719,20 @@ ps2sd_init(void)
 	return 0;
 
  error_out:
-	printk("ps2sd: init failed\n");
+	printk("ps2sd: init failed res = %d\n", res);
 	ps2sd_cleanup();
 
-	return -1;
+	return res;
 }
 
-void
-ps2sd_cleanup(void)
+static int __devexit ps2sd_driver_remove(struct platform_device *pdev)
+{
+	ps2sd_cleanup();
+
+	return 0;
+}
+
+static void ps2sd_cleanup(void)
 {
 	int i, resiop;
 
@@ -2772,8 +2788,28 @@ ps2sd_cleanup(void)
 		ps2sif_unlock(ps2sd_mc.lock);
 }
 
+static struct platform_driver ps2sd_driver = {
+	.probe	= ps2sd_probe,
+	.remove	= __devexit_p(ps2sd_driver_remove),
+	.driver	= {
+		.name	= "ps2sd",
+		.owner	= THIS_MODULE,
+	},
+};
+
+static int __init ps2sd_init(void)
+{
+	return platform_driver_register(&ps2sd_driver);
+}
+
+static void __exit ps2sd_exit(void)
+{
+	platform_driver_unregister(&ps2sd_driver);
+	return;
+}
+
 module_init(ps2sd_init);
-module_exit(ps2sd_cleanup);
+module_exit(ps2sd_exit);
 
 MODULE_AUTHOR("Sony Computer Entertainment Inc.");
 MODULE_DESCRIPTION("PlayStation 2 sound driver");

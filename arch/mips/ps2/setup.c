@@ -82,6 +82,10 @@ static struct platform_device gs_device = {
 	.name           = "ps2fb",
 };
 
+static struct platform_device sd_device = {
+	.name           = "ps2sd",
+};
+
 static unsigned int ps2_blink_frequency = 500;
 module_param_named(panicblink, ps2_blink_frequency, uint, 0600);
 MODULE_PARM_DESC(panicblink, "Frequency with which the PS2 HDD should blink when kernel panics");
@@ -179,6 +183,7 @@ void ps2_dev_init(void)
 #ifdef CONFIG_SYSFS_IOP_MODULES
 	ps2_loadfile_init();
 #endif
+	platform_device_register(&gs_device);
 	platform_device_register(&usb_ohci_device);
 
 	switch (ps2_pccard_present) {
@@ -192,5 +197,5 @@ void ps2_dev_init(void)
 		printk("No SMAP network device found.");
 		break;
 	}
-	platform_device_register(&gs_device);
+	platform_device_register(&sd_device);
 }
