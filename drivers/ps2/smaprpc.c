@@ -34,13 +34,6 @@
 
 #define SIF_SMAP_RECEIVE 0x07
 
-typedef struct t_SifCmdHeader {
-	u32 size;
-	void *dest;
-	int cid;
-	u32 unknown;
-} SifCmdHeader_t;
-
 typedef struct {
 	struct t_SifCmdHeader sifcmd;
 	u32 payload;

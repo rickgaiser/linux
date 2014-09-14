@@ -118,6 +118,9 @@ ps2mcfs_rw(struct inode *inode, char *buf, size_t nbytes, loff_t *ppos, int mode
 	char *filebuf;
 
 	de = inode->i_private;
+	if (de == NULL)
+		return -EIO;
+
 	if (de->flags & PS2MCFS_DIRENT_INVALID)
 		return -EIO;
 

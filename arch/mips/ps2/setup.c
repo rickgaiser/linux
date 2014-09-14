@@ -38,6 +38,7 @@
 #include <asm/mach-ps2/sbios.h>
 
 #include "loadfile.h"
+#include "iopmodules.h"
 
 void (*__wbflush)(void);
 
@@ -84,6 +85,10 @@ static struct platform_device gs_device = {
 
 static struct platform_device sd_device = {
 	.name           = "ps2sd",
+};
+
+static struct platform_device audio_device = {
+	.name           = "ps2audio",
 };
 
 static unsigned int ps2_blink_frequency = 500;
@@ -198,4 +203,9 @@ void ps2_dev_init(void)
 		break;
 	}
 	platform_device_register(&sd_device);
+#ifdef CONFIG_FIRMWARE_IN_KERNEL
+	/* Check whether we can load the firmware for audio. */
+	load_module_firmware("audsrv.irx", 0);
+#endif
+	platform_device_register(&audio_device);
 }
