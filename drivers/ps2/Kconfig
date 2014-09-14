@@ -50,6 +50,17 @@ config PS2_PAD_JS
 	default y
 	depends on SONY_PS2 && PS2_PAD && INPUT
 
+config PS2_AUDIO
+	tristate "Support for PS2 Audio"
+	default y
+	depends on SONY_PS2 && SND
+	help
+	  Audio output for the Playstation 2. This driver requires that the
+	  echo /sbin/mdev >/proc/sys/kernel/hotplug
+	  audsrv.irx is loaded, e.g.:
+	  cp audsrv.irx /lib/firmware/
+	  echo audsrv.irx >/sys/firmare/iopmodule/load_module_buffer
+
 source "drivers/ps2/mcfs/Kconfig"
 
 endmenu

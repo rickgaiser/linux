@@ -53,14 +53,6 @@ EXPORT_SYMBOL(ps2sif_getotherdata);
 EXPORT_SYMBOL(ps2sif_removerpc);
 EXPORT_SYMBOL(ps2sif_removerpcqueue);
 
-typedef struct t_SifCmdHeader
-{
-	u32 size;
-	ps2_addr_t dest;
-	int cid;
-	u32 unknown;
-} SifCmdHeader_t;
-
 /*
  *  SIF DMA functions
  */

@@ -73,6 +73,13 @@ typedef void *ps2_addr_t;
 typedef const void *ps2_const_addr_t;
 #endif
 
+typedef struct t_SifCmdHeader {
+	u32 size;
+	void *dest;
+	int cid;
+	u32 unknown;
+} SifCmdHeader_t;
+
 int sbios(int sbcall, void *arg);
 
 #define SBIOS_VERSION	0x0257

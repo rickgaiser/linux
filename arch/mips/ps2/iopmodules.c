@@ -208,11 +208,12 @@ static struct attribute_group iopmodules_subsys_attr_group = {
 	.attrs = iopmodules_subsys_attrs,
 };
 
-static ssize_t load_module_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t load_module(const char *path, size_t count)
 {
 	int rv;
 
-	rv = ps2_load_module(buf, count, mod_args, mod_args_len, NULL);
+	/* Load IRX module on IOP from IOP file system. */
+	rv = ps2_load_module(path, count, mod_args, mod_args_len, NULL);
 	if (mod_args != NULL) {
 		vfree(mod_args);
 		mod_args_len = 0;
@@ -227,26 +228,10 @@ static ssize_t load_module_store(struct kobject *kobj, struct kobj_attribute *at
 	return rv;
 }
 
-static ssize_t load_module_buffer_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+ssize_t load_module_firmware(const char *path, size_t count)
 {
 	int rv;
 	const struct firmware *fw;
-	int n;
-	char *path;
-
-	path = vmalloc(count + 1);
-	if (path == NULL) {
-		return -ENOMEM;
-	}
-
-	for (n = 0; n < count; n++) {
-		if (buf[n] == '\n') {
-			path[n] = 0;
-		} else {
-			path[n] = buf[n];
-		}
-	}
-	path[count] = 0;
 
 	/* request the firmware, this will block until someone uploads it */
 	rv = request_firmware(&fw, path, iopmodules_device);
@@ -254,13 +239,10 @@ static ssize_t load_module_buffer_store(struct kobject *kobj, struct kobj_attrib
 		if (rv == -ENOENT) {
 			printk(KERN_ERR "Firmware '%s' not found.\n", path);
 		}
-		vfree(path);
-		path = NULL;
 		return rv;
 	}
-	vfree(path);
-	path = NULL;
 
+	/* Load IRX module on IOP from buffer. */
 	rv = ps2_load_module_buffer(fw->data, fw->size, mod_args, mod_args_len, NULL);
 	if (mod_args != NULL) {
 		vfree(mod_args);
@@ -274,6 +256,48 @@ static ssize_t load_module_buffer_store(struct kobject *kobj, struct kobj_attrib
 		rv = count;
 	}
 
+	return rv;
+}
+
+static ssize_t load_module_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	char *path;
+	int pathContainsColon = 0;
+	ssize_t rv;
+	int n;
+
+	path = vmalloc(count + 1);
+	if (path == NULL) {
+		return -ENOMEM;
+	}
+
+	for (n = 0; n < count; n++) {
+		switch (buf[n]) {
+			case '\n':
+				path[n] = 0;
+				break;
+			case ':':
+				/* It contains a colon, this must be a
+				 * path to rom0: or rom1:
+				 */
+				pathContainsColon = 1;
+			default:
+				path[n] = buf[n];
+				break;
+		}
+	}
+	path[count] = 0;
+
+	if (pathContainsColon) {
+		/* Load a module from "rom0:", "rom1:" or "host:". */
+		rv = load_module(path, count);
+	} else {
+		/* Load module from /lib/firmware via hotplug. */
+		rv = load_module_firmware(path, count);
+	}
+
+	vfree(path);
+	path = NULL;
 	return rv;
 }
 
@@ -329,15 +353,11 @@ static ssize_t args_store(struct kobject *kobj, struct kobj_attribute *attr, con
 static struct kobj_attribute iopmodules_attr_load_module =
 	__ATTR(load_module, 0644, NULL, load_module_store);
 
-static struct kobj_attribute iopmodules_attr_load_module_buffer =
-	__ATTR(load_module_buffer, 0644, NULL, load_module_buffer_store);
-
 static struct kobj_attribute iopmodules_attr_args =
 	__ATTR(args, 0644, args_show, args_store);
 
 static struct attribute *iopmodules_attrs[] = {
 	&iopmodules_attr_load_module.attr,
-	&iopmodules_attr_load_module_buffer.attr,
 	&iopmodules_attr_args.attr,
 	NULL,	/* maybe more in the future? */
 };
