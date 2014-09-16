@@ -75,7 +75,9 @@ typedef struct {
 } audsrv_data_t;
 
 static struct snd_pcm_hardware ps2audio_pcm_hw = {
-	.info             = SNDRV_PCM_INFO_INTERLEAVED,
+	.info             = SNDRV_PCM_INFO_INTERLEAVED |
+				SNDRV_PCM_INFO_MMAP |
+				SNDRV_PCM_INFO_MMAP_VALID,
 	.formats          = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S8,
 	.rates            = SNDRV_PCM_RATE_11025 | SNDRV_PCM_RATE_22050 |
 		SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000,
@@ -309,6 +311,14 @@ static int ps2audio_pcm_copy(struct snd_pcm_substream *ss, int channel,
 	return rv;
 }
 
+static struct page *ps2audio_pcm_page(struct snd_pcm_substream *ss,
+				   unsigned long offset)
+{
+	audsrv_data_t *data = snd_pcm_substream_chip(ss);
+
+	return vmalloc_to_page(data->ringbuffer + offset);
+}
+
 static struct snd_pcm_ops ps2audio_pcm_ops = {
 	.open      = ps2audio_pcm_open,
 	.close     = ps2audio_pcm_close,
@@ -319,6 +329,7 @@ static struct snd_pcm_ops ps2audio_pcm_ops = {
 	.trigger   = ps2audio_pcm_trigger,
 	.pointer   = ps2audio_pcm_pointer,
 	.copy      = ps2audio_pcm_copy,
+	.page      = ps2audio_pcm_page,
 };
 
 static int __devinit ps2audio_bind(audsrv_data_t *data)
