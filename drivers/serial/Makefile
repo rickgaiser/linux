@@ -84,4 +84,5 @@ obj-$(CONFIG_SERIAL_TIMBERDALE)	+= timbuart.o
 obj-$(CONFIG_SERIAL_GRLIB_GAISLER_APBUART) += apbuart.o
 obj-$(CONFIG_SERIAL_ALTERA_JTAGUART) += altera_jtaguart.o
 obj-$(CONFIG_SERIAL_ALTERA_UART) += altera_uart.o
+obj-$(CONFIG_SERIAL_PS2_UART) += ps2_uart.o
 obj-$(CONFIG_SERIAL_PS2_SBIOS) += ps2sbioscon.o

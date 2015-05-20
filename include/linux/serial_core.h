@@ -186,8 +186,9 @@
 #define PORT_ALTERA_JTAGUART	91
 #define PORT_ALTERA_UART	92
 
-/* PS2 SBIOS debug port. */
+/* PS2 ports */
 #define PORT_PS2_SBIOS	93
+#define PORT_PS2_UART	94
 
 #ifdef __KERNEL__
 
