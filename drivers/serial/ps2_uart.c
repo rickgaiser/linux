@@ -267,7 +267,6 @@ static struct uart_ops ps2_uart_ops = {
 
 static struct uart_port ps2_uart_port = {
   .line		= 0,
-	.irq		= IRQ_C0_SIO,
 	.ops		= &ps2_uart_ops,
 	.type		= PORT_PS2_UART,
 	.flags		= UPF_BOOT_AUTOCONF,
