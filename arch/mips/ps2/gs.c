@@ -126,7 +126,7 @@ int ps2gs_set_gsreg(int reg, u64 val)
 	packet->param[0] = val;
 	packet->param[1] = reg;
 
-	ps2sdma_send(DMA_GIF, packet, sizeof(*packet), 1 /* TBD: optimize */ );
+	ps2sdma_send(DMA_GIF, packet, sizeof(*packet));
 	return 0;
 }
 
