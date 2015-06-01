@@ -219,7 +219,7 @@ u32 colto32(struct fb_var_screeninfo *var, u32 col)
  *		     first accessed.
  *	@info: frame buffer structure that represents a single frame buffer
  *	@user: tell us if the userland (value=1) or the console is accessing
- *	       the framebuffer. 
+ *	       the framebuffer.
  *
  *	Returns negative errno on error, or zero on success.
  */
@@ -236,12 +236,12 @@ static int ps2fb_open(struct fb_info *info, int user)
 }
 
 /**
- *	ps2fb_release - Optional function. Called when the framebuffer 
- *			device is closed. 
+ *	ps2fb_release - Optional function. Called when the framebuffer
+ *			device is closed.
  *	@info: frame buffer structure that represents a single frame buffer
  *	@user: tell us if the userland (value=1) or the console is accessing
- *	       the framebuffer. 
- *	
+ *	       the framebuffer.
+ *
  *	Returns negative errno on error, or zero on success.
  */
 static int ps2fb_release(struct fb_info *info, int user)
@@ -721,17 +721,17 @@ static void ps2fb_redraw(struct fb_info *info)
 }
 
 /**
- *      ps2fb_check_var - Optional function. Validates a var passed in. 
+ *      ps2fb_check_var - Optional function. Validates a var passed in.
  *      @var: frame buffer variable screen structure
- *      @info: frame buffer structure that represents a single frame buffer 
+ *      @info: frame buffer structure that represents a single frame buffer
  *
  *	Checks to see if the hardware supports the state requested by
- *	var passed in. This function does not alter the hardware state!!! 
- *	This means the data stored in struct fb_info and struct ps2fb_par do 
- *      not change. This includes the var inside of struct fb_info. 
+ *	var passed in. This function does not alter the hardware state!!!
+ *	This means the data stored in struct fb_info and struct ps2fb_par do
+ *      not change. This includes the var inside of struct fb_info.
  *	Do NOT change these. This function can be called on its own if we
- *	intent to only test a mode and not actually set it. The stuff in 
- *	modedb.c is a example of this. If the var passed in is slightly 
+ *	intent to only test a mode and not actually set it. The stuff in
+ *	modedb.c is a example of this. If the var passed in is slightly
  *	off by what the hardware can support then we alter the var PASSED in
  *	to what we can do.
  *
@@ -850,7 +850,7 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	/* TBD: check more parameters? */
 
-    return 0;	   	
+    return 0;
 }
 
 static void ps2fb_switch_mode(struct fb_info *info)
@@ -907,9 +907,9 @@ static void ps2fb_switch_mode(struct fb_info *info)
  *
  *	Using the fb_var_screeninfo in fb_info we set the resolution of the
  *	this particular framebuffer. This function alters the par AND the
- *	fb_fix_screeninfo stored in fb_info. It doesn't not alter var in 
+ *	fb_fix_screeninfo stored in fb_info. It doesn't not alter var in
  *	fb_info since we are using that data. This means we depend on the
- *	data in var inside fb_info to be supported by the hardware. 
+ *	data in var inside fb_info to be supported by the hardware.
  *
  *      This function is also used to recover/restore the hardware to a
  *      known working state.
@@ -946,20 +946,20 @@ static int ps2fb_set_par(struct fb_info *info)
 
 	ps2fb_switch_mode(info);
 
-    return 0;	
+    return 0;
 }
 
 /**
  *  	ps2fb_setcolreg - Optional function. Sets a color register.
- *      @regno: Which register in the CLUT we are programming 
- *      @red: The red value which can be up to 16 bits wide 
- *      @green: The green value which can be up to 16 bits wide 
+ *      @regno: Which register in the CLUT we are programming
+ *      @red: The red value which can be up to 16 bits wide
+ *      @green: The green value which can be up to 16 bits wide
  *      @blue:  The blue value which can be up to 16 bits wide.
  *      @transp: If supported, the alpha value which can be up to 16 bits wide.
  *      @info: frame buffer info structure
- * 
+ *
  *  	Set a single color register. The values supplied have a 16 bit
- *  	magnitude which needs to be scaled in this function for the hardware. 
+ *  	magnitude which needs to be scaled in this function for the hardware.
  *	Things to take into consideration are how many color registers, if
  *	any, are supported with the current color visual. With truecolor mode
  *	no color palettes are supported. Here a pseudo palette is created
@@ -967,8 +967,8 @@ static int ps2fb_set_par(struct fb_info *info)
  *	pseudocolor mode we have a limited color palette. To deal with this
  *	we can program what color is displayed for a particular pixel value.
  *	DirectColor is similar in that we can program each color field. If
- *	we have a static colormap we don't need to implement this function. 
- * 
+ *	we have a static colormap we don't need to implement this function.
+ *
  *	Returns negative errno on error, or zero on success.
  */
 static int ps2fb_setcolreg(unsigned regno, unsigned red, unsigned green,
@@ -1019,7 +1019,7 @@ ssize_t ps2fb_write(struct fb_info *info, const char __user *buf,
 
 /**
  *      ps2fb_blank - NOT a required function. Blanks the display.
- *      @blank_mode: the blank mode we want. 
+ *      @blank_mode: the blank mode we want.
  *      @info: frame buffer structure that represents a single frame buffer
  *
  *      Blank the screen if blank_mode != FB_BLANK_UNBLANK, else unblank.
@@ -1061,11 +1061,11 @@ static int ps2fb_blank(int blank_mode, struct fb_info *info)
 
 #if 0 /* TBD: Implement functions. */
 /**
- *	ps2fb_sync - NOT a required function. Normally the accel engine 
+ *	ps2fb_sync - NOT a required function. Normally the accel engine
  *		     for a graphics card take a specific amount of time.
  *		     Often we have to wait for the accelerator to finish
  *		     its operation before we can write to the framebuffer
- *		     so we can have consistent display output. 
+ *		     so we can have consistent display output.
  *
  *      @info: frame buffer structure that represents a single frame buffer
  *
@@ -1080,15 +1080,15 @@ int ps2fb_sync(struct fb_info *info)
 #endif
 
 /**
- *      ps2fb_fillrect - REQUIRED function. Can use generic routines if 
+ *      ps2fb_fillrect - REQUIRED function. Can use generic routines if
  *		 	 non acclerated hardware and packed pixel based.
- *			 Draws a rectangle on the screen.		
+ *			 Draws a rectangle on the screen.
  *
  *      @info: frame buffer structure that represents a single frame buffer
- *    @region: The structure representing the rectangular region we 
+ *    @region: The structure representing the rectangular region we
  *		 wish to draw to.
  *
- *	This drawing operation places/removes a retangle on the screen 
+ *	This drawing operation places/removes a retangle on the screen
  *	depending on the rastering operation with the value of color which
  *	is in the current color depth format.
  */
@@ -1127,19 +1127,19 @@ void ps2fb_fillrect(struct fb_info *p, const struct fb_fillrect *region)
  *      This drawing operation copies a rectangular area from one area of the
  *		screen to another area.
  */
-void ps2fb_copyarea(struct fb_info *info, const struct fb_copyarea *area) 
+void ps2fb_copyarea(struct fb_info *info, const struct fb_copyarea *area)
 {
 	struct ps2fb_par *par = info->par;
 	u64 *gsp;
 	int fbw = (par->screeninfo.w + 63) / 64;
-	
+
 	DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
-	
+
 	if ((gsp = ps2con_gsp_alloc(ALIGN16(10 * 8), NULL)) == NULL) {
 		printk("ps2fb: ps2con_gsp_alloc() failed in ps2con_bmove().\n");
 		return;
 	}
-	
+
 	*gsp++ = PS2_GIFTAG_SET_TOPHALF(4, 1, 0, 0, PS2_GIFTAG_FLG_PACKED, 1);
 	/* A+D */
 	*gsp++ = 0x0e;
@@ -1158,14 +1158,14 @@ void ps2fb_copyarea(struct fb_info *info, const struct fb_copyarea *area)
 		*gsp++ = PACK64(PACK32(area->sx, area->sy),
 			PACK32(area->dx, area->dy) + (3 << 27));
 	}
-	
+
 	*gsp++ = PS2_GS_TRXPOS;
 	*gsp++ = PACK64(area->width, area->height);
 	*gsp++ = PS2_GS_TRXREG;
 	/* local to local */
 	*gsp++ = 2;
 	*gsp++ = PS2_GS_TRXDIR;
-	
+
 	ps2con_gsp_send(ALIGN16(10 * 8), 0);
 }
 
@@ -1175,11 +1175,11 @@ void ps2fb_copyarea(struct fb_info *info, const struct fb_copyarea *area)
  *		@info: frame buffer structure that represents a single frame buffer
  *		@image:	structure defining the image.
  *
- *      This drawing operation draws a image on the screen. It can be a 
+ *      This drawing operation draws a image on the screen. It can be a
  *		mono image (needed for font handling) or a color image (needed for
- *		tux). 
+ *		tux).
  */
-void ps2fb_imageblit(struct fb_info *info, const struct fb_image *image) 
+void ps2fb_imageblit(struct fb_info *info, const struct fb_image *image)
 {
     struct ps2fb_par *par = info->par;
 
@@ -1385,11 +1385,11 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
     struct ps2fb_par *par;
     struct device *device = &pdev->dev; /* or &pdev->dev */
     struct task_struct *task;
-    int cmap_len, retval;	
+    int cmap_len, retval;
 
 	/* TBD: move to other function? */
 	ps2con_gsp_init();
-   
+
 	DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
 
     /*
@@ -1401,11 +1401,11 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 		return -ENOMEM;
     }
 
-    /* 
+    /*
      * Here we set the screen_base to the virtual memory address
      * for the framebuffer. Usually we obtain the resource address
      * from the bus layer and then translate it to virtual memory
-     * space via ioremap. Consult ioport.h. 
+     * space via ioremap. Consult ioport.h.
      */
     info->screen_base = NULL; /* TBD: framebuffer_virtual_memory; */
     info->fbops = &ps2fb_ops;
@@ -1459,7 +1459,7 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 
     /*
      * This should give a reasonable default video mode. The following is
-     * done when we can set a video mode. 
+     * done when we can set a video mode.
      */
 	switch (info->var.nonstd) {
 	case PS2_GS_PAL:
@@ -1481,9 +1481,9 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
 	}
 	DPRINTK("ps2fb: fb_find_mode retval = %d\n", retval);
 	DPRINTK("ps2fb: mode_option %s %dx%d\n", mode_option, info->var.xres, info->var.yres);
-  
+
 	if (!retval)
-		return -EINVAL;			
+		return -EINVAL;
 
 	if (videomemsize > 0) {
 		info->fix.smem_len = videomemsize;
