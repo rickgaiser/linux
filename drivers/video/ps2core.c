@@ -120,7 +120,7 @@ static void *ps2kdma_alloc(struct kdma_buffer *kdb, int min, int max, int *size)
 
 	/* polling wait is used when
 	 *  - called from interrupt handler
-	 *  - interrupt is already disabled (in printk()) 
+	 *  - interrupt is already disabled (in printk())
 	 */
 	poll = in_interrupt() || !irqs_disabled();
 
