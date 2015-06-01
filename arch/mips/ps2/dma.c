@@ -26,6 +26,7 @@
 #include <linux/interrupt.h>
 #include <linux/spinlock.h>
 #include <linux/completion.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/types.h>
 #include <asm/io.h>
@@ -222,8 +223,8 @@ int ps2dma_intr_safe_wait_for_completion(struct dma_channel *ch, int polling, st
 
 struct sdma_request {
     struct dma_request r;
-    unsigned long madr;
-    unsigned long qwc;
+    dma_addr_t madr;
+    size_t qwc;
     struct dma_completion c;
 };
 
@@ -246,24 +247,29 @@ static void sdma_free(struct dma_request *req, struct dma_channel *ch)
 static struct dma_ops sdma_send_ops =
 { sdma_send_start, NULL, NULL, sdma_free };
 
-int ps2sdma_send(int chno, const void *ptr, int len, int flushall)
+int ps2sdma_send(int chno, const void *ptr, size_t size)
 {
-    struct sdma_request sreq;
-    struct dma_channel *ch = &ps2dma_channels[chno];
-    int result;
+	struct sdma_request sreq;
+	struct dma_channel *ch = &ps2dma_channels[chno];
+	int result;
 
-    init_dma_request(&sreq.r, &sdma_send_ops);
-    sreq.madr = virt_to_bus(ptr);
-    sreq.qwc = len >> 4;
-    ps2dma_init_completion(&sreq.c);
+	init_dma_request(&sreq.r, &sdma_send_ops);
+	sreq.madr = dma_map_single(NULL, (void *)ptr, size, DMA_TO_DEVICE);
+	sreq.qwc = size >> 4;
+	ps2dma_init_completion(&sreq.c);
 
-    ps2dma_add_queue((struct dma_request *)&sreq, ch, flushall);
-    do {
-	result = ps2dma_intr_safe_wait_for_completion(ch, in_interrupt(), &sreq.c);
-	if (result)
-	    ps2_printf("ps2dma: %s timeout\n", ch->device);
-    } while (result != 0);
-    return 0;
+	/* Set flushall flag to 0 because we use dma_map_single to flush */
+	ps2dma_add_queue((struct dma_request *)&sreq, ch, 0);
+	do {
+		result = ps2dma_intr_safe_wait_for_completion(ch, in_interrupt(), &sreq.c);
+		if (result)
+			ps2_printf("ps2dma: %s timeout\n", ch->device);
+	} while (result != 0);
+
+	/* This is a NOOP */
+	dma_unmap_single(NULL, sreq.madr, size, DMA_TO_DEVICE);
+
+	return 0;
 }
 
 /*

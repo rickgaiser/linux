@@ -588,7 +588,7 @@ void ps2fb_dma_send(const void *data, unsigned long len)
 				cur_size += size;
 			} else {
 				/* Start DMA transfer for current data. */
-				ps2sdma_send(DMA_GIF, cur_start, ALIGN16(cur_size), 0);
+				ps2sdma_send(DMA_GIF, cur_start, ALIGN16(cur_size));
 
 				cur_size = size;
 				cur_start = addr;
@@ -600,7 +600,7 @@ void ps2fb_dma_send(const void *data, unsigned long len)
 	}
 	if (cur_size > 0) {
 		/* Start DMA transfer for current data. */
-		ps2sdma_send(DMA_GIF, cur_start, ALIGN16(cur_size), 0);
+		ps2sdma_send(DMA_GIF, cur_start, ALIGN16(cur_size));
 
 		cur_size = 0;
 		cur_start = 0;

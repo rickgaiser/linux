@@ -151,6 +151,6 @@ void ps2dma_add_queue(struct dma_request *req, struct dma_channel *ch, int flush
 void ps2dma_complete(struct dma_completion *x);
 void ps2dma_init_completion(struct dma_completion *x);
 int ps2dma_intr_safe_wait_for_completion(struct dma_channel *ch, int polling, struct dma_completion *x);
-int ps2sdma_send(int chno, const void *ptr, int len, int flushall);
+int ps2sdma_send(int chno, const void *ptr, size_t size);
 
 #endif /* __ASM_PS2_DMA_H */
