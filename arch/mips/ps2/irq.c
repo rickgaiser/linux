@@ -181,7 +181,6 @@ static volatile unsigned long gs_mask = 0;
 void ps2_setup_gs_imr(void)
 {
 	outl(0xff00, GS_IMR);
-	outl(1 << IRQ_INTC_GS, INTC_STAT);
 	outl((~gs_mask & 0x7f) << 8, GS_IMR);
 }
 
@@ -217,7 +216,6 @@ static void gs_ack_irq(unsigned int irq_nr)
 	unsigned int gs_irq_nr = irq_nr - IRQ_GS;
 
 	outl(0xff00, GS_IMR);
-	outl(1 << IRQ_INTC_GS, INTC_STAT);
 	outl(1 << gs_irq_nr, GS_CSR);
 }
 
@@ -251,7 +249,6 @@ static inline unsigned long sbus_enter_irq(void)
 {
 	unsigned long istat = 0;
 
-	intc_ack_irq(IRQ_INTC_SBUS);
 	if (inl(SBUS_SMFLG) & (1 << 8)) {
 		outl(1 << 8, SBUS_SMFLG);
 		switch (ps2_pcic_type) {
@@ -302,8 +299,6 @@ static inline void sbus_leave_irq(void)
 		outw(mask, SBUS_PCIC3_TIMR);
 		break;
 	}
-
-	intc_enable_irq(IRQ_INTC_SBUS);
 }
 
 static inline void sbus_enable_irq(unsigned int irq_nr)
@@ -390,23 +385,76 @@ static struct irq_chip sbus_irq_type = {
 	.end		= sbus_end_irq,
 };
 
+static irqreturn_t gs_cascade(int irq, void *data)
+{
+	uint32_t irq_reg;
+
+	//irq_reg = readl(intc_base + GS_CSR);
+	irq_reg = inl(GS_CSR) & gs_mask;
+
+	if (irq_reg)
+		generic_handle_irq(__fls(irq_reg) + IRQ_GS);
+
+	return IRQ_HANDLED;
+}
+
 static struct irqaction cascade_gs_irqaction = {
-	.handler = no_action,
+	.handler = gs_cascade,
 	.name = "GS cascade",
 };
 
+static irqreturn_t sbus_cascade(int irq, void *data)
+{
+	uint32_t irq_reg;
+
+	preempt_disable();
+	irq_reg = sbus_enter_irq() & sbus_mask;
+	if (irq_reg)
+		generic_handle_irq(__fls(irq_reg) + IRQ_SBUS);
+	sbus_leave_irq();
+	preempt_enable_no_resched();
+
+	return IRQ_HANDLED;
+}
+
 static struct irqaction cascade_sbus_irqaction = {
-	.handler = no_action,
+	.handler = sbus_cascade,
 	.name = "SBUS cascade",
 };
 
+static irqreturn_t intc_cascade(int irq, void *data)
+{
+	uint32_t irq_reg;
+
+	//irq_reg = readl(intc_base + INTC_STAT);
+	irq_reg = inl(INTC_STAT) & intc_mask;
+
+	if (irq_reg)
+		generic_handle_irq(__fls(irq_reg) + IRQ_INTC);
+
+	return IRQ_HANDLED;
+}
+
 static struct irqaction cascade_intc_irqaction = {
-	.handler = no_action,
+	.handler = intc_cascade,
 	.name = "INTC cascade",
 };
 
+static irqreturn_t dmac_cascade(int irq, void *data)
+{
+	uint32_t irq_reg;
+
+	//irq_reg = readl(dmac_base + DMAC_STAT);
+	irq_reg = inl(DMAC_STAT) & dmac_mask;
+
+	if (irq_reg)
+		generic_handle_irq(__fls(irq_reg) + IRQ_DMAC);
+
+	return IRQ_HANDLED;
+}
+
 static struct irqaction cascade_dmac_irqaction = {
-	.handler = no_action,
+	.handler = dmac_cascade,
 	.name = "DMAC cascade",
 };
 
@@ -470,88 +518,6 @@ void __init arch_init_irq(void)
 	}
 }
 
-static void gs_irqdispatch(void);
-static void sbus_irqdispatch(void);
-
-/*
- * INT0 (INTC interrupt)
- * interrupts 0 - 15
- */
-void int0_irqdispatch(void)
-{
-	int i;
-	unsigned long int0 = inl(INTC_STAT) & intc_mask;
-
-	if (int0 & (1 << IRQ_INTC_GS)) {
-		gs_irqdispatch();
-		return;
-	} else if (int0 & (1 << IRQ_INTC_SBUS)) {
-		sbus_irqdispatch();
-		return;
-	}
-
-	for (i = 2; i < 16; i++) {
-		if ((int0 & (1 << i))) {
-			do_IRQ(IRQ_INTC + i);
-			break;
-		}
-	}
-}
-
-/*
- * INT1 (DMAC interrupt)
- * interrupts 16 - 31
- */
-static void int1_irqdispatch(void)
-{
-	int i;
-	unsigned long int1 = inl(DMAC_STAT) & dmac_mask;
-
-	for (i = 0; i < 16; i++) {
-		if ((int1 & (1 << i))) {
-			do_IRQ(IRQ_DMAC + i);
-			break;
-		}
-	}
-}
-
-/*
- * GS interrupt (INT0 cascade)
- * interrupts 32 - 39
- */
-static void gs_irqdispatch(void)
-{
-	int i;
-	unsigned long gs_int = inl(GS_CSR) & gs_mask;
-
-	for (i = 0; i < 7; i++) {
-		if ((gs_int & (1 << i))) {
-			do_IRQ(IRQ_GS + i);
-			break;
-		}
-	}
-}
-
-/*
- * SBUS interrupt (INT0 cascade)
- * interrupts 40 - 47
- */
-static void sbus_irqdispatch(void)
-{
-	int i;
-	unsigned long sbus_int;
-
-	preempt_disable();
-	sbus_int = sbus_enter_irq() & sbus_mask;
-	for (i = 0; i < 7; i++) {
-		if ((sbus_int & (1 << i))) {
-			do_IRQ(IRQ_SBUS + i);
-		}
-	}
-	sbus_leave_irq();
-	preempt_enable_no_resched();
-}
-
 asmlinkage void plat_irq_dispatch(void)
 {
 	unsigned int pending = read_c0_status() & read_c0_cause();
@@ -561,14 +527,14 @@ asmlinkage void plat_irq_dispatch(void)
 	 */
 	if (pending & CAUSEF_IP2) {
 		/* INTC interrupt. */
-		int0_irqdispatch();
+		do_IRQ(IRQ_C0_INTC);
 	} else if (pending & CAUSEF_IP3) {
 		/* DMAC interrupt. */
-		int1_irqdispatch();
+		do_IRQ(IRQ_C0_DMAC);
 	} else if (pending & CAUSEF_IP7) {
 		/* Timer interrupt. */
 		do_IRQ(IRQ_C0_IRQ7);
 	} else {
-		printk("plat_irq_dispatch: unknown interrupt 0x%08x pending.\n", pending);
+		spurious_interrupt();
 	}
 }
