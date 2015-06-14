@@ -9,38 +9,6 @@
 #ifndef _ASM_PTRACE_H
 #define _ASM_PTRACE_H
 
-#ifdef CONFIG_R5900_128BIT_SUPPORT
-/* Cast larger R5900 register to smaller 32 bit. */
-#define MIPS_READ_REG_L(reg) ((unsigned long)((reg).lo))
-#define MIPS_READ_REG(reg) ((reg).lo)
-#define MIPS_READ_REG_HIGH(reg) ((reg).hi)
-#define MIPS_READ_REG_S(reg) ((long long)(reg).lo)
-#define MIPS_WRITE_REG(reg) ; ((reg).lo)
-#define MIPS_REG_T unsigned long long
-
-typedef struct __attribute__((aligned(16))) {
-	unsigned long long lo;
-	unsigned long long hi;
-} r5900_reg_t;
-#else
-#define MIPS_READ_REG_L(reg) (reg)
-#define MIPS_READ_REG(reg) (reg)
-#define MIPS_READ_REG_S(reg) ((long) (reg))
-#define MIPS_WRITE_REG(reg) (reg)
-#define MIPS_REG_T unsigned long
-#endif
-
-
-#ifdef CONFIG_R5900_128BIT_SUPPORT
-	/* Support for 128 bit. */
-	r5900_reg_t regs[32];
-#else
-#endif
-#ifdef CONFIG_CPU_R5900
-	unsigned long long hi;
-	unsigned long long lo;
-#else
-#endif
 
 #include <linux/compiler.h>
 #include <linux/linkage.h>
