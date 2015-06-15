@@ -109,7 +109,6 @@ static int ps2mem_mmap(struct file *file, struct vm_area_struct *vma)
 	}
     }
 
-    vma->vm_flags |= VM_CAN_NONLINEAR;
     vma->vm_flags |= VM_IO;
     vma->vm_ops = &ps2mem_vmops;
     return 0;

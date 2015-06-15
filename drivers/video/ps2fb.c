@@ -1311,7 +1311,7 @@ static int ps2fb_mmap(struct fb_info *info,
 			size = 0;
 	}
 
-	vma->vm_flags |= VM_RESERVED;	/* avoid to swap out this VMA */
+	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;	/* avoid to swap out this VMA */
 
 	return 0;
 }

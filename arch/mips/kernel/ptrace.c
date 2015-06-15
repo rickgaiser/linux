@@ -588,9 +588,9 @@ asmlinkage void syscall_trace_enter(struct pt_regs *regs)
 	}
 
 out:
-	audit_syscall_entry(audit_arch(), regs->regs[2],
-			    regs->regs[4], regs->regs[5],
-			    regs->regs[6], regs->regs[7]);
+	audit_syscall_entry(audit_arch(), MIPS_READ_REG(regs->regs[2]),
+			    MIPS_READ_REG(regs->regs[4]), MIPS_READ_REG(regs->regs[5]),
+			    MIPS_READ_REG(regs->regs[6]), MIPS_READ_REG(regs->regs[7]));
 }
 
 /*
