@@ -2535,7 +2535,7 @@ ps2sd_print_debug_flags(void)
 }
 #endif
 
-static int __devinit ps2sd_probe(struct platform_device *dev)
+static int ps2sd_probe(struct platform_device *dev)
 {
 	int i, res, resiop;
 
@@ -2725,7 +2725,7 @@ static int __devinit ps2sd_probe(struct platform_device *dev)
 	return res;
 }
 
-static int __devexit ps2sd_driver_remove(struct platform_device *pdev)
+static int ps2sd_driver_remove(struct platform_device *pdev)
 {
 	ps2sd_cleanup();
 
@@ -2790,7 +2790,7 @@ static void ps2sd_cleanup(void)
 
 static struct platform_driver ps2sd_driver = {
 	.probe	= ps2sd_probe,
-	.remove	= __devexit_p(ps2sd_driver_remove),
+	.remove	= ps2sd_driver_remove,
 	.driver	= {
 		.name	= "ps2sd",
 		.owner	= THIS_MODULE,

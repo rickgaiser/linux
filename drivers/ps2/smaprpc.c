@@ -407,7 +407,7 @@ static const struct net_device_ops smaprpc_netdev_ops = {
 #endif
 };
 
-static int __devinit smaprpc_probe(struct platform_device *dev)
+static int smaprpc_probe(struct platform_device *dev)
 {
 	struct net_device *net_dev = NULL;
 	struct smaprpc_chan *smap = NULL;
@@ -467,7 +467,7 @@ error:
 	return (-ENODEV);
 }
 
-static int __devexit smaprpc_driver_remove(struct platform_device *pdev)
+static int smaprpc_driver_remove(struct platform_device *pdev)
 {
 	struct net_device *net_dev = platform_get_drvdata(pdev);
 	struct smaprpc_chan *smap = netdev_priv(net_dev);
@@ -510,7 +510,7 @@ static int __devexit smaprpc_driver_remove(struct platform_device *pdev)
 
 static struct platform_driver smap_driver = {
 	.probe	= smaprpc_probe,
-	.remove	= __devexit_p(smaprpc_driver_remove),
+	.remove	= smaprpc_driver_remove,
 	.driver	= {
 		.name	= "ps2smaprpc",
 		.owner	= THIS_MODULE,

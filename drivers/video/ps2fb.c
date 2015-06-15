@@ -73,7 +73,7 @@ struct ps2fb_par
 	int redraw_yres;
 };
 
-static char *mode_option __devinitdata;
+static char *mode_option;
 static int crtmode = -1;
 
 static int param_set_crtmode(const char *val, const struct kernel_param *kp)
@@ -1445,7 +1445,7 @@ static int ps2fb_switch_to_unmapped(struct fb_info *info)
 	return 0;
 }
 
-static int __devinit ps2fb_probe(struct platform_device *pdev)
+static int ps2fb_probe(struct platform_device *pdev)
 {
     struct fb_info *info;
     struct ps2fb_par *par;
@@ -1586,7 +1586,7 @@ static int __devinit ps2fb_probe(struct platform_device *pdev)
     return 0;
 }
 
-static int __devexit ps2fb_remove(struct platform_device *pdev)
+static int ps2fb_remove(struct platform_device *pdev)
 {
 	struct fb_info *info = platform_get_drvdata(pdev);
 
@@ -1603,7 +1603,7 @@ static int __devexit ps2fb_remove(struct platform_device *pdev)
 
 static struct platform_driver ps2fb_driver = {
 	.probe = ps2fb_probe,
-	.remove = __devexit_p(ps2fb_remove),
+	.remove = ps2fb_remove,
 	.driver = {
 		.name = DEVICE_NAME,
 	},
