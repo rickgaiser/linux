@@ -165,7 +165,7 @@ static int ohci_hcd_ps2_probe(struct platform_device *pdev)
 	hcd->regs = (void __iomem *)res->start;
 	hcd->rsrc_start = res->start;
 	hcd->rsrc_len = resource_len(res);
-	ret = usb_add_hcd(hcd, irq, IRQF_DISABLED);
+	ret = usb_add_hcd(hcd, irq, 0);
 	if (ret != 0) {
 		ERROR("Failed to add hcd");
 		usb_put_hcd(hcd);
