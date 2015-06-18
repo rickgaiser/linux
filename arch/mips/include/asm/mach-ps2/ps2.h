@@ -36,7 +36,6 @@ extern struct ps2_sysconf *ps2_sysconf;
 
 extern void prom_putchar(char);
 extern int ps2_printf(const char *fmt, ...);
-void ps2_dev_init(void);
 extern int ps2sif_initiopheap(void);
 extern int ps2rtc_init(void);
 void ps2_halt(int mode);

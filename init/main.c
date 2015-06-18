@@ -783,12 +783,6 @@ static void __init do_initcalls(void)
 {
 	initcall_t *fn;
 
-#ifdef CONFIG_SONY_PS2
-	/* PS2 device system must be initialized before each device. */
-	/* TBD: Define bus for this. */
-	ps2_dev_init();
-#endif
-
 	for (fn = __early_initcall_end; fn < __initcall_end; fn++)
 		do_one_initcall(*fn);
 

@@ -179,7 +179,7 @@ void __init plat_mem_setup(void)
 #endif
 }
 
-void ps2_dev_init(void)
+static int __init ps2_dev_init(void)
 {
 	ps2dma_init();
 	ps2sif_init();
@@ -208,4 +208,7 @@ void ps2_dev_init(void)
 	load_module_firmware("audsrv.irx", 0);
 #endif
 	platform_device_register(&audio_device);
+
+	return 0;
 }
+arch_initcall(ps2_dev_init);
