@@ -58,15 +58,9 @@ static struct resource usb_ohci_resources[] = {
 	},
 };
 
-static u64 usb_ohci_dma_mask = 0xffffffffUL;
 static struct platform_device usb_ohci_device = {
 	.name		= "ps2_ohci",
 	.id		= -1,
-	.dev = {
-		/* DMA memory is allocated from IOP heap. */
-		.dma_mask		= &usb_ohci_dma_mask,
-		.coherent_dma_mask	= 0xffffffff,
-	},
 	.num_resources	= ARRAY_SIZE(usb_ohci_resources),
 	.resource	= usb_ohci_resources,
 };
