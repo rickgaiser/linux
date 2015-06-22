@@ -59,22 +59,12 @@ static void smap_interrupt_XXable(struct smap_chan *smap, int enable_flag);
 static void smap_txrx_XXable(struct smap_chan *smap, int enable_flag);
 static void smap_txbd_init(struct smap_chan *smap);
 static void smap_rxbd_init(struct smap_chan *smap);
-static int  smap_read_phy(struct smap_chan *smap, u_int32_t phyadr, u_int32_t regadr);
-static int  smap_write_phy(struct smap_chan *smap, u_int32_t phyadr, u_int32_t regadr, u_int16_t data);
 static int smap_fifo_reset(struct smap_chan *smap);
 static void smap_reg_init(struct smap_chan *smap);
 static int  smap_emac3_soft_reset(struct smap_chan *smap);
 static void smap_emac3_set_defvalue(struct smap_chan *smap);
 static void smap_emac3_init(struct smap_chan *smap, int reset_only);
 static void smap_emac3_re_init(struct smap_chan *smap);
-static int  smap_phy_init(struct smap_chan *smap, int reset_only);
-static int  smap_phy_reset(struct smap_chan *smap);
-static int  smap_auto_negotiation(struct smap_chan *smap, int enable_auto_nego);
-static int  smap_confirm_auto_negotiation(struct smap_chan *smap);
-static void smap_force_spd_100M(struct smap_chan *smap);
-static void smap_force_spd_10M(struct smap_chan *smap);
-static void smap_confirm_force_spd(unsigned long arg);
-static void smap_phy_set_dsp(struct smap_chan *smap);
 static void smap_reset(struct smap_chan *smap, int reset_only);
 static void smap_print_mac_address(struct smap_chan *smap, u_int8_t *addr);
 static int  smap_get_node_addr(struct smap_chan *smap);
@@ -89,8 +79,6 @@ static void smap_rpcend_notify(void *arg);
 static void smap_dma_setup(struct smap_chan *smap);
 static void smap_run(struct smap_chan *smap);
 static int  smap_thread(void *arg);
-static void smap_chk_linkvalid(struct smap_chan *smap);
-static int  smap_chk_linkvalid_thread(void *arg);
 static int  smap_init_thread(void *arg);
 
 /*--------------------------------------------------------------------------*/
@@ -1056,31 +1044,85 @@ smap_get_stats(struct net_device *net_dev)
 	return(&smap->net_stats);
 }
 
+static void
+smap_adjust_link(struct net_device *net_dev)
+{
+	struct smap_chan *smap = netdev_priv(net_dev);
+	struct phy_device *phydev = smap->phydev;
+	unsigned long flags;
+	u32 e3v;
+	int link_state;
+
+	if (phydev == NULL)
+		return;
+
+	/* hash together the state values to decide if something has changed */
+	link_state = phydev->speed | (phydev->duplex << 1) | phydev->link;
+
+	spin_lock_irqsave(&smap->spinlock, flags);
+	if (smap->last_link != link_state) {
+		smap->last_link = link_state;
+
+		if (phydev->link) {
+			e3v = EMAC3REG_READ(smap, SMAP_EMAC3_MODE1);
+
+			e3v |= E3_IGNORE_SQE;
+
+			/* Set duplex mode */
+			if (phydev->duplex)
+				e3v |=  (E3_FDX_ENABLE|E3_FLOWCTRL_ENABLE|E3_ALLOW_PF);
+			else {
+				e3v &= ~(E3_FDX_ENABLE|E3_FLOWCTRL_ENABLE|E3_ALLOW_PF);
+				if (phydev->speed == SPEED_10)
+					e3v &= ~E3_IGNORE_SQE;
+			}
+
+			/* Set speed */
+			e3v &= ~E3_MEDIA_MSK;
+			switch (phydev->speed) {
+			/*case SPEED_1000: e3v |= E3_MEDIA_1000M; break;*/
+			case SPEED_100: e3v |= E3_MEDIA_100M; break;
+			case SPEED_10:
+			default: e3v |= E3_MEDIA_10M; break;
+			}
+
+			/* Write new speed setting */
+			EMAC3REG_WRITE(smap, SMAP_EMAC3_MODE1, e3v);
+			smap->txmode_val = e3v;
+
+			smap->flags |=  SMAP_F_LINKVALID;
+		} else {
+			smap->flags &= ~SMAP_F_LINKVALID;
+		}
+
+		phy_print_status(phydev);
+	}
+	spin_unlock_irqrestore(&smap->spinlock, flags);
+}
+
 static int
 smap_open(struct net_device *net_dev)
 {
 	struct smap_chan *smap = netdev_priv(net_dev);
+	char phy_id_fmt[MII_BUS_ID_SIZE + 3];
 	int r;
 
 	if (smap->flags & SMAP_F_PRINT_MSG) {
 		printk("%s: PlayStation 2 SMAP open\n", net_dev->name);
 	}
 
-	for (r = 22 * 5; r; r--) {
-		if ( (smap->flags & SMAP_F_LINKVALID) &&
-		     (smap->flags & SMAP_F_INITDONE) )
-			break;
-		interruptible_sleep_on_timeout(&smap->wait_linkvalid, HZ/5);
-	}
-	if (!((smap->flags & SMAP_F_LINKVALID) &&
-				(smap->flags & SMAP_F_INITDONE))) {
-		printk("%s: link not valid\n", net_dev->name);
-		return(-EPERM);
-	}
 	if (smap->flags & SMAP_F_OPENED) {
 		printk("%s: already opend\n", net_dev->name);
 		return(-EBUSY);
 	}
+
+	snprintf(phy_id_fmt, MII_BUS_ID_SIZE + 3, PHY_ID_FMT, smap->mii->id, 1);
+	smap->phydev = phy_connect(net_dev, phy_id_fmt, &smap_adjust_link, 0, PHY_INTERFACE_MODE_MII);
+	if (IS_ERR(smap->phydev)) {
+		pr_err("%s: Could not attach to PHY\n", net_dev->name);
+		goto open_error;
+	}
+
 	(void)smap_fifo_reset(smap);
 	(void)smap_emac3_re_init(smap);
 	(void)smap_txbd_init(smap);
@@ -1088,7 +1130,7 @@ smap_open(struct net_device *net_dev)
 
 	if (smap->irq == 0) {
 		printk("%s: invalid irq\n", net_dev->name);
-		return(-ENODEV);
+		goto open_error;
 	}
 	r = request_irq(smap->irq, smap_interrupt, IRQF_SHARED,
 					"PlayStation 2 Ethernet", net_dev);
@@ -1099,7 +1141,7 @@ smap_open(struct net_device *net_dev)
 					"PlayStation 2 Ethernet", net_dev);
 		if (r) {
 			printk("%s: request_irq error(%d)\n", net_dev->name,r);
-			return(-ENODEV);
+			goto open_error;
 		}
 	}
 
@@ -1111,11 +1153,19 @@ smap_open(struct net_device *net_dev)
 
 	(void)smap_txrx_XXable(smap, ENABLE);
 
+	phy_start(smap->phydev);
+
 	netif_start_queue(net_dev);
 
 	smap->flags |= SMAP_F_OPENED;
 
-	return(0);	/* success */
+	return 0;
+
+open_error:
+	if (smap->phydev)
+		phy_disconnect(smap->phydev);
+
+	return -ENODEV;
 }
 
 static int
@@ -1150,6 +1200,13 @@ smap_close(struct net_device *net_dev)
 		spin_unlock_irqrestore(&smap->spinlock, flags);
 	}
 
+	/* Stop and disconnect the PHY */
+	if (smap->phydev) {
+		phy_stop(smap->phydev);
+		phy_disconnect(smap->phydev);
+		smap->phydev = NULL;
+	}
+
 	netif_stop_queue(net_dev);
 
 	/* stop DMA */
@@ -1165,6 +1222,8 @@ smap_close(struct net_device *net_dev)
 
 	(void)free_irq(smap->irq, net_dev);
 
+	netif_carrier_off(net_dev);
+
 	return(0);	/* success */
 }
 
@@ -1178,36 +1237,15 @@ static int
 smap_ioctl(struct net_device *net_dev, struct ifreq *ifr, int cmd)
 {
 	struct smap_chan *smap = netdev_priv(net_dev);
-	struct mii_ioctl_data *miidata =(struct mii_ioctl_data *)&ifr->ifr_data;
 	int retval = 0;
 
+	if (!netif_running(net_dev))
+		return -EINVAL;
+
+	if (!smap->phydev)
+		return -EINVAL;
+
 	switch (cmd) {
-	case SIOCGMIIPHY:
-		miidata = if_mii(ifr);
-		if (!miidata)
-			return -EINVAL;
-
-		miidata->phy_id = DsPHYTER_ADDRESS;
-		break;
-
-	case SIOCGMIIREG:
-		miidata->val_out = (u_short)smap_read_phy(smap,
-						miidata->phy_id & 0x1f,
-						miidata->reg_num & 0x1f);
-		break;
-
-#if 0
-	case SIOCSMIIREG:
-		if (!capable(CAP_NET_ADMIN)) {
-			printk("%s: SIOCSMIIREG: not available.\n", net_dev->name);
-			retval = -EPERM;
-			break;
-		}
-		(void)smap_write_phy(smap, miidata->phy_id & 0x1f,
-				miidata->reg_num & 0x1f, miidata->val_in);
-		break;
-#endif
-
 	case SMAP_IOC_PRTMODE:
 	{
 		u_int16_t phyval = 0;
@@ -1218,34 +1256,34 @@ smap_ioctl(struct net_device *net_dev, struct ifreq *ifr, int cmd)
 			break;
 		}
 
-		phyval = (u_int16_t)smap_read_phy(smap,
-					DsPHYTER_ADDRESS, DsPHYTER_BMSR);
+		phyval = (u_int16_t)smap->mii->read(smap->mii,
+					smap->phy_addr, MII_BMSR);
 		if (phyval == (u_int16_t)-1) {
 			printk("%s: read phy error\n", net_dev->name);
 			retval = -EBUSY;
 			break;
 		}
-		if (!(phyval & PHY_BMSR_LINK)) {
+		if (!(phyval & BMSR_LSTATUS)) {
 			printk("%s: link not valid(0x%04x)\n",
 							net_dev->name, phyval);
 		} else {
 			u_int16_t anar = 0;
 			u_int16_t anlpar = 0;
 
-			anar = (u_int16_t)smap_read_phy(smap,
-					DsPHYTER_ADDRESS, DsPHYTER_ANAR);
-			anlpar = (u_int16_t)smap_read_phy(smap,
-					DsPHYTER_ADDRESS, DsPHYTER_ANLPAR);
+			anar = (u_int16_t)smap->mii->read(smap->mii,
+					smap->phy_addr, MII_ADVERTISE);
+			anlpar = (u_int16_t)smap->mii->read(smap->mii,
+					smap->phy_addr, MII_LPA);
 
 			smap->flags &= ~(SMAP_F_SPD_100M|SMAP_F_DUP_FULL);
-			if (anar & anlpar & (PHY_ANAR_100FD|PHY_ANAR_100HD))
+			if (anar & anlpar & (ADVERTISE_100FULL|ADVERTISE_100HALF))
 				smap->flags |= SMAP_F_SPD_100M;
-			if (anar & anlpar & (PHY_ANAR_100FD|PHY_ANAR_10FD))
+			if (anar & anlpar & (ADVERTISE_100FULL|ADVERTISE_10FULL))
 				smap->flags |= SMAP_F_DUP_FULL;
 
 			printk("%s: %s: speed=%s, dupmode=%s.\n",
 				net_dev->name,
-				(phyval & PHY_BMSR_ANCP) ?
+				(phyval & BMSR_ANEGCOMPLETE) ?
 					"Auto-Negotiation" : "force mode",
 				(smap->flags & SMAP_F_SPD_100M) ? "100Mbps" : "10Mbps",
 				(smap->flags & SMAP_F_DUP_FULL) ? "FDX" : "HDX");
@@ -1273,11 +1311,11 @@ smap_ioctl(struct net_device *net_dev, struct ifreq *ifr, int cmd)
 		printk("%s: PHY ID1 = 0x%04x(0x%04x), ID2 = 0x%04x(0x%04x),"
 			" BMSR = 0x%04x\n",
 			net_dev->name,
-			smap_read_phy(smap, DsPHYTER_ADDRESS,DsPHYTER_PHYIDR1),
+			smap->mii->read(smap->mii, smap->phy_addr, MII_PHYSID1),
 			PHY_IDR1_VAL,
-			smap_read_phy(smap, DsPHYTER_ADDRESS,DsPHYTER_PHYIDR2),
+			smap->mii->read(smap->mii, smap->phy_addr, MII_PHYSID2),
 			PHY_IDR2_VAL,
-			smap_read_phy(smap, DsPHYTER_ADDRESS,DsPHYTER_BMSR));
+			smap->mii->read(smap->mii, smap->phy_addr, MII_BMSR));
 		break;
 
 	case SMAP_IOC_PRINT_MSG:
@@ -1305,7 +1343,7 @@ smap_ioctl(struct net_device *net_dev, struct ifreq *ifr, int cmd)
 		break;
 
 	default:
-		retval = -EOPNOTSUPP;
+		retval = phy_mii_ioctl(smap->phydev, ifr, cmd);
 		break;
 	}
 
@@ -1468,86 +1506,6 @@ smap_rxbd_init(struct smap_chan *smap)
 }
 
 static int
-smap_read_phy(struct smap_chan *smap, u_int32_t phyadr, u_int32_t regadr)
-{
-	int i;
-	u_int32_t e3v;
-
-	/* check complete bit */
-	for (i = SMAP_LOOP_COUNT; i; i--) {
-		e3v = EMAC3REG_READ(smap, SMAP_EMAC3_STA_CTRL);
-		if (e3v & E3_PHY_OP_COMP)
-			break;
-	}
-	if (i == 0) {
-		printk("%s: read phy: busy\n", smap->net_dev->name);
-		return(-1);
-	}
-
-	/* write phy address and register address */
-	EMAC3REG_WRITE(smap, SMAP_EMAC3_STA_CTRL,
-			E3_PHY_READ |
-			((phyadr&E3_PHY_ADDR_MSK)<<E3_PHY_ADDR_BITSFT) |
-			(regadr&E3_PHY_REG_ADDR_MSK) );
-
-	/* check complete bit */
-	for (i = SMAP_LOOP_COUNT; i; i--) {
-		e3v = EMAC3REG_READ(smap, SMAP_EMAC3_STA_CTRL);
-		if (e3v & E3_PHY_OP_COMP)
-			break;
-	}
-	if (i == 0) {
-		printk("%s: read phy: write address busy, val = %x\n",
-						smap->net_dev->name, e3v);
-		return(-1);
-	}
-
-	/* workarrund: it may be needed to re-read to get correct phy data */
-	e3v = EMAC3REG_READ(smap, SMAP_EMAC3_STA_CTRL);
-	return(e3v >> E3_PHY_DATA_BITSFT);
-}
-
-static int
-smap_write_phy(struct smap_chan *smap,
-		u_int32_t phyadr, u_int32_t regadr, u_int16_t data)
-{
-	int i;
-	u_int32_t e3v;
-
-	/* check complete bit */
-	for (i = SMAP_LOOP_COUNT; i; i--) {
-		e3v = EMAC3REG_READ(smap, SMAP_EMAC3_STA_CTRL);
-		if (e3v & E3_PHY_OP_COMP)
-			break;
-	}
-	if (i == 0) {
-		printk("%s: write phy: busy\n", smap->net_dev->name);
-		return(-1);
-	}
-
-	/* write data, phy address and register address */
-	e3v = ( ((data&E3_PHY_DATA_MSK)<<E3_PHY_DATA_BITSFT) |
-			E3_PHY_WRITE |
-			((phyadr&E3_PHY_ADDR_MSK)<<E3_PHY_ADDR_BITSFT) |
-			(regadr&E3_PHY_REG_ADDR_MSK) );
-	EMAC3REG_WRITE(smap, SMAP_EMAC3_STA_CTRL, e3v);
-
-	/* check complete bit */
-	for (i = SMAP_LOOP_COUNT; i; i--) {
-		e3v = EMAC3REG_READ(smap, SMAP_EMAC3_STA_CTRL);
-		if (e3v & E3_PHY_OP_COMP)
-			break;
-	}
-	if (i == 0) {
-		printk("%s: write phy: write data busy, val = %x\n",
-						smap->net_dev->name, e3v);
-		return(-1);
-	}
-
-	return(0);
-}
-
-static int
 smap_fifo_reset(struct smap_chan *smap)
 {
 	int i, retval = 0;
@@ -1661,11 +1619,6 @@ smap_emac3_init(struct smap_chan *smap, int reset_only)
 	/* EMAC3 operating MODE */
 	EMAC3REG_WRITE(smap, SMAP_EMAC3_MODE1, SMAP_EMAC3_MODE1_DEF);
 
-	/* phy init */
-	if (smap_phy_init(smap, reset_only) < 0) {
-		printk("%s: phy init error\n", smap->net_dev->name);
-		return;
-	}
 	if (reset_only)		/* this flag may be set when unloading */
 		return;
 
@@ -1686,316 +1639,6 @@ smap_emac3_re_init(struct smap_chan *smap)
 	(void)smap_emac3_soft_reset(smap);
 	EMAC3REG_WRITE(smap, SMAP_EMAC3_MODE1, smap->txmode_val);
 	(void)smap_emac3_set_defvalue(smap);
-	return;
-}
-
-/* return value 0: success, <0: error */
-static int
-smap_phy_init(struct smap_chan *smap, int reset_only)
-{
-	int val;
-
-	val = smap_phy_reset(smap);
-	if (val < 0)
-		return val;
-
-	if (reset_only)		/* this flag may be set when unloading */
-		return 0;
-
-	/* auto-negotiation */
-	val = smap_auto_negotiation(smap, ENABLE);
-	if (val == 0) {
-		smap->flags |= SMAP_F_LINKESTABLISH;
-		(void)smap_phy_set_dsp(smap);
-		return(0);	/* auto-negotiation is succeeded */
-	}
-
-	/* force 100Mbps(HDX) or 10Mbps(HDX) */
-	(void)smap_force_spd_100M(smap);
-
-	return(0);
-}
-
-static int
-smap_phy_reset(struct smap_chan *smap)
-{
-	int i;
-	u_int16_t phyval = 0;
-
-	/* set reset bit */
-	smap_write_phy(smap, DsPHYTER_ADDRESS, DsPHYTER_BMCR, PHY_BMCR_RST);
-
-	udelay(300);				/* wait 300us */
-
-	/* confirm reset done */
-	for (i = SMAP_LOOP_COUNT; i; i--) {
-		phyval = (u_int16_t)smap_read_phy(smap,
-					DsPHYTER_ADDRESS, DsPHYTER_BMCR);
-		if (!(phyval & PHY_BMCR_RST))
-			break;
-		udelay(300);
-	}
-	if (i == 0) {
-		printk("%s: PHY reset not complete(BMCR=0x%x)\n",
-					smap->net_dev->name, phyval);
-		return(-1);
-	}
-	return(0);
-}
-
-static int
-smap_auto_negotiation(struct smap_chan *smap, int enable_auto_nego)
-{
-	int i, val;
-
-	if (enable_auto_nego) {
-		/* set auto-negotiation */
-		smap_write_phy(smap, DsPHYTER_ADDRESS, DsPHYTER_BMCR,
-				PHY_BMCR_100M|PHY_BMCR_ANEN|PHY_BMCR_DUPM);
-	}
-
-	val = smap_confirm_auto_negotiation(smap);
-	for (i = SMAP_AUTONEGO_RETRY; i; i--) {
-		if (val < 0) {	/* timeout, error */
-			/* restart auto-negotiation */
-			smap_write_phy(smap, DsPHYTER_ADDRESS, DsPHYTER_BMCR,
-					PHY_BMCR_100M|PHY_BMCR_ANEN|PHY_BMCR_DUPM|PHY_BMCR_RSAN);
-			val = smap_confirm_auto_negotiation(smap);
-		} else
-			break;
-	}
-	if (val == 0)
-		return(0);
-	else
-		return(-1);	/* error */
-}
-
-static int
-smap_confirm_auto_negotiation(struct smap_chan *smap)
-{
-	int i;
-	u_int16_t phyval = 0;
-	u_int16_t anar = 0, anlpar = 0;
-	u_int32_t e3v;
-
-	for (i = SMAP_AUTONEGO_TIMEOUT; i; i--) {
-						/* auto nego timeout is 3s */
-		phyval = (u_int16_t)smap_read_phy(smap,
-					DsPHYTER_ADDRESS, DsPHYTER_BMSR);
-		if (phyval & PHY_BMSR_ANCP)
-			break;
-		interruptible_sleep_on_timeout(&smap->wait_linknego, HZ/100);	/* wait 10ms */
-	}
-	if (i == 0) {
-		printk("%s: Auto-negotiation timeout, not complete(BMSR=%x)\n",
-					smap->net_dev->name, phyval);
-		return(-1);
-	}
-
-	/* auto negotiation completed. */
-	for (i = 3; i; i--) {
-		/* it needs to wait 3 seconds. */
-		interruptible_sleep_on_timeout(&smap->wait_linknego, HZ);
-	}
-
-	/* confirm speed & duplex mode */
-	for (i = SMAP_LOOP_COUNT; i; i--) {
-		phyval = (u_int16_t)smap_read_phy(smap,
-					DsPHYTER_ADDRESS, DsPHYTER_BMSR);
-		if ((phyval & PHY_BMSR_ANCP) && (phyval & PHY_BMSR_LINK))
-			break;
-		udelay(1000);
-	}
-	if (i == 0) {	/* error */
-		printk("%s: Auto-negotiation error?? (BMSR=%x)\n",
-					smap->net_dev->name, phyval);
-		return(-2);
-	}
-
-	anar = (u_int16_t)smap_read_phy(smap,
-			DsPHYTER_ADDRESS, DsPHYTER_ANAR);
-	anlpar = (u_int16_t)smap_read_phy(smap,
-			DsPHYTER_ADDRESS, DsPHYTER_ANLPAR);
-	smap->flags &= ~(SMAP_F_SPD_100M|SMAP_F_DUP_FULL);
-	if (anar & anlpar & (PHY_ANAR_100FD|PHY_ANAR_100HD))
-		smap->flags |= SMAP_F_SPD_100M;
-	if (anar & anlpar & (PHY_ANAR_100FD|PHY_ANAR_10FD))
-		smap->flags |= SMAP_F_DUP_FULL;
-
-	printk("%s: Auto-negotiation complete. %s %s duplex mode.\n",
-			smap->net_dev->name,
-			(smap->flags & SMAP_F_SPD_100M) ? "100Mbps" : "10Mbps",
-			(smap->flags & SMAP_F_DUP_FULL) ? "Full" : "Half");
-	e3v = EMAC3REG_READ(smap, SMAP_EMAC3_MODE1);
-	if (smap->flags & SMAP_F_DUP_FULL) {
-		/* Full duplex mode */
-		e3v |= (E3_FDX_ENABLE|E3_FLOWCTRL_ENABLE|E3_ALLOW_PF);
-	} else {
-		/* Half duplex mode */
-		e3v &= ~(E3_FDX_ENABLE|E3_FLOWCTRL_ENABLE|E3_ALLOW_PF);
-	}
-	e3v &= ~E3_MEDIA_MSK;
-	if (smap->flags & SMAP_F_SPD_100M)
-		e3v |= E3_MEDIA_100M;
-	else
-		e3v |= E3_MEDIA_10M;
-	EMAC3REG_WRITE(smap, SMAP_EMAC3_MODE1, e3v);
-
-	return(0);
-}
-
-static void
-smap_force_spd_100M(struct smap_chan *smap)
-{
-	printk("%s: try 100Mbps Half duplex mode...\n", smap->net_dev->name);
-
-	/* set 100Mbps, half duplex */
-	smap_write_phy(smap, DsPHYTER_ADDRESS, DsPHYTER_BMCR, PHY_BMCR_100M);
-
-	/* delay 2s */
-	smap->flags |= SMAP_F_CHECK_FORCE100M;
-	interruptible_sleep_on_timeout(&smap->wait_linknego, 2*HZ);
-
-	smap_confirm_force_spd((unsigned long)smap);
-
-	return;
-}
-
-static void
-smap_force_spd_10M(struct smap_chan *smap)
-{
-	printk("%s: try 10Mbps Half duplex mode...\n", smap->net_dev->name);
-
-	/* set 10Mbps, half duplex */
-	smap_write_phy(smap, DsPHYTER_ADDRESS, DsPHYTER_BMCR, PHY_BMCR_10M);
-
-	/* delay 2s */
-	smap->flags |= SMAP_F_CHECK_FORCE10M;
-	interruptible_sleep_on_timeout(&smap->wait_linknego, 2*HZ);
-
-	smap_confirm_force_spd((unsigned long)smap);
-
-	return;
-}
-
-static void
-smap_confirm_force_spd(unsigned long arg)
-{
-	struct smap_chan *smap = (struct smap_chan *)arg;
-	int i;
-	u_int16_t phyval = 0;
-	u_int32_t e3v;
-
-	/* confirm link status, wait 1s is needed */
-	for (i = SMAP_FORCEMODE_TIMEOUT; i; i--) {
-		phyval = (u_int16_t)smap_read_phy(smap,
-					DsPHYTER_ADDRESS, DsPHYTER_BMSR);
-		if (phyval & PHY_BMSR_LINK)
-			break;
-		interruptible_sleep_on_timeout(&smap->wait_linknego, HZ/100);	/* wait 10ms */
-	}
-	if (i) {
-validlink:
-		e3v = EMAC3REG_READ(smap, SMAP_EMAC3_MODE1);
-		e3v &= ~(E3_FDX_ENABLE|E3_FLOWCTRL_ENABLE|E3_ALLOW_PF|E3_MEDIA_MSK);
-		if (smap->flags & SMAP_F_CHECK_FORCE100M) {
-			printk("%s: 100Mbps Half duplex mode\n", smap->net_dev->name);
-			e3v |= E3_MEDIA_100M;
-		} else if (smap->flags & SMAP_F_CHECK_FORCE10M) {
-			printk("%s: 10Mbps Half duplex mode\n", smap->net_dev->name);
-			e3v |= E3_MEDIA_10M;
-		}
-		EMAC3REG_WRITE(smap, SMAP_EMAC3_MODE1, e3v);
-		smap->flags &= ~(SMAP_F_CHECK_FORCE100M|SMAP_F_CHECK_FORCE10M);
-		smap->flags |= SMAP_F_LINKESTABLISH;
-		(void)smap_phy_set_dsp(smap);
-		return;			/* success */
-	}
-
-	if (smap->flags & SMAP_F_CHECK_FORCE100M) {
-		smap->flags &= ~SMAP_F_CHECK_FORCE100M;
-		(void)smap_force_spd_10M(smap);
-	} else if (smap->flags & SMAP_F_CHECK_FORCE10M) {
-		smap->flags &= ~SMAP_F_CHECK_FORCE10M;
-		phyval = (u_int16_t)smap_read_phy(smap,
-				DsPHYTER_ADDRESS, DsPHYTER_BMSR);
-		if (phyval & PHY_BMSR_LINK) {
-			/* valid link */
-			smap->flags |= SMAP_F_CHECK_FORCE10M;
-			goto validlink;
-		} else {
-			printk("%s: fail force speed mode."
-				" link not valid.  phystat=0x%04x\n",
-						smap->net_dev->name, phyval);
-		}
-	}
-	return;
-}
-
-static int smap_phy_fcscr_threshold = PHY_FCSCR_THRESHOLD;
-module_param(smap_phy_fcscr_threshold, int, 0);
-MODULE_PARM_DESC(smap_phy_fcscr_threshold,
-		"TBD: Some threshold for detecting 10Mbs or 100Mbs.");
-
-static void
-smap_phy_set_dsp(struct smap_chan *smap)
-{
-	u_int16_t id1, id2, phyval, recr, fcscr;
-
-	if (!(smap->flags & SMAP_F_LINKESTABLISH))  /* link not established */
-		return;
-
-	/* this value is used in emac3 re-init without phy init */
-	smap->txmode_val = EMAC3REG_READ(smap, SMAP_EMAC3_MODE1);
-
-	id1 = (u_int16_t)smap_read_phy(smap, DsPHYTER_ADDRESS,DsPHYTER_PHYIDR1);
-	id2 = (u_int16_t)smap_read_phy(smap, DsPHYTER_ADDRESS,DsPHYTER_PHYIDR2);
-
-	if (!((id1 == PHY_IDR1_VAL) && ((id2&PHY_IDR2_MSK) == PHY_IDR2_VAL))) {
-		smap->flags |= SMAP_F_LINKVALID;
-		return;
-	}
-
-	if (smap->flags & SMAP_F_LINKVALID)
-		return;
-
-{
-	recr = (u_int16_t)smap_read_phy(smap, DsPHYTER_ADDRESS,
-							DsPHYTER_RECR);
-	fcscr = (u_int16_t)smap_read_phy(smap, DsPHYTER_ADDRESS,
-							DsPHYTER_FCSCR);
-	interruptible_sleep_on_timeout(&smap->wait_linknego, HZ/2);
-	recr = (u_int16_t)smap_read_phy(smap, DsPHYTER_ADDRESS,
-							DsPHYTER_RECR);
-	fcscr = (u_int16_t)smap_read_phy(smap, DsPHYTER_ADDRESS,
-							DsPHYTER_FCSCR);
-	if ((recr > 0) || (fcscr > smap_phy_fcscr_threshold)) {
-		printk("%s: detect REL(%d) or FCSL(%d). force 10M HDX mode.\n",
-			smap->net_dev->name, recr, fcscr);
-		/* EMAC3 default operating MODE */
-		EMAC3REG_WRITE(smap, SMAP_EMAC3_MODE1, SMAP_EMAC3_MODE1_DEF);
-		smap->flags &= ~(SMAP_F_LINKESTABLISH|SMAP_F_LINKVALID);
-		(void)smap_force_spd_10M(smap);
-		return;
-	}
-}
-
-	if ((id2&PHY_IDR2_REV_MSK) == 0x0) {
-		smap_write_phy(smap, DsPHYTER_ADDRESS, 0x13, 0x0001);
-		smap_write_phy(smap, DsPHYTER_ADDRESS, 0x19, 0x1898);
-		smap_write_phy(smap, DsPHYTER_ADDRESS, 0x1f, 0x0000);
-		smap_write_phy(smap, DsPHYTER_ADDRESS, 0x1d, 0x5040);
-		smap_write_phy(smap, DsPHYTER_ADDRESS, 0x1e, 0x008c);
-		smap_write_phy(smap, DsPHYTER_ADDRESS, 0x13, 0x0000);
-	}
-	phyval = (u_int16_t)smap_read_phy(smap, DsPHYTER_ADDRESS,
-							DsPHYTER_PHYSTS);
-	if ( (phyval & (PHY_STS_DUPS|PHY_STS_SPDS|PHY_STS_LINK)) ==
-				(PHY_STS_HDX|PHY_STS_10M|PHY_STS_LINK) ) {
-		smap_write_phy(smap, DsPHYTER_ADDRESS, 0x1a, 0x0104);
-	}
-
-	smap->flags |= SMAP_F_LINKVALID;
 	return;
 }
 
@@ -2620,74 +2263,6 @@ smap_thread(void *arg)
 
 /*--------------------------------------------------------------------------*/
 
-static void
-smap_chk_linkvalid(struct smap_chan *smap)
-{
-	u_int16_t phyval = 0;
-	struct net_device *net_dev = smap->net_dev;
-
-	if ((smap->flags & SMAP_F_INITDONE) == 0)
-		return;
-
-	phyval = (u_int16_t)smap_read_phy(smap, DsPHYTER_ADDRESS,DsPHYTER_BMSR);
-	if ((phyval & PHY_BMSR_LINK) == 0) {
-		if (smap->flags & SMAP_F_LINKVALID) {
-			smap->flags &= ~(SMAP_F_LINKESTABLISH|SMAP_F_LINKVALID);
-			printk("%s: link down\n", smap->net_dev->name);
-			netif_carrier_off(net_dev);
-			netif_stop_queue(net_dev);
-			(void)smap_dma_force_break(smap);
-			(void)smap_reset(smap, RESET_ONLY);
-			(void)smap_skb_queue_clear(smap, &smap->txqueue);
-		}
-	}
-	if (phyval & PHY_BMSR_LINK) {
-		if ((smap->flags & SMAP_F_LINKVALID) == 0) {
-			(void)smap_reset(smap, RESET_INIT);
-			(void)smap_txrx_XXable(smap, DISABLE);
-			netif_carrier_on(net_dev);
-			if (smap->flags & SMAP_F_OPENED) {
-				(void)smap_txbd_init(smap);
-				(void)smap_rxbd_init(smap);
-				(void)smap_skb_queue_init(smap, &smap->txqueue);
-				(void)smap_clear_all_interrupt(smap);
-				(void)smap_interrupt_XXable(smap, ENABLE);
-				(void)smap_txrx_XXable(smap, ENABLE);
-				netif_wake_queue(net_dev);
-			} else {
-				printk("%s: you need \"ifup ethX\"\n",
-							smap->net_dev->name);
-			}
-		}
-	}
-
-	return;
-}
-
-static int smap_chklv_ival = 1;
-module_param(smap_chklv_ival, int, 0);
-MODULE_PARM_DESC(smap_chklv_ival,
-		"Interval for link detection.");
-
-static int
-smap_chk_linkvalid_thread(void *arg)
-{
-	struct smap_chan *smap = (struct smap_chan *)arg;
-
-	while (1) {
-		(void)smap_chk_linkvalid(smap);
-
-		interruptible_sleep_on_timeout(&smap->wait_chk_linkvalid,
-						HZ * smap_chklv_ival);
-		if (kthread_should_stop())
-			break;
-	}
-
-	return 0;
-}
-
-/*--------------------------------------------------------------------------*/
-
 static int smap_dma_enable = 1;
 module_param(smap_dma_enable, int, 0);
 MODULE_PARM_DESC(smap_dma_enable,
@@ -2709,11 +2284,6 @@ smap_init_thread(void *arg)
 		printk("PlayStation 2 SMAP: PIO mode.\n");
 		smap->flags &= ~(SMAP_F_DMA_ENABLE|SMAP_F_DMA_TX_ENABLE|SMAP_F_DMA_RX_ENABLE);
 	}
-
-	if (smap->flags & SMAP_F_LINKVALID)
-		netif_carrier_on(smap->net_dev);
-	else
-		netif_carrier_off(smap->net_dev);
 
 	smap->irq = IRQ_SBUS_PCIC;
 
@@ -2808,9 +2378,6 @@ static int smap_probe(struct platform_device *dev)
 
 	smap_base_init(smap);
 	spin_lock_init(&smap->spinlock);
-	init_waitqueue_head(&smap->wait_linknego);
-	init_waitqueue_head(&smap->wait_linkvalid);
-	init_waitqueue_head(&smap->wait_chk_linkvalid);
 	init_waitqueue_head(&smap->wait_smaprun);
 #ifdef HAVE_TX_TIMEOUT
 	init_waitqueue_head(&smap->wait_timeout);
@@ -2823,13 +2390,17 @@ static int smap_probe(struct platform_device *dev)
 		goto error;
 	}
 
+	/* MDIO bus Registration */
+	r = smap_mdio_register(net_dev);
+	if (r < 0) {
+		pr_debug("%s: MDIO bus registration failed",
+			 __func__);
+		goto error;
+	}
+
+
 	/* create and start thread */
 	smap->init_task = kthread_run(smap_init_thread, smap, "ps2smap init");
-	if (smap_chklv_ival > 0) {
-		if (smap_chklv_ival > 999)
-			smap_chklv_ival = 999;	/* MAX: a three-digit number */
-		smap->chk_linkvalid_task = kthread_run(smap_chk_linkvalid_thread, smap, "ps2smap chk lv %d", smap_chklv_ival);
-	}
 #ifdef HAVE_TX_TIMEOUT
 	smap->timeout_task = kthread_run(smap_timeout_thread, smap, "ps2smap timeout");
 #endif /* HAVE_TX_TIMEOUT */
@@ -2857,9 +2428,6 @@ static int smap_driver_remove(struct platform_device *pdev)
 	struct net_device *net_dev = platform_get_drvdata(pdev);
 	struct smap_chan *smap = netdev_priv(net_dev);
 
-	if (smap->chk_linkvalid_task != NULL) {
-		kthread_stop(smap->chk_linkvalid_task);
-	}
 #ifdef HAVE_TX_TIMEOUT
 	if (smap->timeout_task != NULL) {
 		kthread_stop(smap->timeout_task);
@@ -2874,6 +2442,8 @@ static int smap_driver_remove(struct platform_device *pdev)
 	if (net_dev->flags & IFF_UP)
 		dev_close(net_dev);
 
+	smap_mdio_unregister(net_dev);
+	netif_carrier_off(net_dev);
 	unregister_netdev(net_dev);
 
 	(void)smap_reset(smap, RESET_ONLY);

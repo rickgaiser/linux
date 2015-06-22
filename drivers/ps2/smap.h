@@ -38,6 +38,8 @@
 #include <linux/skbuff.h>
 #include <linux/sched.h>
 #include <linux/types.h>
+#include <linux/mii.h>
+#include <linux/phy.h>
 
 #include <asm/io.h>
 #include <asm/pgtable.h>
@@ -70,10 +72,6 @@ struct smap_chan {
 	u_int8_t ppwc;
 	u_int32_t txmode_val;
 	struct net_device_stats net_stats;
-	wait_queue_head_t wait_linknego;
-	wait_queue_head_t wait_linkvalid;
-	wait_queue_head_t wait_chk_linkvalid;
-	struct task_struct *chk_linkvalid_task;
 	wait_queue_head_t wait_smaprun;
 	struct task_struct *smaprun_task;
 	struct task_struct *init_task;
@@ -95,6 +93,11 @@ struct smap_chan {
 	u_int8_t *drxbuf, *rxbuf;
 	u_int16_t rxbrp;
 	int rxbdi;
+
+	struct mii_bus *mii;
+	int phy_addr;
+	struct phy_device *phydev;
+	int last_link;
 
 	ps2sif_clientdata_t cd_smap_tx, cd_smap_tx_end;
 	ps2sif_clientdata_t cd_smap_rx, cd_smap_rx_end;
@@ -142,21 +145,6 @@ struct smap_chan {
 #define	SMAP_IOC_DUMPPHYSTAT	(SIOCDEVPRIVATE+4)
 #define	SMAP_IOC_PRINT_MSG	(SIOCDEVPRIVATE+5)
 #define	SMAP_IOC_DUMP_PKT	(SIOCDEVPRIVATE+6)
-#ifndef	SIOCGMIIPHY
-/* for MII ioctl */
-#define	SIOCGMIIPHY		(SIOCDEVPRIVATE+13) /* Read from current PHY */
-#define	SIOCGMIIREG		(SIOCDEVPRIVATE+14) /* Read any PHY register */
-#define	SIOCSMIIREG		(SIOCDEVPRIVATE+15) /* Write any PHY register */
-
-struct mii_ioctl_data {
-	u16		phy_id;
-	u16		reg_num;
-	u16		val_in;
-	u16		val_out;
-};
-#else
-#include <linux/mii.h>
-#endif
 
 /*
  * SMAP
@@ -498,68 +486,17 @@ static inline void EMAC3REG_WRITE(struct smap_chan *dev, u_int32_t offset, u_int
 	WRITE_SMAPREG16(dev, offset + 2, (v & 0xFFFF));
 }
 
+extern int smap_mdio_unregister(struct net_device *ndev);
+extern int smap_mdio_register(struct net_device *ndev);
 
 /*
- * PHY Register Offset
+ * PHY
  */
 #define	NS_OUI			0x080017
-#define	DsPHYTER_ADDRESS	0x1
-#define	DsPHYTER_BMCR		0x00
-#define	  PHY_BMCR_RST	(1<<15)		/* ReSeT */
-#define	  PHY_BMCR_LPBK	(1<<14)		/* LooPBacK */
-#define	  PHY_BMCR_100M	(1<<13)		/* speed select, 1:100M, 0:10M */
-#define	  PHY_BMCR_10M	(0<<13)		/* speed select, 1:100M, 0:10M */
-#define	  PHY_BMCR_ANEN	(1<<12)		/* Auto-Negotiation ENable */
-#define	  PHY_BMCR_PWDN	(1<<11)		/* PoWer DowN */
-#define	  PHY_BMCR_ISOL	(1<<10)		/* ISOLate */
-#define	  PHY_BMCR_RSAN	(1<<9)		/* ReStart Auto-Negotiation */
-#define	  PHY_BMCR_DUPM	(1<<8)		/* DUPlex Mode, 1:FDX, 0:HDX */
-#define	  PHY_BMCR_COLT	(1<<7)		/* COLlision Test */
-#define	DsPHYTER_BMSR		0x01
-#define	  PHY_BMSR_ANCP	(1<<5)		/* Auto-Negotiation ComPlete */
-#define	  PHY_BMSR_LINK	(1<<2)		/* LINK status */
-#define	DsPHYTER_PHYIDR1	0x02
 #define	  PHY_IDR1_VAL	(((NS_OUI<<2)>>8)&0xffff)
-#define	DsPHYTER_PHYIDR2	0x03
 #define	  PHY_IDR2_VMDL	0x2		/* Vendor MoDeL number */
 #define	  PHY_IDR2_VAL	\
 		(((NS_OUI<<10)&0xFC00)|((PHY_IDR2_VMDL<<4)&0x3F0))
-#define	  PHY_IDR2_MSK		0xFFF0
-#define	  PHY_IDR2_REV_MSK	0x000F
 
-#define	DsPHYTER_ANAR		0x04
-#define	DsPHYTER_ANLPAR		0x05
-#define	  PHY_ANAR_100FD	(1<<8)
-#define	  PHY_ANAR_100HD	(1<<7)
-#define	  PHY_ANAR_10FD		(1<<6)
-#define	DsPHYTER_ANLPARNP	0x05
-#define	DsPHYTER_ANER		0x06
-#define	DsPHYTER_ANNPTR		0x07
-/* extended registers */
-#define	DsPHYTER_PHYSTS		0x10
-#define	  PHY_STS_REL	(1<<13)		/* Receive Error Latch */
-#define	  PHY_STS_POST	(1<<12)		/* POlarity STatus */
-#define	  PHY_STS_FCSL	(1<<11)		/* False Carrier Sense Latch */
-#define	  PHY_STS_SD	(1<<10)		/* 100BT unconditional Signal Detect */
-#define	  PHY_STS_DSL	(1<<9)		/* 100BT DeScrambler Lock */
-#define	  PHY_STS_PRCV	(1<<8)		/* Page ReCeiVed */
-#define	  PHY_STS_RFLT	(1<<6)		/* Remote FauLT */
-#define	  PHY_STS_JBDT	(1<<5)		/* JaBber DetecT */
-#define	  PHY_STS_ANCP	(1<<4)		/* Auto-Negotiation ComPlete */
-#define	  PHY_STS_LPBK	(1<<3)		/* LooPBacK status */
-#define	  PHY_STS_DUPS	(1<<2)		/* DUPlex Status,1:FDX,0:HDX */
-#define	  PHY_STS_FDX	(1<<2)		/* Full Duplex */
-#define	  PHY_STS_HDX	(0<<2)		/* Half Duplex */
-#define	  PHY_STS_SPDS	(1<<1)		/* SPeeD Status */
-#define	  PHY_STS_10M	(1<<1)		/* 10Mbps */
-#define	  PHY_STS_100M	(0<<1)		/* 100Mbps */
-#define	  PHY_STS_LINK	(1<<0)		/* LINK status */
-#define	DsPHYTER_FCSCR		0x14
-#define	  PHY_FCSCR_THRESHOLD	16
-#define	DsPHYTER_RECR		0x15
-#define	DsPHYTER_PCSR		0x16
-#define	DsPHYTER_PHYCTRL	0x19
-#define	DsPHYTER_10BTSCR	0x1A
-#define	DsPHYTER_CDCTRL		0x1B
 
 #endif	/* __SMAP_H__ */
