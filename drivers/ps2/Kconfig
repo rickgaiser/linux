@@ -9,6 +9,7 @@ config PS2_ETHER_SMAP
 	default y
 	depends on SONY_PS2
 	depends on NET
+	select PHYLIB
 	help
 	   This enables the driver for the network adapter SCPH-10350 in the fat PS2.
 	   The network adapter SCPH-10281 should also work.
