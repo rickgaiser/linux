@@ -2292,6 +2292,33 @@ smap_init_thread(void *arg)
 	return 0;
 }
 
+/* ethtool support */
+static int smap_get_settings(struct net_device *ndev, struct ethtool_cmd *cmd)
+{
+	struct smap_chan *smap = netdev_priv(ndev);
+	return phy_ethtool_gset(smap->phydev, cmd);
+}
+
+static int smap_set_settings(struct net_device *ndev, struct ethtool_cmd *cmd)
+{
+	struct smap_chan *smap = netdev_priv(ndev);
+	return phy_ethtool_sset(smap->phydev, cmd);
+}
+
+static int smap_nway_reset(struct net_device *ndev)
+{
+	struct smap_chan *smap = netdev_priv(ndev);
+	return phy_start_aneg(smap->phydev);
+}
+
+static const struct ethtool_ops smap_ethtool_ops = {
+	.get_settings = smap_get_settings,
+	.set_settings = smap_set_settings,
+	.nway_reset = smap_nway_reset,
+	.get_link = ethtool_op_get_link,
+	.get_ts_info = ethtool_op_get_ts_info,
+};
+
 extern int ps2_pccard_present;
 
 static const struct net_device_ops smap_netdev_ops = {
@@ -2344,6 +2371,7 @@ static int smap_probe(struct platform_device *dev)
 	smap->net_dev = net_dev;
 
 	net_dev->netdev_ops = &smap_netdev_ops;
+	net_dev->ethtool_ops = &smap_ethtool_ops;
 #ifdef HAVE_TX_TIMEOUT
 	net_dev->watchdog_timeo = 5 * HZ;
 #endif /* HAVE_TX_TIMEOUT */
