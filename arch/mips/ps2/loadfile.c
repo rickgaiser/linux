@@ -8,6 +8,7 @@
 #include <linux/module.h>
 #include <linux/semaphore.h>
 #include <linux/sched.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/cacheflush.h>
 #include <asm/page.h>
@@ -268,6 +269,7 @@ static int load_module_buffer(dma_addr_t ptr, const char *args, int arg_len, int
 	return rv;
 }
 
+#if 0
 /** Write iop memory address. */
 static unsigned int iop_write(dma_addr_t addr, const void *buf, unsigned int size)
 {
@@ -333,19 +335,27 @@ static unsigned int iop_write(dma_addr_t addr, const void *buf, unsigned int siz
 	}
 	return rv;
 }
+#endif
 
 int ps2_load_module_buffer(const void *ptr, int size, const char *args, int arg_len, int *mod_res)
 {
-	dma_addr_t iop_addr;
+	dma_addr_t iop_addr; // IOP phys addr / EE bus addr
+	dma_addr_t ee_addr;  // EE  phys addr
 	int rv = -ENOMEM;
 
 	iop_addr = ps2sif_allociopheap(size);
 	if (iop_addr != 0) {
-		rv = iop_write(iop_addr, ptr, size);
-		if (rv >= 0) {
-			/* Load module. */
-			rv = load_module_buffer(iop_addr, args, arg_len, mod_res);
-		}
+		void * vaddr = phys_to_virt(ps2sif_bustophys(iop_addr));
+		memcpy(vaddr, ptr, size);
+
+		/* Flush caches */
+		ee_addr = dma_map_single(NULL, vaddr, size, DMA_TO_DEVICE);
+
+		/* Load module. */
+		rv = load_module_buffer(iop_addr, args, arg_len, mod_res);
+
+		/* noop */
+		dma_unmap_single(NULL, ee_addr, size, DMA_TO_DEVICE);
 
 		/* Clean up */
 		ps2sif_freeiopheap(iop_addr);
