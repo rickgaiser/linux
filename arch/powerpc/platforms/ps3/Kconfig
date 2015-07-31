@@ -208,6 +208,13 @@ config PS3_LV1CALL
 	help
 	  This driver allows you to execute LV1 calls.
 
+config SPUISO_FS
+	tristate "PS3 isolated SPU file system"
+	default m
+	depends on PPC_PS3
+	help
+	  The isolated SPU file system is used to execute isolated SPU modules.
+
 config PS3GELIC_UDBG
 	bool "PS3 udbg output via UDP broadcasts on Ethernet"
 	depends on PPC_PS3
