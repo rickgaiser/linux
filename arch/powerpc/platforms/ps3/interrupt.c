@@ -606,6 +606,7 @@ int ps3_spe_irq_setup(enum ps3_cpu_binding cpu, unsigned long spe_id,
 
 	return result;
 }
+EXPORT_SYMBOL_GPL(ps3_spe_irq_setup);
 
 int ps3_spe_irq_destroy(unsigned int virq)
 {
@@ -618,6 +619,7 @@ int ps3_spe_irq_destroy(unsigned int virq)
 
 	return result;
 }
+EXPORT_SYMBOL_GPL(ps3_spe_irq_destroy);
 
 
 #define PS3_INVALID_OUTLET ((irq_hw_number_t)-1)
