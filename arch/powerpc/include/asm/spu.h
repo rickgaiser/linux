@@ -198,6 +198,8 @@ struct cbe_spu_info {
 
 extern struct cbe_spu_info cbe_spu_info[];
 
+extern int spu_enum_shared(void);
+
 void spu_init_channels(struct spu *spu);
 void spu_irq_setaffinity(struct spu *spu, int cpu);
 
