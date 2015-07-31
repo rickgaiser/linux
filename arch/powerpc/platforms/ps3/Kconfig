@@ -215,6 +215,13 @@ config SPUISO_FS
 	help
 	  The isolated SPU file system is used to execute isolated SPU modules.
 
+config SPULDR_FS
+	tristate "PS3 isolated SPU loader file system"
+	default m
+	depends on PPC_PS3
+	help
+	  The isolated SPU loader file system is used to execute isolated SPU loaders.
+
 config PS3GELIC_UDBG
 	bool "PS3 udbg output via UDP broadcasts on Ethernet"
 	depends on PPC_PS3

@@ -8,3 +8,4 @@ obj-$(CONFIG_SPU_BASE) += spu.o
 obj-y += device-init.o
 
 obj-$(CONFIG_SPUISO_FS) += spuisofs.o
+obj-$(CONFIG_SPULDR_FS) += spuldrfs.o
