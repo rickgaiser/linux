@@ -192,6 +192,16 @@ config PS3_STRGMNGR
 	  This driver allows you to create/delete/modify regions
 	  on PS3 storage devices.
 
+config PS3_ENCDEC
+	tristate "PS3 ENCDEC Driver"
+	depends on PPC_PS3
+	select PS3_STORAGE
+	help
+	  Include support for the PS3 ENCDEC device.
+
+	  This support is required to access the PS3 ENCDEC device.
+	  In general, all users will say Y or M.
+
 config PS3GELIC_UDBG
 	bool "PS3 udbg output via UDP broadcasts on Ethernet"
 	depends on PPC_PS3
