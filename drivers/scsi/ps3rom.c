@@ -75,6 +75,14 @@ enum lv1_atapi_in_out {
 };
 
 
+static unsigned int region_flags[] =
+{
+	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+};
+module_param_array(region_flags, uint, NULL, S_IRUGO);
+MODULE_PARM_DESC(region_flags, "Region flags");
+
+
 static int ps3rom_slave_configure(struct scsi_device *scsi_dev)
 {
 	struct ps3rom_private *priv = shost_priv(scsi_dev->host);
@@ -209,12 +217,13 @@ static int ps3rom_read_request(struct ps3_storage_device *dev,
 			       u32 sectors)
 {
 	int res;
+	unsigned int region_idx = 0;
 
 	dev_dbg(&dev->sbd.core, "%s:%u: read %u sectors starting at %u\n",
 		__func__, __LINE__, sectors, start_sector);
 
 	res = lv1_storage_read(dev->sbd.dev_id,
-			       dev->regions[dev->region_idx].id, start_sector,
+			       dev->regions[region_idx].id, start_sector,
 			       sectors, 0, dev->bounce_lpar, &dev->tag);
 	if (res) {
 		dev_err(&dev->sbd.core, "%s:%u: read failed %d\n", __func__,
@@ -230,6 +239,7 @@ static int ps3rom_write_request(struct ps3_storage_device *dev,
 				u32 sectors)
 {
 	int res;
+	unsigned int region_idx = 0;
 
 	dev_dbg(&dev->sbd.core, "%s:%u: write %u sectors starting at %u\n",
 		__func__, __LINE__, sectors, start_sector);
@@ -237,7 +247,7 @@ static int ps3rom_write_request(struct ps3_storage_device *dev,
 	scsi_sg_copy_to_buffer(cmd, dev->bounce_buf, dev->bounce_size);
 
 	res = lv1_storage_write(dev->sbd.dev_id,
-				dev->regions[dev->region_idx].id, start_sector,
+				dev->regions[region_idx].id, start_sector,
 				sectors, 0, dev->bounce_lpar, &dev->tag);
 	if (res) {
 		dev_err(&dev->sbd.core, "%s:%u: write failed %d\n", __func__,
@@ -403,6 +413,7 @@ static int __devinit ps3rom_probe(struct ps3_system_bus_device *_dev)
 {
 	struct ps3_storage_device *dev = to_ps3_storage_device(&_dev->core);
 	int error;
+	unsigned int regidx;
 	struct Scsi_Host *host;
 	struct ps3rom_private *priv;
 
@@ -417,6 +428,9 @@ static int __devinit ps3rom_probe(struct ps3_system_bus_device *_dev)
 	dev->bounce_buf = kmalloc(BOUNCE_SIZE, GFP_DMA);
 	if (!dev->bounce_buf)
 		return -ENOMEM;
+
+	for (regidx = 0; regidx < dev->num_regions; regidx++)
+		dev->regions[regidx].flags = region_flags[regidx];
 
 	error = ps3stor_setup(dev, ps3rom_interrupt);
 	if (error)

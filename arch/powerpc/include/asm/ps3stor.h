@@ -30,6 +30,7 @@ struct ps3_storage_region {
 	unsigned int id;
 	u64 start;
 	u64 size;
+	u64 flags;
 };
 
 struct ps3_storage_device {
@@ -50,7 +51,6 @@ struct ps3_storage_device {
 
 	unsigned int num_regions;
 	unsigned long accessible_regions;
-	unsigned int region_idx;		/* first accessible region */
 	struct ps3_storage_region regions[0];	/* Must be last */
 };
 
@@ -62,8 +62,8 @@ static inline struct ps3_storage_device *to_ps3_storage_device(struct device *de
 extern int ps3stor_setup(struct ps3_storage_device *dev,
 			 irq_handler_t handler);
 extern void ps3stor_teardown(struct ps3_storage_device *dev);
-extern u64 ps3stor_read_write_sectors(struct ps3_storage_device *dev, u64 lpar,
-				      u64 start_sector, u64 sectors,
+extern u64 ps3stor_read_write_sectors(struct ps3_storage_device *dev, u64 lpar, unsigned int region_idx,
+				      u64 start_sector, u64 sectors, u64 flags,
 				      int write);
 extern u64 ps3stor_send_command(struct ps3_storage_device *dev, u64 cmd,
 				u64 arg1, u64 arg2, u64 arg3, u64 arg4);
