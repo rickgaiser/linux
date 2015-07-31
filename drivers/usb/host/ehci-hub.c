@@ -316,6 +316,9 @@ static int ehci_bus_suspend (struct usb_hcd *hcd)
 	if (ehci->reclaim)
 		end_unlink_async(ehci);
 
+	ehci->periodic_timer_event = 0;
+	hrtimer_try_to_cancel(&ehci->hrtimer);
+
 	/* allow remote wakeup */
 	mask = INTR_MASK;
 	if (!hcd->self.root_hub->do_remote_wakeup)

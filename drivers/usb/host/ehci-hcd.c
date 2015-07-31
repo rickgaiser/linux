@@ -311,6 +311,9 @@ static void ehci_quiesce (struct ehci_hcd *ehci)
 		BUG ();
 #endif
 
+	ehci->periodic_timer_event = 0;
+	hrtimer_try_to_cancel(&ehci->hrtimer);
+
 	/* wait for any schedule enables/disables to take effect */
 	temp = ehci_readl(ehci, &ehci->regs->command) << 10;
 	temp &= STS_ASS | STS_PSS;
@@ -444,6 +447,9 @@ static void ehci_shutdown(struct usb_hcd *hcd)
 {
 	struct ehci_hcd	*ehci = hcd_to_ehci(hcd);
 
+	ehci->periodic_timer_event = 0;
+	hrtimer_cancel(&ehci->hrtimer);
+
 	del_timer_sync(&ehci->watchdog);
 	del_timer_sync(&ehci->iaa_watchdog);
 
@@ -512,6 +518,9 @@ static void ehci_stop (struct usb_hcd *hcd)
 	ehci_dbg (ehci, "stop\n");
 
 	/* no more interrupts ... */
+	ehci->periodic_timer_event = 0;
+	hrtimer_cancel(&ehci->hrtimer);
+
 	del_timer_sync (&ehci->watchdog);
 	del_timer_sync(&ehci->iaa_watchdog);
 
@@ -570,6 +579,9 @@ static int ehci_init(struct usb_hcd *hcd)
 	init_timer(&ehci->iaa_watchdog);
 	ehci->iaa_watchdog.function = ehci_iaa_watchdog;
 	ehci->iaa_watchdog.data = (unsigned long) ehci;
+
+	hrtimer_init(&ehci->hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
+	ehci->hrtimer.function = ehci_hrtimer_func;
 
 	hcc_params = ehci_readl(ehci, &ehci->caps->hcc_params);
 
@@ -910,6 +922,8 @@ static irqreturn_t ehci_irq (struct usb_hcd *hcd)
 		dbg_status(ehci, "fatal", status);
 		ehci_halt(ehci);
 dead:
+		ehci->periodic_timer_event = 0;
+		hrtimer_try_to_cancel(&ehci->hrtimer);
 		ehci_reset(ehci);
 		ehci_writel(ehci, 0, &ehci->regs->configured_flag);
 		usb_hc_died(hcd);

@@ -69,6 +69,11 @@ enum ehci_rh_state {
 };
 
 struct ehci_hcd {			/* one per controller */
+	ktime_t			periodic_timeout;
+	ktime_t			periodic_disable_time;
+	struct hrtimer		hrtimer;
+	int			periodic_timer_event;
+
 	/* glue to PCI and HCD framework */
 	struct ehci_caps __iomem *caps;
 	struct ehci_regs __iomem *regs;
