@@ -61,3 +61,5 @@ obj-$(CONFIG_MWIFIEX)	+= mwifiex/
 obj-$(CONFIG_BRCMFMAC) += brcm80211/
 obj-$(CONFIG_BRCMUMAC) += brcm80211/
 obj-$(CONFIG_BRCMSMAC) += brcm80211/
+
+obj-$(CONFIG_PS3_JUPITER)	+= ps3jupiter/
