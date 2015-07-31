@@ -67,3 +67,4 @@ js-rtc-y = rtc.o
 obj-$(CONFIG_TILE_SROM)		+= tile-srom.o
 
 obj-$(CONFIG_PS3_PHYSMEM)	+= ps3physmem.o
+obj-$(CONFIG_PS3_STRGMNGR)	+= ps3strgmngr.o

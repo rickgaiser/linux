@@ -185,6 +185,13 @@ config PS3_PHYSMEM
 	help
 	  This driver allows you direct access to the PS3 physical memory.
 
+config PS3_STRGMNGR
+	tristate "PS3 Storage Manager Driver"
+	depends on PPC_PS3
+	help
+	  This driver allows you to create/delete/modify regions
+	  on PS3 storage devices.
+
 config PS3GELIC_UDBG
 	bool "PS3 udbg output via UDP broadcasts on Ethernet"
 	depends on PPC_PS3
