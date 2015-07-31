@@ -378,6 +378,7 @@ int ps3_event_receive_port_destroy(unsigned int virq)
 	pr_debug(" <- %s:%d\n", __func__, __LINE__);
 	return result;
 }
+EXPORT_SYMBOL_GPL(ps3_event_receive_port_destroy);
 
 int ps3_send_event_locally(unsigned int virq)
 {
