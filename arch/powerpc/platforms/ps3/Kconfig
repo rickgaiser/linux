@@ -202,6 +202,12 @@ config PS3_ENCDEC
 	  This support is required to access the PS3 ENCDEC device.
 	  In general, all users will say Y or M.
 
+config PS3_LV1CALL
+	tristate "PS3 LV1 Call Driver"
+	depends on PPC_PS3
+	help
+	  This driver allows you to execute LV1 calls.
+
 config PS3GELIC_UDBG
 	bool "PS3 udbg output via UDP broadcasts on Ethernet"
 	depends on PPC_PS3
