@@ -26,8 +26,6 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#undef DEBUG
-
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -56,6 +54,9 @@ MODULE_AUTHOR("SCE Inc.");
 MODULE_DESCRIPTION("Gelic Network driver");
 MODULE_LICENSE("GPL");
 
+static int disable_eurus_ctrl_iface = 0;
+module_param(disable_eurus_ctrl_iface, bool, S_IRUGO);
+MODULE_PARM_DESC(disable_eurus_ctrl_iface, "Disable EURUS control interface");
 
 static inline void gelic_card_enable_rxdmac(struct gelic_card *card);
 static inline void gelic_card_disable_rxdmac(struct gelic_card *card);
@@ -1685,6 +1686,17 @@ static int __devinit ps3_gelic_driver_probe(struct ps3_system_bus_device *dev)
 	struct gelic_card *card;
 	struct net_device *netdev;
 	int result;
+
+	if (disable_eurus_ctrl_iface) {
+		/* IMPORTANT: do it before opening gelic device !!! */
+
+		lv1_modify_repository_node_value(1 /* LPAR 1 */,
+			0x00000000696f7300 /* "ios" */,
+			0x6e65740000000000 /* "net" */,
+			0x6575727573000000 /* "eurus" */,
+			0x6c70617200000000 /* "lpar" */,
+			0, 0);
+	}
 
 	pr_debug("%s: called\n", __func__);
 	result = ps3_open_hv_device(dev);

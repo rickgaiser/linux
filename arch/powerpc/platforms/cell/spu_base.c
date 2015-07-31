@@ -79,6 +79,16 @@ struct spu_slb {
 	u64 esid, vsid;
 };
 
+static int enumerate_shared = 0;
+module_param(enumerate_shared, bool, S_IRUGO);
+MODULE_PARM_DESC(enumerate_shared, "Enumerate shared SPUs");
+
+int spu_enumerate_shared(void)
+{
+	return enumerate_shared;
+}
+EXPORT_SYMBOL_GPL(spu_enumerate_shared);
+
 void spu_invalidate_slbs(struct spu *spu)
 {
 	struct spu_priv2 __iomem *priv2 = spu->priv2;

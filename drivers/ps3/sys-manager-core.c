@@ -70,3 +70,13 @@ void ps3_sys_manager_halt(void)
 		lv1_pause(1);
 }
 
+int ps3_sys_manager_do_request(const void *sendbuf, unsigned int sendbuf_size,
+	void *recvbuf, unsigned int recvbuf_size)
+{
+	if (ps3_sys_manager_ops.do_request)
+		return ps3_sys_manager_ops.do_request(ps3_sys_manager_ops.dev,
+			sendbuf, sendbuf_size, recvbuf, recvbuf_size);
+	else
+		return -ENOSYS;
+}
+EXPORT_SYMBOL_GPL(ps3_sys_manager_do_request);

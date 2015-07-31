@@ -1,8 +1,5 @@
 /*
- * PS3 Disk Storage Driver
- *
- * Copyright (C) 2007 Sony Computer Entertainment Inc.
- * Copyright 2007 Sony Corp.
+ * PS3 VFLASH Storage Driver
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published
@@ -27,75 +24,45 @@
 #include <asm/firmware.h>
 
 
-#define DEVICE_NAME		"ps3disk"
+#define DEVICE_NAME				"ps3vflash"
 
-#define BOUNCE_SIZE		(64*1024)
+#define BOUNCE_SIZE				(64*1024)
 
-#define PS3DISK_MINORS		16
-
-
-#define PS3DISK_NAME		"ps3d%c"
+#define PS3VFLASH_MINORS			16
 
 
-struct ps3disk_private {
+#define PS3VFLASH_NAME				"ps3vflash%c"
+
+#define LV1_STORAGE_ATA_FLUSH_CACHE_EXT		(0x31)
+
+struct ps3vflash_private {
 	spinlock_t lock;		/* Request queue spinlock */
 	struct request_queue *queue;
 	unsigned int blocking_factor;
 	struct request *req;
 	u64 raw_capacity;
-	unsigned char model[ATA_ID_PROD_LEN+1];
 	struct gendisk *gendisk[0];
 };
 
 
-#define LV1_STORAGE_SEND_ATA_COMMAND	(2)
-#define LV1_STORAGE_ATA_HDDOUT		(0x23)
-
-struct lv1_ata_cmnd_block {
-	u16	features;
-	u16	sector_count;
-	u16	LBA_low;
-	u16	LBA_mid;
-	u16	LBA_high;
-	u8	device;
-	u8	command;
-	u32	is_ext;
-	u32	proto;
-	u32	in_out;
-	u32	size;
-	u64	buffer;
-	u32	arglen;
-};
-
-enum lv1_ata_proto {
-	NON_DATA_PROTO     = 0,
-	PIO_DATA_IN_PROTO  = 1,
-	PIO_DATA_OUT_PROTO = 2,
-	DMA_PROTO = 3
-};
-
-enum lv1_ata_in_out {
-	DIR_WRITE = 0,			/* memory -> device */
-	DIR_READ = 1			/* device -> memory */
-};
-
-static int ps3disk_major;
+static int ps3vflash_major;
 
 
-static const struct block_device_operations ps3disk_fops = {
+static const struct block_device_operations ps3vflash_fops = {
 	.owner		= THIS_MODULE,
 };
 
+
 static unsigned long region_flags[] =
 {
-	0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+	0x6, 0x2, 0x4, 0x4, 0x4, 0x0, 0x2, 0x0,
 };
 module_param_array(region_flags, ulong, NULL, S_IRUGO);
 MODULE_PARM_DESC(region_flags, "Region flags");
 
 
-static void ps3disk_scatter_gather(struct ps3_storage_device *dev,
-				   struct request *req, int gather)
+static void ps3vflash_scatter_gather(struct ps3_storage_device *dev,
+				     struct request *req, int gather)
 {
 	unsigned int offset = 0;
 	struct req_iterator iter;
@@ -124,14 +91,14 @@ static void ps3disk_scatter_gather(struct ps3_storage_device *dev,
 	}
 }
 
-static int ps3disk_submit_request_sg(struct ps3_storage_device *dev,
-				     struct request *req)
+static int ps3vflash_submit_request_sg(struct ps3_storage_device *dev,
+				       struct request *req)
 {
-	struct ps3disk_private *priv = ps3_system_bus_get_drvdata(&dev->sbd);
+	struct ps3vflash_private *priv = ps3_system_bus_get_drvdata(&dev->sbd);
 	int write = rq_data_dir(req), res;
 	const char *op = write ? "write" : "read";
 	u64 start_sector, sectors;
-	unsigned int region_idx = MINOR(disk_devt(req->rq_disk)) / PS3DISK_MINORS;
+	unsigned int region_idx = MINOR(disk_devt(req->rq_disk)) / PS3VFLASH_MINORS;
 	unsigned int region_id = dev->regions[region_idx].id;
 	unsigned int region_flags = dev->regions[region_idx].flags;
 
@@ -153,7 +120,7 @@ static int ps3disk_submit_request_sg(struct ps3_storage_device *dev,
 		__func__, __LINE__, op, sectors, start_sector);
 
 	if (write) {
-		ps3disk_scatter_gather(dev, req, 1);
+		ps3vflash_scatter_gather(dev, req, 1);
 
 		res = lv1_storage_write(dev->sbd.dev_id, region_id,
 					start_sector, sectors, region_flags,
@@ -174,16 +141,16 @@ static int ps3disk_submit_request_sg(struct ps3_storage_device *dev,
 	return 1;
 }
 
-static int ps3disk_submit_flush_request(struct ps3_storage_device *dev,
-					struct request *req)
+static int ps3vflash_submit_flush_request(struct ps3_storage_device *dev,
+					  struct request *req)
 {
-	struct ps3disk_private *priv = ps3_system_bus_get_drvdata(&dev->sbd);
+	struct ps3vflash_private *priv = ps3_system_bus_get_drvdata(&dev->sbd);
 	u64 res;
 
 	dev_dbg(&dev->sbd.core, "%s:%u: flush request\n", __func__, __LINE__);
 
 	res = lv1_storage_send_device_command(dev->sbd.dev_id,
-					      LV1_STORAGE_ATA_HDDOUT, 0, 0, 0,
+					      LV1_STORAGE_ATA_FLUSH_CACHE_EXT, 0, 0, 0,
 					      0, &dev->tag);
 	if (res) {
 		dev_err(&dev->sbd.core, "%s:%u: sync cache failed 0x%llx\n",
@@ -196,8 +163,8 @@ static int ps3disk_submit_flush_request(struct ps3_storage_device *dev,
 	return 1;
 }
 
-static void ps3disk_do_request(struct ps3_storage_device *dev,
-			       struct request_queue *q)
+static void ps3vflash_do_request(struct ps3_storage_device *dev,
+			         struct request_queue *q)
 {
 	struct request *req;
 
@@ -205,10 +172,10 @@ static void ps3disk_do_request(struct ps3_storage_device *dev,
 
 	while ((req = blk_fetch_request(q))) {
 		if (req->cmd_flags & REQ_FLUSH) {
-			if (ps3disk_submit_flush_request(dev, req))
+			if (ps3vflash_submit_flush_request(dev, req))
 				break;
 		} else if (req->cmd_type == REQ_TYPE_FS) {
-			if (ps3disk_submit_request_sg(dev, req))
+			if (ps3vflash_submit_request_sg(dev, req))
 				break;
 		} else {
 			blk_dump_rq_flags(req, DEVICE_NAME " bad request");
@@ -218,23 +185,23 @@ static void ps3disk_do_request(struct ps3_storage_device *dev,
 	}
 }
 
-static void ps3disk_request(struct request_queue *q)
+static void ps3vflash_request(struct request_queue *q)
 {
 	struct ps3_storage_device *dev = q->queuedata;
-	struct ps3disk_private *priv = ps3_system_bus_get_drvdata(&dev->sbd);
+	struct ps3vflash_private *priv = ps3_system_bus_get_drvdata(&dev->sbd);
 
 	if (priv->req) {
 		dev_dbg(&dev->sbd.core, "%s:%u busy\n", __func__, __LINE__);
 		return;
 	}
 
-	ps3disk_do_request(dev, q);
+	ps3vflash_do_request(dev, q);
 }
 
-static irqreturn_t ps3disk_interrupt(int irq, void *data)
+static irqreturn_t ps3vflash_interrupt(int irq, void *data)
 {
 	struct ps3_storage_device *dev = data;
-	struct ps3disk_private *priv;
+	struct ps3vflash_private *priv;
 	struct request *req;
 	int res, read, error;
 	u64 tag, status;
@@ -280,134 +247,22 @@ static irqreturn_t ps3disk_interrupt(int irq, void *data)
 			__LINE__, op);
 		error = 0;
 		if (read)
-			ps3disk_scatter_gather(dev, req, 0);
+			ps3vflash_scatter_gather(dev, req, 0);
 	}
 
 	spin_lock(&priv->lock);
 	__blk_end_request_all(req, error);
 	priv->req = NULL;
-	ps3disk_do_request(dev, priv->queue);
+	ps3vflash_do_request(dev, priv->queue);
 	spin_unlock(&priv->lock);
 
 	return IRQ_HANDLED;
 }
 
-static int ps3disk_sync_cache(struct ps3_storage_device *dev)
-{
-	u64 res;
-
-	dev_dbg(&dev->sbd.core, "%s:%u: sync cache\n", __func__, __LINE__);
-
-	res = ps3stor_send_command(dev, LV1_STORAGE_ATA_HDDOUT, 0, 0, 0, 0);
-	if (res) {
-		dev_err(&dev->sbd.core, "%s:%u: sync cache failed 0x%llx\n",
-			__func__, __LINE__, res);
-		return -EIO;
-	}
-	return 0;
-}
-
-
-/* ATA helpers copied from drivers/ata/libata-core.c */
-
-static void swap_buf_le16(u16 *buf, unsigned int buf_words)
-{
-#ifdef __BIG_ENDIAN
-	unsigned int i;
-
-	for (i = 0; i < buf_words; i++)
-		buf[i] = le16_to_cpu(buf[i]);
-#endif /* __BIG_ENDIAN */
-}
-
-static u64 ata_id_n_sectors(const u16 *id)
-{
-	if (ata_id_has_lba(id)) {
-		if (ata_id_has_lba48(id))
-			return ata_id_u64(id, 100);
-		else
-			return ata_id_u32(id, 60);
-	} else {
-		if (ata_id_current_chs_valid(id))
-			return ata_id_u32(id, 57);
-		else
-			return id[1] * id[3] * id[6];
-	}
-}
-
-static void ata_id_string(const u16 *id, unsigned char *s, unsigned int ofs,
-			  unsigned int len)
-{
-	unsigned int c;
-
-	while (len > 0) {
-		c = id[ofs] >> 8;
-		*s = c;
-		s++;
-
-		c = id[ofs] & 0xff;
-		*s = c;
-		s++;
-
-		ofs++;
-		len -= 2;
-	}
-}
-
-static void ata_id_c_string(const u16 *id, unsigned char *s, unsigned int ofs,
-			    unsigned int len)
-{
-	unsigned char *p;
-
-	WARN_ON(!(len & 1));
-
-	ata_id_string(id, s, ofs, len - 1);
-
-	p = s + strnlen(s, len - 1);
-	while (p > s && p[-1] == ' ')
-		p--;
-	*p = '\0';
-}
-
-static int ps3disk_identify(struct ps3_storage_device *dev)
-{
-	struct ps3disk_private *priv = ps3_system_bus_get_drvdata(&dev->sbd);
-	struct lv1_ata_cmnd_block ata_cmnd;
-	u16 *id = dev->bounce_buf;
-	u64 res;
-
-	dev_dbg(&dev->sbd.core, "%s:%u: identify disk\n", __func__, __LINE__);
-
-	memset(&ata_cmnd, 0, sizeof(struct lv1_ata_cmnd_block));
-	ata_cmnd.command = ATA_CMD_ID_ATA;
-	ata_cmnd.sector_count = 1;
-	ata_cmnd.size = ata_cmnd.arglen = ATA_ID_WORDS * 2;
-	ata_cmnd.buffer = dev->bounce_lpar;
-	ata_cmnd.proto = PIO_DATA_IN_PROTO;
-	ata_cmnd.in_out = DIR_READ;
-
-	res = ps3stor_send_command(dev, LV1_STORAGE_SEND_ATA_COMMAND,
-				   ps3_mm_phys_to_lpar(__pa(&ata_cmnd)),
-				   sizeof(ata_cmnd), ata_cmnd.buffer,
-				   ata_cmnd.arglen);
-	if (res) {
-		dev_err(&dev->sbd.core, "%s:%u: identify disk failed 0x%llx\n",
-			__func__, __LINE__, res);
-		return -EIO;
-	}
-
-	swap_buf_le16(id, ATA_ID_WORDS);
-
-	/* All we're interested in are raw capacity and model name */
-	priv->raw_capacity = ata_id_n_sectors(id);
-	ata_id_c_string(id, priv->model, ATA_ID_PROD, sizeof(priv->model));
-	return 0;
-}
-
-static int __devinit ps3disk_probe(struct ps3_system_bus_device *_dev)
+static int __devinit ps3vflash_probe(struct ps3_system_bus_device *_dev)
 {
 	struct ps3_storage_device *dev = to_ps3_storage_device(&_dev->core);
-	struct ps3disk_private *priv;
+	struct ps3vflash_private *priv;
 	int error;
 	unsigned int regidx, devidx;
 	struct request_queue *queue;
@@ -439,13 +294,13 @@ static int __devinit ps3disk_probe(struct ps3_system_bus_device *_dev)
 	for (regidx = 0; regidx < dev->num_regions; regidx++)
 		dev->regions[regidx].flags = region_flags[regidx];
 
-	error = ps3stor_setup(dev, ps3disk_interrupt);
+	error = ps3stor_setup(dev, ps3vflash_interrupt);
 	if (error)
 		goto fail_free_bounce;
 
-	ps3disk_identify(dev);
+	priv->raw_capacity = dev->regions[0].size;
 
-	queue = blk_init_queue(ps3disk_request, &priv->lock);
+	queue = blk_init_queue(ps3vflash_request, &priv->lock);
 	if (!queue) {
 		dev_err(&dev->sbd.core, "%s:%u: blk_init_queue failed\n",
 			__func__, __LINE__);
@@ -473,7 +328,7 @@ static int __devinit ps3disk_probe(struct ps3_system_bus_device *_dev)
 		if (test_bit(devidx, &dev->accessible_regions) == 0)
 			continue;
 
-		gendisk = alloc_disk(PS3DISK_MINORS);
+		gendisk = alloc_disk(PS3VFLASH_MINORS);
 		if (!gendisk) {
 			dev_err(&dev->sbd.core, "%s:%u: alloc_disk failed\n", __func__,
 				__LINE__);
@@ -482,21 +337,21 @@ static int __devinit ps3disk_probe(struct ps3_system_bus_device *_dev)
 		}
 
 		priv->gendisk[devidx] = gendisk;
-		gendisk->major = ps3disk_major;
-		gendisk->first_minor = devidx * PS3DISK_MINORS;
-		gendisk->fops = &ps3disk_fops;
+		gendisk->major = ps3vflash_major;
+		gendisk->first_minor = devidx * PS3VFLASH_MINORS;
+		gendisk->fops = &ps3vflash_fops;
 		gendisk->queue = queue;
 		gendisk->private_data = dev;
 		gendisk->driverfs_dev = &dev->sbd.core;
-		snprintf(gendisk->disk_name, sizeof(gendisk->disk_name), PS3DISK_NAME,
+		snprintf(gendisk->disk_name, sizeof(gendisk->disk_name), PS3VFLASH_NAME,
 			 devidx+'a');
 		priv->blocking_factor = dev->blk_size >> 9;
 		set_capacity(gendisk,
 		   	 dev->regions[devidx].size*priv->blocking_factor);
 
 		dev_info(&dev->sbd.core,
-			 "%s is a %s (%llu MiB total, %lu MiB region)\n",
-			 gendisk->disk_name, priv->model, priv->raw_capacity >> 11,
+			 "%s (%llu MiB total, %lu MiB region)\n",
+			 gendisk->disk_name, priv->raw_capacity >> 11,
 			 get_capacity(gendisk) >> 11);
 
 		add_disk(gendisk);
@@ -517,10 +372,10 @@ fail:
 	return error;
 }
 
-static int ps3disk_remove(struct ps3_system_bus_device *_dev)
+static int ps3vflash_remove(struct ps3_system_bus_device *_dev)
 {
 	struct ps3_storage_device *dev = to_ps3_storage_device(&_dev->core);
-	struct ps3disk_private *priv = ps3_system_bus_get_drvdata(&dev->sbd);
+	struct ps3vflash_private *priv = ps3_system_bus_get_drvdata(&dev->sbd);
 	unsigned int devidx;
 
 	for (devidx = 0; devidx < dev->num_regions; devidx++)
@@ -541,8 +396,6 @@ static int ps3disk_remove(struct ps3_system_bus_device *_dev)
 		put_disk(priv->gendisk[devidx]);
 	}
 
-	dev_notice(&dev->sbd.core, "Synchronizing disk cache\n");
-	ps3disk_sync_cache(dev);
 	ps3stor_teardown(dev);
 	kfree(dev->bounce_buf);
 	kfree(priv);
@@ -550,17 +403,17 @@ static int ps3disk_remove(struct ps3_system_bus_device *_dev)
 	return 0;
 }
 
-static struct ps3_system_bus_driver ps3disk = {
-	.match_id	= PS3_MATCH_ID_STOR_DISK,
+static struct ps3_system_bus_driver ps3vflash = {
+	.match_id	= PS3_MATCH_ID_STOR_VFLASH,
 	.core.name	= DEVICE_NAME,
 	.core.owner	= THIS_MODULE,
-	.probe		= ps3disk_probe,
-	.remove		= ps3disk_remove,
-	.shutdown	= ps3disk_remove,
+	.probe		= ps3vflash_probe,
+	.remove		= ps3vflash_remove,
+	.shutdown	= ps3vflash_remove,
 };
 
 
-static int __init ps3disk_init(void)
+static int __init ps3vflash_init(void)
 {
 	int error;
 
@@ -573,28 +426,28 @@ static int __init ps3disk_init(void)
 		       __LINE__, error);
 		return error;
 	}
-	ps3disk_major = error;
+	ps3vflash_major = error;
 
 	pr_info("%s:%u: registered block device major %d\n", __func__,
-		__LINE__, ps3disk_major);
+		__LINE__, ps3vflash_major);
 
-	error = ps3_system_bus_driver_register(&ps3disk);
+	error = ps3_system_bus_driver_register(&ps3vflash);
 	if (error)
-		unregister_blkdev(ps3disk_major, DEVICE_NAME);
+		unregister_blkdev(ps3vflash_major, DEVICE_NAME);
 
 	return error;
 }
 
-static void __exit ps3disk_exit(void)
+static void __exit ps3vflash_exit(void)
 {
-	ps3_system_bus_driver_unregister(&ps3disk);
-	unregister_blkdev(ps3disk_major, DEVICE_NAME);
+	ps3_system_bus_driver_unregister(&ps3vflash);
+	unregister_blkdev(ps3vflash_major, DEVICE_NAME);
 }
 
-module_init(ps3disk_init);
-module_exit(ps3disk_exit);
+module_init(ps3vflash_init);
+module_exit(ps3vflash_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("PS3 Disk Storage Driver");
-MODULE_AUTHOR("Sony Corporation");
-MODULE_ALIAS(PS3_MODULE_ALIAS_STOR_DISK);
+MODULE_DESCRIPTION("PS3 VFLASH Storage Driver");
+MODULE_AUTHOR("Graf Chokolo");
+MODULE_ALIAS(PS3_MODULE_ALIAS_STOR_VFLASH);

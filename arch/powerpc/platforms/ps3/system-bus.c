@@ -174,6 +174,8 @@ int ps3_open_hv_device(struct ps3_system_bus_device *dev)
 	case PS3_MATCH_ID_STOR_DISK:
 	case PS3_MATCH_ID_STOR_ROM:
 	case PS3_MATCH_ID_STOR_FLASH:
+	case PS3_MATCH_ID_STOR_VFLASH:
+	case PS3_MATCH_ID_STOR_ENCDEC:
 		return ps3_open_hv_device_sb(dev);
 
 	case PS3_MATCH_ID_SOUND:
@@ -182,6 +184,7 @@ int ps3_open_hv_device(struct ps3_system_bus_device *dev)
 
 	case PS3_MATCH_ID_AV_SETTINGS:
 	case PS3_MATCH_ID_SYSTEM_MANAGER:
+	case PS3_MATCH_ID_DISPATCHER_MANAGER:
 		pr_debug("%s:%d: unsupported match_id: %u\n", __func__,
 			__LINE__, dev->match_id);
 		pr_debug("%s:%d: bus_id: %llu\n", __func__, __LINE__,
@@ -212,6 +215,8 @@ int ps3_close_hv_device(struct ps3_system_bus_device *dev)
 	case PS3_MATCH_ID_STOR_DISK:
 	case PS3_MATCH_ID_STOR_ROM:
 	case PS3_MATCH_ID_STOR_FLASH:
+	case PS3_MATCH_ID_STOR_VFLASH:
+	case PS3_MATCH_ID_STOR_ENCDEC:
 		return ps3_close_hv_device_sb(dev);
 
 	case PS3_MATCH_ID_SOUND:
@@ -220,6 +225,7 @@ int ps3_close_hv_device(struct ps3_system_bus_device *dev)
 
 	case PS3_MATCH_ID_AV_SETTINGS:
 	case PS3_MATCH_ID_SYSTEM_MANAGER:
+	case PS3_MATCH_ID_DISPATCHER_MANAGER:
 		pr_debug("%s:%d: unsupported match_id: %u\n", __func__,
 			__LINE__, dev->match_id);
 		pr_debug("%s:%d: bus_id: %llu\n", __func__, __LINE__,

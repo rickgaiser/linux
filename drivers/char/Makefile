@@ -59,6 +59,16 @@ obj-$(CONFIG_HANGCHECK_TIMER)	+= hangcheck-timer.o
 obj-$(CONFIG_TCG_TPM)		+= tpm/
 
 obj-$(CONFIG_PS3_FLASH)		+= ps3flash.o
+obj-$(CONFIG_PS3_RAM)		+= ps3ram.o
+obj-$(CONFIG_PS3_SMPROXY)	+= ps3smproxy.o
+obj-$(CONFIG_PS3_DMPROXY)	+= ps3dmproxy.o
+obj-$(CONFIG_PS3_ENCDEC)	+= ps3encdec.o
+obj-$(CONFIG_PS3_STORMGR)	+= ps3stormgr.o
+obj-$(CONFIG_PS3_SPEMMIO)	+= ps3spemmio.o
+obj-$(CONFIG_PS3_SBMMIO)	+= ps3sbmmio.o
+obj-$(CONFIG_PS3_RSXMMIO)	+= ps3rsxmmio.o
+obj-$(CONFIG_PS3_HVC)		+= ps3hvc.o
+obj-$(CONFIG_PS3_HTAB)		+= ps3htab.o
 obj-$(CONFIG_RAMOOPS)		+= ramoops.o
 
 obj-$(CONFIG_JS_RTC)		+= js-rtc.o

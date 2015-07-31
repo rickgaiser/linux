@@ -88,6 +88,37 @@ config PS3_SYS_MANAGER
 	  This support is required for system control.  In
 	  general, all users will say Y or M.
 
+config PS3_SMPROXY
+	depends on PPC_PS3
+	tristate "PS3 System Manager Proxy driver"
+	select PS3_SYS_MANAGER
+	help
+	  Include support for the PS3 System Manager Proxy.
+
+	  This support is required to access the PS3 system manager proxy.
+	  In general, all users will say Y or M.
+
+config PS3_PS3DM
+	depends on PPC_PS3
+	tristate "PS3 Dispatcher Manager driver" if PS3_ADVANCED
+	select PS3_VUART
+	default y
+	help
+	  Include support for the PS3 Dispatcher Manager.
+
+	  This support is required to access the PS3 dispatcher manager.  In
+	  general, all users will say Y or M.
+
+config PS3_DMPROXY
+	depends on PPC_PS3
+	tristate "PS3 Dispatcher Manager Proxy driver"
+	select PS3_PS3DM
+	help
+	  Include support for the PS3 Dispatcher Manager Proxy.
+
+	  This support is required to access the PS3 dispatcher manager proxy.
+	  In general, all users will say Y or M.
+
 config PS3_STORAGE
 	depends on PPC_PS3
 	tristate
@@ -147,5 +178,99 @@ config PS3_LPM
 	  If you intend to use the advanced performance monitoring and
 	  profiling support of the Cell processor with programs like
 	  oprofile and perfmon2, then say Y or M, otherwise say N.
+
+config PS3_NFLASH
+	tristate "PS3 NFLASH Storage Driver"
+	depends on PPC_PS3 && BLOCK
+	select PS3_STORAGE
+	help
+	  Include support for the PS3 NOR FLASH Storage.
+
+	  This support is required to access the PS3 nor flash disk.
+	  In general, all users will say Y or M.
+
+config PS3_VFLASH
+	tristate "PS3 VFLASH Storage Driver"
+	depends on PPC_PS3 && BLOCK && PS3_FLASH!=y && PS3_FLASH!=m
+	select PS3_STORAGE
+	help
+	  Include support for the PS3 Virtual FLASH Storage.
+
+	  This support is required to access the PS3 virtual flash disk.
+	  In general, all users will say Y or M.
+
+config PS3_ENCDEC
+	tristate "PS3 ENCDEC Storage Driver"
+	depends on PPC_PS3
+	select PS3_STORAGE
+	help
+	  Include support for the PS3 ENCDEC.
+
+	  This support is required to access the PS3 ENCDEC device.
+	  In general, all users will say Y or M.
+
+config PS3_STORMGR
+	tristate "PS3 Storage Manager Driver"
+	depends on PPC_PS3
+	select PS3_STORAGE
+	help
+	  Include support for the PS3 Storage Manager.
+
+	  This support is required to access the PS3 storage manager device.
+	  In general, all users will say Y or M.
+
+config PS3_RAM
+	tristate "PS3 RAM Driver"
+	depends on PPC_PS3
+	help
+	  Include support for the PS3 RAM.
+
+	  This support is required to access the PS3 ram.
+	  In general, all users will say Y or M.
+
+config PS3_SPEMMIO
+	tristate "PS3 SPE MMIO Driver"
+	depends on PPC_PS3
+	help
+	  Include support for the PS3 SPE MMIO.
+
+	  This support is required to access the PS3 SPE MMIO registers.
+	  In general, all users will say Y or M.
+
+config PS3_SBMMIO
+	tristate "PS3 SB Bus MMIO Driver"
+	depends on PPC_PS3
+	help
+	  Include support for the PS3 SB Bus MMIO.
+
+	  This support is required to access the PS3 SB Bus MMIO registers.
+	  In general, all users will say Y or M.
+
+config PS3_RSXMMIO
+	tristate "PS3 RSX MMIO Driver"
+	depends on PPC_PS3
+	help
+	  Include support for the PS3 RSX MMIO.
+
+	  This support is required to access the PS3 RSX MMIO registers.
+	  In general, all users will say Y or M.
+
+config PS3_HVC
+	tristate "PS3 HVC Driver"
+	depends on PPC_PS3
+	help
+	  Include support for the PS3 HVC.
+
+	  This support is required to access the PS3 hvcalls.
+	  In general, all users will say Y or M.
+
+config PS3_HTAB
+	tristate "PS3 HTAB Driver"
+	depends on PPC_PS3
+	help
+	  Include support for the PS3 HTAB.
+
+	  This support is required to access the PS3 htab.
+	  In general, all users will say Y or M.
 
 endmenu

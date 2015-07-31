@@ -401,6 +401,7 @@ static int ps3_setup_storage_dev(const struct ps3_repository_device *repo,
 		p->regions[i].id = id;
 		p->regions[i].start = start;
 		p->regions[i].size = size;
+		p->regions[i].flags = 0x0;
 	}
 
 	result = ps3_system_bus_device_register(&p->sbd);
@@ -441,6 +442,12 @@ static int __init ps3_register_vuart_devices(void)
 		port_number = 2; /* sysmgr default */
 
 	result = ps3_setup_vuart_device(PS3_MATCH_ID_SYSTEM_MANAGER,
+		port_number);
+	WARN_ON(result);
+
+	port_number = 10; /* dispmgr default */
+
+	result = ps3_setup_vuart_device(PS3_MATCH_ID_DISPATCHER_MANAGER,
 		port_number);
 	WARN_ON(result);
 
@@ -566,10 +573,10 @@ static int ps3_setup_dynamic_device(const struct ps3_repository_device *repo)
 	case PS3_DEV_TYPE_STOR_DISK:
 		result = ps3_setup_storage_dev(repo, PS3_MATCH_ID_STOR_DISK);
 
-		/* Some devices are not accessible from the Other OS lpar. */
+		/* Some devices are not accessable from the Other OS lpar. */
 		if (result == -ENODEV) {
 			result = 0;
-			pr_debug("%s:%u: not accessible\n", __func__,
+			pr_debug("%s:%u: not accessable\n", __func__,
 				 __LINE__);
 		}
 
@@ -587,6 +594,20 @@ static int ps3_setup_dynamic_device(const struct ps3_repository_device *repo)
 
 	case PS3_DEV_TYPE_STOR_FLASH:
 		result = ps3_setup_storage_dev(repo, PS3_MATCH_ID_STOR_FLASH);
+		if (result)
+			pr_debug("%s:%u ps3_setup_storage_dev failed\n",
+				 __func__, __LINE__);
+		break;
+
+	case PS3_DEV_TYPE_STOR_VFLASH:
+		result = ps3_setup_storage_dev(repo, PS3_MATCH_ID_STOR_VFLASH);
+		if (result)
+			pr_debug("%s:%u ps3_setup_storage_dev failed\n",
+				 __func__, __LINE__);
+		break;
+
+	case PS3_DEV_TYPE_STOR_ENCDEC:
+		result = ps3_setup_storage_dev(repo, PS3_MATCH_ID_STOR_ENCDEC);
 		if (result)
 			pr_debug("%s:%u ps3_setup_storage_dev failed\n",
 				 __func__, __LINE__);

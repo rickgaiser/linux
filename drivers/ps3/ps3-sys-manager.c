@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/workqueue.h>
 #include <linux/reboot.h>
+#include <linux/delay.h>
 
 #include <asm/firmware.h>
 #include <asm/lv1call.h>
@@ -233,6 +234,9 @@ enum ps3_sys_manager_cmd {
 
 static unsigned int ps3_sm_force_power_off;
 
+static int timeout = 5000;	/* in msec ( 5 sec ) */
+module_param(timeout, int, 0644);
+
 /**
  * ps3_sys_manager_write - Helper to write a two part message to the vuart.
  *
@@ -255,6 +259,35 @@ static int ps3_sys_manager_write(struct ps3_system_bus_device *dev,
 		result = ps3_vuart_write(dev, payload, header->payload_size);
 
 	return result;
+}
+
+#define POLLING_INTERVAL  25	/* in msec */
+
+/**
+ * ps3_sys_manager_read - Helper to read data from the vuart.
+ *
+ */
+
+static int ps3_sys_manager_read(struct ps3_system_bus_device *dev,
+	void *buf, unsigned int size, int timeout)
+{
+	int error;
+	int loopcnt = 0;
+
+	timeout = (timeout + POLLING_INTERVAL - 1) / POLLING_INTERVAL;
+
+	while (loopcnt++ <= timeout) {
+		error = ps3_vuart_read(dev, buf, size);
+		if (!error)
+			return size;
+
+		if (error != -EAGAIN)
+			return error;
+
+		msleep(POLLING_INTERVAL);
+	}
+
+	return -EWOULDBLOCK;
 }
 
 /**
@@ -656,10 +689,53 @@ static void ps3_sys_manager_final_restart(struct ps3_system_bus_device *dev)
 	ps3_vuart_cancel_async(dev);
 
 	ps3_sys_manager_send_attr(dev, 0);
-	ps3_sys_manager_send_next_op(dev, PS3_SM_NEXT_OP_SYS_REBOOT,
+	ps3_sys_manager_send_next_op(dev, PS3_SM_NEXT_OP_LPAR_REBOOT,
 		user_wake_sources);
 
 	ps3_sys_manager_fin(dev);
+}
+
+/**
+ * ps3_sys_manager_do_req - Sends a request and optionally reads a request.
+ */
+
+static int ps3_sys_manager_do_req(struct ps3_system_bus_device *dev,
+	const void *sendbuf, unsigned int sendbuf_size,
+	void *recvbuf, unsigned int recvbuf_size)
+{
+	struct ps3_sys_manager_header *header;
+	int result;
+
+	BUG_ON(!dev);
+	BUG_ON(sendbuf_size < sizeof(struct ps3_sys_manager_header));
+
+	dev_dbg(&dev->core, "%s:%d\n", __func__, __LINE__);
+
+	ps3_vuart_cancel_async(dev);
+
+	result = ps3_vuart_write(dev, sendbuf, sendbuf_size);
+	if (result)
+		goto done;
+
+	if (recvbuf) {
+		header = (struct ps3_sys_manager_header *) recvbuf;
+
+		result = ps3_sys_manager_read(dev, header, sizeof(struct ps3_sys_manager_header), timeout);
+		if (result != sizeof(struct ps3_sys_manager_header))
+			goto done;
+
+		result = ps3_sys_manager_read(dev, header + 1, header->payload_size, timeout);
+		if (result != header->payload_size)
+			goto done;
+	}
+
+	result = 0;
+
+done:
+
+	ps3_vuart_read_async(dev, PS3_SM_RX_MSG_LEN_MIN);
+
+	return result;
 }
 
 /**
@@ -715,6 +791,7 @@ static int __devinit ps3_sys_manager_probe(struct ps3_system_bus_device *dev)
 
 	ops.power_off = ps3_sys_manager_final_power_off;
 	ops.restart = ps3_sys_manager_final_restart;
+	ops.do_request = ps3_sys_manager_do_req;
 	ops.dev = dev;
 
 	/* ps3_sys_manager_register_ops copies ops. */

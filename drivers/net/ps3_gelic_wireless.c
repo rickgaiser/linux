@@ -17,7 +17,6 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#undef DEBUG
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -183,7 +182,7 @@ static void gelic_eurus_sync_cmd_worker(struct work_struct *work)
 				      &cmd->tag, &cmd->size);
 	if (cmd->status) {
 		complete(&cmd->done);
-		pr_info("%s: cmd issue failed\n", __func__);
+		pr_info("%s: cmd issue failed %d\n", __func__, cmd->status);
 		return;
 	}
 
