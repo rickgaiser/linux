@@ -44,9 +44,9 @@ static void save_raw_perf_callchain(struct perf_callchain_entry *entry,
 void perf_callchain_kernel(struct perf_callchain_entry *entry,
 		      struct pt_regs *regs)
 {
-	unsigned long sp = regs->regs[29];
+	unsigned long sp = MIPS_READ_REG(regs->regs[29]);
 #ifdef CONFIG_KALLSYMS
-	unsigned long ra = regs->regs[31];
+	unsigned long ra = MIPS_READ_REG(regs->regs[31]);
 	unsigned long pc = regs->cp0_epc;
 
 	if (raw_show_trace || !__kernel_text_address(pc)) {

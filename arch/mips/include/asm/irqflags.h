@@ -17,12 +17,24 @@
 #include <asm/hazards.h>
 
 #if defined(CONFIG_CPU_MIPSR2) && !defined(CONFIG_MIPS_MT_SMTC)
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 
 __asm__(
 	"	.macro	arch_local_irq_disable\n"
 	"	.set	push						\n"
 	"	.set	noat						\n"
 	"	di							\n"
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 	"	irq_disable_hazard					\n"
 	"	.set	pop						\n"
 	"	.endm							\n");
@@ -36,6 +48,9 @@ static inline void arch_local_irq_disable(void)
 		: "memory");
 }
 
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 
 __asm__(
 	"	.macro	arch_local_irq_save result			\n"
@@ -44,6 +59,12 @@ __asm__(
 	"	.set	noat						\n"
 	"	di	\\result					\n"
 	"	andi	\\result, 1					\n"
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 	"	irq_disable_hazard					\n"
 	"	.set	pop						\n"
 	"	.endm							\n");
@@ -80,6 +101,12 @@ __asm__(
 	"	mfc0	$1, $12						\n"
 	"	ins	$1, \\flags, 0, 1				\n"
 	"	mtc0	$1, $12						\n"
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
+#ifdef CONFIG_CPU_R5900
+	"	sync.p							\n"
+#endif
 #endif
 	"	irq_disable_hazard					\n"
 	"	.set	pop						\n"
@@ -197,22 +224,22 @@ static inline int arch_irqs_disabled_flags(unsigned long flags)
 /* Reload some registers clobbered by trace_hardirqs_on */
 #ifdef CONFIG_64BIT
 # define TRACE_IRQS_RELOAD_REGS						\
-	LONG_L	$11, PT_R11(sp);					\
-	LONG_L	$10, PT_R10(sp);					\
-	LONG_L	$9, PT_R9(sp);						\
-	LONG_L	$8, PT_R8(sp);						\
-	LONG_L	$7, PT_R7(sp);						\
-	LONG_L	$6, PT_R6(sp);						\
-	LONG_L	$5, PT_R5(sp);						\
-	LONG_L	$4, PT_R4(sp);						\
-	LONG_L	$2, PT_R2(sp)
+	LONGD_L	$11, PT_R11(sp);					\
+	LONGD_L	$10, PT_R10(sp);					\
+	LONGD_L	$9, PT_R9(sp);						\
+	LONGD_L	$8, PT_R8(sp);						\
+	LONGD_L	$7, PT_R7(sp);						\
+	LONGD_L	$6, PT_R6(sp);						\
+	LONGD_L	$5, PT_R5(sp);						\
+	LONGD_L	$4, PT_R4(sp);						\
+	LONGD_L	$2, PT_R2(sp)
 #else
 # define TRACE_IRQS_RELOAD_REGS						\
-	LONG_L	$7, PT_R7(sp);						\
-	LONG_L	$6, PT_R6(sp);						\
-	LONG_L	$5, PT_R5(sp);						\
-	LONG_L	$4, PT_R4(sp);						\
-	LONG_L	$2, PT_R2(sp)
+	LONGD_L	$7, PT_R7(sp);						\
+	LONGD_L	$6, PT_R6(sp);						\
+	LONGD_L	$5, PT_R5(sp);						\
+	LONGD_L	$4, PT_R4(sp);						\
+	LONGD_L	$2, PT_R2(sp)
 #endif
 # define TRACE_IRQS_ON							\
 	CLI;	/* make sure trace_hardirqs_on() is called in kernel level */ \

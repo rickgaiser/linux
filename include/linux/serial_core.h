@@ -20,6 +20,9 @@
 #ifndef LINUX_SERIAL_CORE_H
 #define LINUX_SERIAL_CORE_H
 
+/* PS2 ports */
+#define PORT_PS2_SBIOS	101
+#define PORT_PS2_UART	102
 
 #include <linux/compiler.h>
 #include <linux/interrupt.h>
