@@ -178,7 +178,7 @@ work_notifysig:				# deal with pending signals and
 FEXPORT(syscall_exit_work_partial)
 	SAVE_STATIC
 syscall_exit_work:
-	LONG_L	t0, PT_STATUS(sp)		# returning to kernel mode?
+	LONGI_L	t0, PT_STATUS(sp)		# returning to kernel mode?
 	andi	t0, t0, KU_USER
 	beqz	t0, resume_kernel
 	li	t0, _TIF_WORK_SYSCALL_EXIT
