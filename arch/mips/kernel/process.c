@@ -140,10 +140,10 @@ int copy_thread(unsigned long clone_flags, unsigned long usp,
 		unsigned long status = p->thread.cp0_status;
 		memset(childregs, 0, sizeof(struct pt_regs));
 		ti->addr_limit = KERNEL_DS;
-		p->thread.reg16 = usp; /* fn */
-		p->thread.reg17 = arg;
-		p->thread.reg29 = childksp;
-		p->thread.reg31 = (unsigned long) ret_from_kernel_thread;
+		MIPS_WRITE_REG(p->thread.reg16) = usp; /* fn */
+		MIPS_WRITE_REG(p->thread.reg17) = arg;
+		MIPS_WRITE_REG(p->thread.reg29) = childksp;
+		MIPS_WRITE_REG(p->thread.reg31) = (unsigned long) ret_from_kernel_thread;
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
 		status = (status & ~(ST0_KUP | ST0_IEP | ST0_IEC)) |
 			 ((status & (ST0_KUC | ST0_IEC)) << 2);

@@ -143,7 +143,7 @@ _sysn32_clone(nabi_no_regargs struct pt_regs regs)
 		newsp = MIPS_READ_REG_L(regs.regs[29]);
 	parent_tidptr = (int __user *) MIPS_READ_REG_L(regs.regs[6]);
 	child_tidptr = (int __user *) MIPS_READ_REG_L(regs.regs[8]);
-	return do_fork(clone_flags, newsp, &regs, 0,
+	return do_fork(clone_flags, newsp, 0,
 	               parent_tidptr, child_tidptr);
 }
 #endif
