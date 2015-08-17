@@ -485,6 +485,8 @@ EXPORT(sysn32_call_table)
 	sys	sys_setns		2
 	sys	sys_process_vm_readv	6
 	sys	sys_process_vm_writev	6	/* 6310 */
+	sys	sys_kcmp		5
+	sys	sys_finit_module	3
 	.size	sysn32_call_table,.-sysn32_call_table
 
 	.set pop
