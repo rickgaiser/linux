@@ -320,6 +320,14 @@ config MMP_PDMA
 	help
 	  Support the MMP PDMA engine for PXA and MMP platfrom.
 
+config DMA_PS2
+	tristate "PS2 DMA support"
+	depends on SONY_PS2
+	select DMA_ENGINE
+	select DMA_VIRTUAL_CHANNELS
+	help
+	  Support for the DMA engine of the Playstation 2.
+
 config DMA_ENGINE
 	bool
 

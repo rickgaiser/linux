@@ -102,6 +102,27 @@ static struct platform_device ps2_uart_device = {
 	.id		= -1,
 };
 
+/* DMA */
+static struct resource ps2_dma_resources[] = {
+	{
+		.start	= 0x10008000,
+		.end	= 0x1000ffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.start	= IRQ_C0_DMAC,
+		.end	= IRQ_C0_DMAC,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device ps2_dma_device = {
+	.name		= "ps2-dma",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(ps2_dma_resources),
+	.resource	= ps2_dma_resources,
+};
+
 /*
  * PATA disk driver
  *
@@ -223,6 +244,7 @@ static struct platform_device *ps2_platform_devices[] __initdata = {
 	&ps2_audio_device,
 	&ps2_sbios_device,
 	&ps2_uart_device,
+	&ps2_dma_device,
 };
 
 static int __init ps2_board_setup(void)
