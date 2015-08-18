@@ -61,6 +61,13 @@ config PS2_AUDIO
 	  cp audsrv.irx /lib/firmware/
 	  echo audsrv.irx >/sys/firmare/iopmodule/load_module
 
+config PS2_DEV_FS
+	bool "Support for PS2DEV interface"
+	default n
+	depends on SONY_PS2
+	help
+	  This will add /dev/ps2* drivers.
+
 source "drivers/ps2/mcfs/Kconfig"
 
 endmenu
