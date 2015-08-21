@@ -222,14 +222,14 @@ u32 colto32(struct fb_var_screeninfo *var, u32 col)
  */
 static int ps2fb_open(struct fb_info *info, int user)
 {
-    struct ps2fb_par *par = info->par;
+	struct ps2fb_par *par = info->par;
 
 	DPRINTK("ps2fb_open: user %d\n", user);
 
 	if (user) {
 		par->opencnt++;
 	}
-    return 0;
+	return 0;
 }
 
 /**
@@ -243,7 +243,7 @@ static int ps2fb_open(struct fb_info *info, int user)
  */
 static int ps2fb_release(struct fb_info *info, int user)
 {
-    struct ps2fb_par *par = info->par;
+	struct ps2fb_par *par = info->par;
 
 	DPRINTK("ps2fb_release: user %d\n", user);
 
@@ -253,7 +253,7 @@ static int ps2fb_release(struct fb_info *info, int user)
 			ps2fb_switch_to_unmapped(info);
 		}
 	}
-    return 0;
+	return 0;
 }
 
 /**
@@ -271,25 +271,25 @@ static int ps2fb_release(struct fb_info *info, int user)
  */
 static void ps2_paintrect(int sx, int sy, int width, int height, uint32_t color)
 {
-    u64 *gsp;
-    int ctx = 0;
+	u64 *gsp;
+	int ctx = 0;
 
-    if ((gsp = ps2con_gsp_alloc(ALIGN16(6 * 8), NULL)) == NULL) {
+	if ((gsp = ps2con_gsp_alloc(ALIGN16(6 * 8), NULL)) == NULL) {
 		return;
 	}
 
-    *gsp++ = PS2_GIFTAG_SET_TOPHALF(1, 1, 0, 0, PS2_GIFTAG_FLG_REGLIST, 4);
-    *gsp++ = 0x5510;
+	*gsp++ = PS2_GIFTAG_SET_TOPHALF(1, 1, 0, 0, PS2_GIFTAG_FLG_REGLIST, 4);
+	*gsp++ = 0x5510;
 	/* PRIM */
-    *gsp++ = 0x006 + (ctx << 9);
+	*gsp++ = 0x006 + (ctx << 9);
 	/* RGBAQ */
-    *gsp++ = color;
+	*gsp++ = color;
 	/* XYZ2 */
-    *gsp++ = PACK32(sx * 16, sy * 16);
+	*gsp++ = PACK32(sx * 16, sy * 16);
 	/* XYZ2 */
-    *gsp++ = PACK32((sx + width) * 16, (sy + height) * 16);
+	*gsp++ = PACK32((sx + width) * 16, (sy + height) * 16);
 
-    ps2con_gsp_send(ALIGN16(6 * 8));
+	ps2con_gsp_send(ALIGN16(6 * 8));
 }
 
 /* Convert 1bpp to 32bpp */
@@ -298,7 +298,7 @@ static void *ps2_addpattern1_32(void *gsp, const unsigned char *data, int width,
 	int y;
 	int x;
 	int offset;
-    u32 *p32;
+	u32 *p32;
 
 	offset = 0;
 	p32 = (u32 *) gsp;
@@ -326,7 +326,7 @@ static void *ps2_addpattern1_16(void *gsp, const unsigned char *data, int width,
 	int y;
 	int x;
 	int offset;
-    u16 *p16;
+	u16 *p16;
 
 	offset = 0;
 	p16 = (u16 *) gsp;
@@ -351,9 +351,9 @@ static void *ps2_addpattern1_16(void *gsp, const unsigned char *data, int width,
 /* Paint image from data with 1 bit per pixel in 32bpp framebuffer. */
 static void ps2_paintsimg1_32(struct ps2_screeninfo *info, int sx, int sy, int width, int height, uint32_t bgcolor, uint32_t fgcolor, const unsigned char *data, int lineoffset)
 {
-    u64 *gsp;
-    void *gsp_h;
-    int gspsz; /* Available DMA packet size. */
+	u64 *gsp;
+	void *gsp_h;
+	int gspsz; /* Available DMA packet size. */
 	int fbw = (info->w + 63) / 64;
 	unsigned int packetlen;
 
@@ -386,9 +386,9 @@ static void ps2_paintsimg1_32(struct ps2_screeninfo *info, int sx, int sy, int w
 /* Paint image from data with 1 bit per pixel in 16bpp framebuffer. */
 static void ps2_paintsimg1_16(struct ps2_screeninfo *info, int sx, int sy, int width, int height, uint16_t bgcolor, uint16_t fgcolor, const unsigned char *data, int lineoffset)
 {
-    u64 *gsp;
-    void *gsp_h;
-    int gspsz; /* Available DMA packet size. */
+	u64 *gsp;
+	void *gsp_h;
+	int gspsz; /* Available DMA packet size. */
 	int fbw = (info->w + 63) / 64;
 	unsigned int packetlen;
 
@@ -424,7 +424,7 @@ static void *ps2_addpattern8_32(void *gsp, const unsigned char *data, int width,
 	int y;
 	int x;
 	int offset;
-    u32 *p32;
+	u32 *p32;
 
 	offset = 0;
 	p32 = (u32 *) gsp;
@@ -446,7 +446,7 @@ static void *ps2_addpattern8_16(void *gsp, const unsigned char *data, int width,
 	int y;
 	int x;
 	int offset;
-    u16 *p16;
+	u16 *p16;
 
 	offset = 0;
 	p16 = (u16 *) gsp;
@@ -465,9 +465,9 @@ static void *ps2_addpattern8_16(void *gsp, const unsigned char *data, int width,
 /* Paint 8bpp image in 32bpp screen buffer. */
 static void ps2_paintsimg8_32(struct ps2_screeninfo *info, int sx, int sy, int width, int height, uint32_t *palette, const unsigned char *data, int lineoffset)
 {
-    u64 *gsp;
-    void *gsp_h;
-    int gspsz; /* Available size. */
+	u64 *gsp;
+	void *gsp_h;
+	int gspsz; /* Available size. */
 	int fbw = (info->w + 63) / 64;
 	unsigned int packetlen;
 
@@ -502,9 +502,9 @@ static void ps2_paintsimg8_32(struct ps2_screeninfo *info, int sx, int sy, int w
 /* Paint 8bpp image in 16bpp screen buffer. */
 static void ps2_paintsimg8_16(struct ps2_screeninfo *info, int sx, int sy, int width, int height, uint32_t *palette, const unsigned char *data, int lineoffset)
 {
-    u64 *gsp;
-    void *gsp_h;
-    int gspsz; /* Available size. */
+	u64 *gsp;
+	void *gsp_h;
+	int gspsz; /* Available size. */
 	int fbw = (info->w + 63) / 64;
 	unsigned int packetlen;
 
@@ -615,9 +615,9 @@ void ps2fb_dma_send(const void *data, unsigned long len)
  */
 static void ps2fb_copyframe(struct ps2_screeninfo *info, int sx, int sy, int width, int height, const void *data)
 {
-    u64 *gsp;
-    void *gsp_h;
-    int gspsz; /* Available size. */
+	u64 *gsp;
+	void *gsp_h;
+	int gspsz; /* Available size. */
 	int fbw = (info->w + 63) / 64;
 	int bpp;
 
@@ -678,7 +678,7 @@ static void ps2fb_redraw(struct fb_info *info)
 	int offset;
 	int y;
 	int maxheight;
-    struct ps2fb_par *par = info->par;
+	struct ps2fb_par *par = info->par;
 
 	switch (par->redraw_xres) {
 		case 640:
@@ -851,7 +851,7 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 
 static void ps2fb_switch_mode(struct fb_info *info)
 {
-    struct ps2fb_par *par = info->par;
+	struct ps2fb_par *par = info->par;
 	int maxredrawline;
 	int mem_len;
 
@@ -873,7 +873,7 @@ static void ps2fb_switch_mode(struct fb_info *info)
 	}
 
 	DPRINTK("ps2fb: %d %s() mode %dx%d %dbpp crtmode %d res %d psm %d\n", __LINE__, __FUNCTION__, info->var.xres, info->var.yres, info->var.bits_per_pixel, par->screeninfo.mode, par->screeninfo.res, par->screeninfo.psm);
-    ps2gs_screeninfo(&par->screeninfo, NULL);
+	ps2gs_screeninfo(&par->screeninfo, NULL);
 
 	/* Clear screen (black). */
 	ps2_paintrect(0, 0, info->var.xres, info->var.yres, 0x80000000);
@@ -950,7 +950,7 @@ static int ps2fb_set_par(struct fb_info *info)
 
 	ps2fb_switch_mode(info);
 
-    return 0;
+	return 0;
 }
 
 /**
@@ -982,8 +982,8 @@ static int ps2fb_setcolreg(unsigned regno, unsigned red, unsigned green,
 	struct fb_var_screeninfo *var;
 	u32 *reg;
 
-    if (regno >= PAL_COLORS)  /* no. of hw registers */
-       return -EINVAL;
+	if (regno >= PAL_COLORS)  /* no. of hw registers */
+		return -EINVAL;
 
 	var = &info->var;
 	reg = info->pseudo_palette;
@@ -1000,7 +1000,7 @@ static int ps2fb_setcolreg(unsigned regno, unsigned red, unsigned green,
 		transp << var->transp.offset;
 
 	DPRINTK("ps2fb: %d %s() reg %d = 0x%08x r 0x%02x g 0x%02x b 0x%02x\n", __LINE__, __FUNCTION__, regno, ((u32 *) (info->pseudo_palette))[regno], red, green, blue);
-    return 0;
+	return 0;
 }
 
 #if 0 /* TBD: Implement functions. */
@@ -1447,34 +1447,33 @@ static int ps2fb_switch_to_unmapped(struct fb_info *info)
 
 static int ps2fb_probe(struct platform_device *pdev)
 {
-    struct fb_info *info;
-    struct ps2fb_par *par;
-    struct device *device = &pdev->dev; /* or &pdev->dev */
-    struct task_struct *task;
-    int cmap_len, retval;
+	struct fb_info *info;
+	struct ps2fb_par *par;
+	struct device *device = &pdev->dev; /* or &pdev->dev */
+	struct task_struct *task;
+	int cmap_len, retval;
 
 	/* TBD: move to other function? */
 	ps2con_gsp_init();
 
 	DPRINTK("ps2fb: %d %s()\n", __LINE__, __FUNCTION__);
 
-    /*
-     * Dynamically allocate info and par
-     */
-    info = framebuffer_alloc(sizeof(struct ps2fb_par), device);
-
-    if (!info) {
+	/*
+	 * Dynamically allocate info and par
+	 */
+	info = framebuffer_alloc(sizeof(struct ps2fb_par), device);
+	if (!info) {
 		return -ENOMEM;
-    }
+	}
 
-    /*
-     * Here we set the screen_base to the virtual memory address
-     * for the framebuffer. Usually we obtain the resource address
-     * from the bus layer and then translate it to virtual memory
-     * space via ioremap. Consult ioport.h.
-     */
-    info->screen_base = NULL;
-    info->fbops = &ps2fb_ops;
+	/*
+	 * Here we set the screen_base to the virtual memory address
+	 * for the framebuffer. Usually we obtain the resource address
+	 * from the bus layer and then translate it to virtual memory
+	 * space via ioremap. Consult ioport.h.
+	 */
+	info->screen_base = NULL;
+	info->fbops = &ps2fb_ops;
 
 	strcpy(info->fix.id, "PS2 GS");
 	info->fix.type = FB_TYPE_PACKED_PIXELS;
@@ -1485,48 +1484,48 @@ static int ps2fb_probe(struct platform_device *pdev)
 	info->fix.accel = FB_ACCEL_NONE; /* TBD: Check if something is possible. */
 	info->fix.smem_len = 0;
 
-    par = info->par;
+	par = info->par;
 	info->pseudo_palette = par->pseudo_palette;
 	par->opencnt = 0;
 
-    ps2con_initinfo(&par->screeninfo);
+	ps2con_initinfo(&par->screeninfo);
 	if ((crtmode < 0) || (crtmode > 3)) {
 		/* Set default to old crtmode parameter. */
 		info->var.nonstd = par->screeninfo.mode;
 	} else {
-	    info->var.nonstd = crtmode;
+		info->var.nonstd = crtmode;
 	}
 
 
-    /*
-     * Set up flags to indicate what sort of acceleration your
-     * driver can provide (pan/wrap/copyarea/etc.) and whether it
-     * is a module -- see FBINFO_* in include/linux/fb.h
-     *
-     * If your hardware can support any of the hardware accelerated functions
-     * fbcon performance will improve if info->flags is set properly.
-     *
-     * FBINFO_HWACCEL_COPYAREA - hardware moves
-     * FBINFO_HWACCEL_FILLRECT - hardware fills
-     * FBINFO_HWACCEL_IMAGEBLIT - hardware mono->color expansion
-     * FBINFO_HWACCEL_YPAN - hardware can pan display in y-axis
-     * FBINFO_HWACCEL_YWRAP - hardware can wrap display in y-axis
-     * FBINFO_HWACCEL_DISABLED - supports hardware accels, but disabled
-     * FBINFO_READS_FAST - if set, prefer moves over mono->color expansion
-     * FBINFO_MISC_TILEBLITTING - hardware can do tile blits
-     *
-     * NOTE: These are for fbcon use only.
-     */
-    info->flags = FBINFO_DEFAULT
+	/*
+	 * Set up flags to indicate what sort of acceleration your
+	 * driver can provide (pan/wrap/copyarea/etc.) and whether it
+	 * is a module -- see FBINFO_* in include/linux/fb.h
+	 *
+	 * If your hardware can support any of the hardware accelerated functions
+	 * fbcon performance will improve if info->flags is set properly.
+	 *
+	 * FBINFO_HWACCEL_COPYAREA - hardware moves
+	 * FBINFO_HWACCEL_FILLRECT - hardware fills
+	 * FBINFO_HWACCEL_IMAGEBLIT - hardware mono->color expansion
+	 * FBINFO_HWACCEL_YPAN - hardware can pan display in y-axis
+	 * FBINFO_HWACCEL_YWRAP - hardware can wrap display in y-axis
+	 * FBINFO_HWACCEL_DISABLED - supports hardware accels, but disabled
+	 * FBINFO_READS_FAST - if set, prefer moves over mono->color expansion
+	 * FBINFO_MISC_TILEBLITTING - hardware can do tile blits
+	 *
+	 * NOTE: These are for fbcon use only.
+	 */
+	info->flags = FBINFO_DEFAULT
 		| FBINFO_HWACCEL_COPYAREA
 		| FBINFO_HWACCEL_FILLRECT
 		| FBINFO_HWACCEL_IMAGEBLIT;
 	/* TBD: Support FBINFO_HWACCEL_YPAN or FBINFO_HWACCEL_YWRAP some applications need this. */
 
-    /*
-     * This should give a reasonable default video mode. The following is
-     * done when we can set a video mode.
-     */
+	/*
+	 * This should give a reasonable default video mode. The following is
+	 * done when we can set a video mode.
+	 */
 	switch (info->var.nonstd) {
 	case PS2_GS_PAL:
 		retval = fb_find_mode(&info->var, info, mode_option, pal_modes, ARRAY_SIZE(pal_modes), NULL, 32);
@@ -1553,10 +1552,10 @@ static int ps2fb_probe(struct platform_device *pdev)
 
 	ps2fb_switch_mode(info);
 
-    /* This has to be done! */
+	/* This has to be done! */
 	cmap_len = PAL_COLORS;
-    if (fb_alloc_cmap(&info->cmap, cmap_len, 0))
-	return -ENOMEM;
+	if (fb_alloc_cmap(&info->cmap, cmap_len, 0))
+		return -ENOMEM;
 
 	retval = devm_request_irq(device, IRQ_GS_VSYNC, ps2fb_vsync_interrupt,
 				  IRQF_SHARED, DEVICE_NAME, device);
@@ -1583,7 +1582,7 @@ static int ps2fb_probe(struct platform_device *pdev)
 		info->fix.id);
 	platform_set_drvdata(pdev, info);
 
-    return 0;
+	return 0;
 }
 
 static int ps2fb_remove(struct platform_device *pdev)
@@ -1623,7 +1622,7 @@ int __init ps2fb_setup(char *options)
 	if (!options || !*options)
 		return 0;
 
-    /* Parse user speficied options (`video=ps2fb:') */
+	/* Parse user speficied options (`video=ps2fb:') */
 	while ((this_opt = strsep(&options, ",")) != NULL) {
 		if (!*this_opt) continue;
 
