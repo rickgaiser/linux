@@ -41,6 +41,8 @@
 /** Aligment for GS packets. */
 #define DMA_ALIGN_SIZE 16
 
+extern int ps2fb_dma_send(const void *ptr, size_t size);
+
 typedef struct gsreg_packet {
 	ps2_giftag giftag;			/* 128bit */
 	u64 param[2];
@@ -126,7 +128,8 @@ int ps2gs_set_gsreg(int reg, u64 val)
 	packet->param[0] = val;
 	packet->param[1] = reg;
 
-	ps2sdma_send(DMA_GIF, packet, sizeof(*packet));
+	ps2fb_dma_send(packet, sizeof(*packet));
+
 	return 0;
 }
 
@@ -894,7 +897,27 @@ int ps2gs_blank(int onoff)
 /*
  *  GS reset
  */
+#if 1
+int ps2gs_reset(int mode)
+{
+	void ps2_setup_gs_imr(void);
 
+	switch (mode) {
+	case PS2_GSRESET_FULL:
+		outq(0x0200ULL, GSSREG2(PS2_GSSREG_CSR));
+		ps2_setup_gs_imr();
+		/* fall through */
+	case PS2_GSRESET_GS:
+		outq(0x0100ULL, GSSREG2(PS2_GSSREG_CSR));
+		/* fall through */
+	case PS2_GSRESET_GIF:
+		SET_GIFREG(PS2_GIFREG_CTRL, 0x00000001);
+		break;
+	}
+
+	return 0;
+}
+#else
 struct gsreset_info;
 
 struct gsreset_request {
@@ -980,6 +1003,7 @@ int ps2gs_reset(int mode)
 
 	return 0;
 }
+#endif // 1
 
 EXPORT_SYMBOL(ps2gs_set_gssreg);
 EXPORT_SYMBOL(ps2gs_get_gssreg);

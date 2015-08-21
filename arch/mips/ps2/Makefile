@@ -5,7 +5,6 @@ obj-y				+= irq.o
 obj-y				+= time.o
 obj-y				+= identify.o
 obj-y				+= sbios-console.o
-obj-y				+= gs.o
 obj-y				+= sbcall.o
 obj-y				+= iopheap.o
 obj-y				+= rtc.o
