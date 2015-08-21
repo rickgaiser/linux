@@ -249,7 +249,6 @@ static struct platform_device *ps2_platform_devices[] __initdata = {
 
 static int __init ps2_board_setup(void)
 {
-	ps2dma_init();
 	ps2sif_init();
 	ps2rtc_init();
 	ps2_powerbutton_init();

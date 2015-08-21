@@ -64,6 +64,7 @@
 #define PS2_D_ENABLER	0x1000f520
 #define PS2_D_ENABLEW	0x1000f590
 
+#if 0
 #define PS2_Dn_CHCR	0x0000
 #define PS2_Dn_MADR	0x0010
 #define PS2_Dn_QWC	0x0020
@@ -86,12 +87,7 @@
 	 WRITEDMAREG((ch), PS2_Dn_CHCR, CHCR_STOP); \
 	 outl(inl(PS2_D_ENABLER) & ~(1 << 16), PS2_D_ENABLEW); } while (0)
 #define IS_DMA_RUNNING(ch)	((READDMAREG((ch), PS2_Dn_CHCR) & 0x0100) != 0)
-
-struct dma_tag {
-    u16 qwc;
-    u16 id;
-    u32 addr;
-} __attribute__((aligned(DMA_TRUNIT)));
+#endif
 
 #define DMATAG_SET(qwc, id, addr)	\
 	((u64)(qwc) | ((u64)(id) << 16) | ((u64)(addr) << 32))
@@ -106,51 +102,14 @@ struct dma_tag {
 
 /* DMA channel structures */
 
-struct dma_request;
-
 struct dma_channel {
     int irq;				/* DMA interrupt IRQ # */
     unsigned long base;			/* DMA register base addr */
     int direction;			/* data direction */
     int isspr;				/* true if DMA for scratchpad RAM */
     char *device;			/* request_irq() device name */
-    void (*reset)(void);		/* FIFO reset function */
-    spinlock_t lock;
-
-    struct dma_request *head, *tail;	/* DMA request queue */
-    struct dma_tag *tagp;		/* tag pointer (for destination DMA) */
 };
-
-struct dma_ops {
-    void (*start)(struct dma_request *, struct dma_channel *);
-    int (*isdone)(struct dma_request *, struct dma_channel *);
-    unsigned long (*stop)(struct dma_request *, struct dma_channel *);
-    void (*free)(struct dma_request *, struct dma_channel *);
-};
-
-struct dma_request {
-    struct dma_request *next;		/* next request */
-    struct dma_ops *ops;		/* DMA operation functions */
-};
-
-#define init_dma_request(_req, _ops)	\
-    do { (_req)->next = NULL; (_req)->ops = (_ops); } while (0)
-
-struct dma_completion {
-    int done;
-    spinlock_t lock;
-    wait_queue_head_t wait;
-};
-
-/* function prototypes */
 
 extern struct dma_channel ps2dma_channels[];
-void __init ps2dma_init(void);
-irqreturn_t ps2dma_intr_handler(int irq, void *dev_id);
-void ps2dma_add_queue(struct dma_request *req, struct dma_channel *ch);
-void ps2dma_complete(struct dma_completion *x);
-void ps2dma_init_completion(struct dma_completion *x);
-int ps2dma_intr_safe_wait_for_completion(struct dma_channel *ch, int polling, struct dma_completion *x);
-int ps2sdma_send(int chno, const void *ptr, size_t size);
 
 #endif /* __ASM_PS2_DMA_H */
