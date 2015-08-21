@@ -170,5 +170,4 @@ obj-$(CONFIG_FB_VIRTUAL)          += vfb.o
 obj-$(CONFIG_VIDEO_OUTPUT_CONTROL) += output.o
 
 obj-$(CONFIG_FB_PS2)		  += ps2gs.o
-obj-$(CONFIG_FB_PS2)		  += ps2core.o
 obj-$(CONFIG_FB_PS2)		  += ps2fb.o

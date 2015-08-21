@@ -4,6 +4,7 @@
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/string.h>
+#include <linux/ctype.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
@@ -24,7 +25,6 @@
 #include <asm/mach-ps2/gsfunc.h>
 #include <asm/mach-ps2/eedev.h>
 #include <asm/mach-ps2/dma.h>
-#include <asm/mach-ps2/ps2con.h>
 
 #define DEVICE_NAME "ps2fb"
 
@@ -118,6 +118,14 @@ module_param(mode_option, charp, 0);
 MODULE_PARM_DESC(mode_option,
 	"Specify initial video mode as \"<xres>x<yres>[-<bpp>][@<refresh>]\"");
 
+#ifdef CONFIG_T10000
+static int defaultmode = PS2_GS_VESA, defaultres = PS2_GS_640x480;
+static int default_w = 640, default_h = 480;
+#else
+static int defaultmode = PS2_GS_NTSC, defaultres = PS2_GS_NOINTERLACE;
+static int default_w = 640, default_h = 448;
+#endif
+
 /* TBD: Calculate correct timing values. */
 static const struct fb_videomode pal_modes[] = {
 	{
@@ -162,6 +170,34 @@ static const struct fb_videomode dtv_modes[] = {
 		/* 1920x1080i @ 30 Hz, 15.625 kHz hsync (DTV RGB) */
 		NULL, 30, 1920, 1080, 74074, 64, 16, 39, 5, 64, 5,
 		0, FB_VMODE_INTERLACED
+	},
+};
+
+static const struct {
+	int w, h;
+} reslist[4][4] = {
+	{
+		{640, 480},
+		{800, 600},
+		{1024, 768},
+		{1280, 1024},
+	}, {
+		{720, 480},
+		{1920, 1080},
+		{1280, 720},
+		{-1, -1},
+	},
+	{
+		{640, 224},
+		{640, 448},
+		{-1, -1},
+		{-1, -1},
+	},
+	{
+		{640, 240},
+		{640, 480},
+		{-1, -1},
+		{-1, -1},
 	},
 };
 
@@ -535,8 +571,6 @@ void ps2fb_dma_send_old(const void *data, unsigned long len)
 	void *cur_start;
 	unsigned long cur_size;
 
-	/* TBD: Cache is flushed by ps2con_gsp_send, but this may change. */
-
 	start = (unsigned long) data;
 	cur_start = 0;
 	cur_size = 0;
@@ -700,6 +734,28 @@ static void ps2fb_redraw(struct fb_info *info)
 	}
 }
 
+/* Convert resolution to ps2 mode format. */
+int ps2fb_get_resolution(int mode, int w, int h, int rate)
+{
+	int res;
+
+	for (res = 0; res < 4; res++) {
+		if (reslist[mode][res & 0xff].w == w) {
+			if (reslist[mode][res & 0xff].h == h) {
+				if (mode == PS2_GS_VESA) {
+					if (rate >= 75) {
+						res |= PS2_GS_75Hz;
+					} else if (rate >= 60) {
+						res |= PS2_GS_60Hz;
+					}
+				}
+				return res;
+			}
+		}
+	}
+	return -1;
+}
+
 /**
  *      ps2fb_check_var - Optional function. Validates a var passed in.
  *      @var: frame buffer variable screen structure
@@ -815,7 +871,7 @@ static int ps2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	}
 
 	/* TBD: Should use crtmode set by set crtmode application via /dev/ps2gs */
-	res = ps2con_get_resolution(var->nonstd, var->xres, var->yres, 60 /* TBD: calculate rate. */);
+	res = ps2fb_get_resolution(var->nonstd, var->xres, var->yres, 60 /* TBD: calculate rate. */);
 	if (res < 0) {
 		/* Resolution is not supported in this crtmode. */
 		printk("ps2fb: %dx%d is not supported in crtmode %d\n", var->xres, var->yres, var->nonstd);
@@ -850,7 +906,7 @@ static void ps2fb_switch_mode(struct fb_info *info)
 	par->redraw_xres = info->var.xres;
 	par->screeninfo.h = info->var.yres;
 	par->redraw_yres = info->var.yres;
-	par->screeninfo.res = ps2con_get_resolution(par->screeninfo.mode,
+	par->screeninfo.res = ps2fb_get_resolution(par->screeninfo.mode,
 		info->var.xres, info->var.yres, 60 /* TBD: calculate rate. */);
 	if (info->var.bits_per_pixel == 16) {
 		par->screeninfo.psm = PS2_GS_PSMCT16;
@@ -1491,6 +1547,68 @@ static int ps2fb_dma_request(struct device *dev)
 	return 0;
 }
 
+static int __init crtmode_setup(char *options)
+{
+	int maxres;
+
+	int rrate, w, h;
+
+	if (!options || !*options)
+		return 0;
+
+	if (strnicmp(options, "vesa", 4) == 0) {
+		options += 4;
+		defaultmode = PS2_GS_VESA;
+		maxres = 4;
+	} else if (strnicmp(options, "dtv", 3) == 0) {
+		options += 3;
+		defaultmode = PS2_GS_DTV;
+		maxres = 3;
+	} else if (strnicmp(options, "ntsc", 4) == 0) {
+		options += 4;
+		defaultmode = PS2_GS_NTSC;
+		maxres = 2;
+	} else if (strnicmp(options, "pal", 3) == 0) {
+		options += 3;
+		defaultmode = PS2_GS_PAL;
+		maxres = 2;
+	} else
+		return 0;
+
+	defaultres = 0;
+	if (*options >= '0' && *options <= '9') {
+		defaultres = *options - '0';
+		options++;
+		if (defaultres >= maxres)
+			defaultres = 0;
+	}
+
+	if (defaultmode == PS2_GS_VESA && *options == ',') {
+		rrate = simple_strtoul(options + 1, &options, 0);
+		if (rrate == 60)
+			defaultres |= PS2_GS_60Hz;
+		else if (rrate == 75)
+			defaultres |= PS2_GS_75Hz;
+	}
+
+	w = default_w = reslist[defaultmode][defaultres & 0xff].w;
+	h = default_h = reslist[defaultmode][defaultres & 0xff].h;
+
+	if (*options == ':') {
+		w = simple_strtoul(options + 1, &options, 0);
+		if (*options == ',' || tolower(*options) == 'x') {
+			h = simple_strtoul(options + 1, &options, 0);
+		}
+		if (w > 0)
+			default_w = w;
+		if (h > 0)
+			default_h = h;
+	}
+
+	return 1;
+}
+__setup("crtmode=", crtmode_setup);
+
 static int ps2fb_probe(struct platform_device *pdev)
 {
 	struct fb_info *info;
@@ -1531,7 +1649,15 @@ static int ps2fb_probe(struct platform_device *pdev)
 	info->pseudo_palette = par->pseudo_palette;
 	par->opencnt = 0;
 
-	ps2con_initinfo(&par->screeninfo);
+	par->screeninfo.fbp = 0;
+	par->screeninfo.psm = PS2_GS_PSMCT32;
+	par->screeninfo.mode = defaultmode;
+	par->screeninfo.res = defaultres;
+	par->screeninfo.w = default_w;
+	par->screeninfo.h = default_h;
+	if (par->screeninfo.w * par->screeninfo.h > 1024 * 1024)
+		par->screeninfo.psm = PS2_GS_PSMCT16;
+
 	if ((crtmode < 0) || (crtmode > 3)) {
 		/* Set default to old crtmode parameter. */
 		info->var.nonstd = par->screeninfo.mode;
