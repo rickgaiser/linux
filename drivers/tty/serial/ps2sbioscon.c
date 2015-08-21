@@ -270,14 +270,6 @@ static struct console ps2sbios_console = {
 	.setup		= ps2sbios_console_setup,
 };
 
-static struct platform_device ps2sbios_device = {
-	.name			= "ps2sbios-uart",
-	.id				= 0,
-	.dev			= {
-		.platform_data	= NULL,
-	},
-};
-
 static int __init ps2sbios_console_init(void)
 {
 	register_console(&ps2sbios_console);
@@ -291,19 +283,12 @@ static int __init ps2sbios_con_init(void)
 	printk("PS2 SBIOS serial driver");
 
 	result = uart_register_driver(&ps2sbios_con_reg);
-	if (result)
+	if (result != 0)
 		return result;
 
 	result = platform_driver_register(&serial_ps2sbios_driver);
-	if (result == 0) {
-		result = platform_device_register(&ps2sbios_device);
-		if (result != 0) {
-			platform_driver_unregister(&serial_ps2sbios_driver);
-			uart_unregister_driver(&ps2sbios_con_reg);
-		}
-	} else {
+	if (result != 0)
 		uart_unregister_driver(&ps2sbios_con_reg);
-	}
 
 	return result;
 }
