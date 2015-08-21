@@ -44,7 +44,7 @@ void (*__wbflush)(void);
 
 EXPORT_SYMBOL(__wbflush);
 
-static struct resource usb_ohci_resources[] = {
+static struct resource ps2_usb_ohci_resources[] = {
 	[0] = {
 		.start	= 0xbf801600,
 		.end	= 0xbf801700,
@@ -58,31 +58,46 @@ static struct resource usb_ohci_resources[] = {
 	},
 };
 
-static struct platform_device usb_ohci_device = {
+static struct platform_device ps2_usb_ohci_device = {
 	.name		= "ps2_ohci",
 	.id		= -1,
-	.num_resources	= ARRAY_SIZE(usb_ohci_resources),
-	.resource	= usb_ohci_resources,
+	.num_resources	= ARRAY_SIZE(ps2_usb_ohci_resources),
+	.resource	= ps2_usb_ohci_resources,
 };
 
-static struct platform_device smap_device = {
+static struct platform_device ps2_smap_device = {
 	.name           = "ps2smap",
+	.id		= -1,
 };
 
-static struct platform_device smaprpc_device = {
+static struct platform_device ps2_smaprpc_device = {
 	.name           = "ps2smaprpc",
+	.id		= -1,
 };
 
-static struct platform_device gs_device = {
+static struct platform_device ps2_gs_device = {
 	.name           = "ps2fb",
+	.id		= -1,
 };
 
-static struct platform_device sd_device = {
+static struct platform_device ps2_sd_device = {
 	.name           = "ps2sd",
+	.id		= -1,
 };
 
-static struct platform_device audio_device = {
+static struct platform_device ps2_audio_device = {
 	.name           = "ps2audio",
+	.id		= -1,
+};
+
+static struct platform_device ps2_sbios_device = {
+	.name		= "ps2sbios-uart",
+	.id		= 0,
+};
+
+static struct platform_device ps2_uart_device = {
+	.name		= "ps2-uart",
+	.id		= -1,
 };
 
 static unsigned int ps2_blink_frequency = 500;
@@ -173,7 +188,16 @@ void __init plat_mem_setup(void)
 #endif
 }
 
-static int __init ps2_dev_init(void)
+static struct platform_device *ps2_platform_devices[] __initdata = {
+	&ps2_gs_device,
+	&ps2_usb_ohci_device,
+	&ps2_sd_device,
+	&ps2_audio_device,
+	&ps2_sbios_device,
+	&ps2_uart_device,
+};
+
+static int __init ps2_board_setup(void)
 {
 	ps2dma_init();
 	ps2sif_init();
@@ -182,27 +206,26 @@ static int __init ps2_dev_init(void)
 #ifdef CONFIG_SYSFS_IOP_MODULES
 	ps2_loadfile_init();
 #endif
-	platform_device_register(&gs_device);
-	platform_device_register(&usb_ohci_device);
 
 	switch (ps2_pccard_present) {
 	case 0x0100:
-		platform_device_register(&smap_device);
+		platform_device_register(&ps2_smap_device);
 		break;
 	case 0x0200:
-		platform_device_register(&smaprpc_device);
+		platform_device_register(&ps2_smaprpc_device);
 		break;
 	default:
 		printk("No SMAP network device found.");
 		break;
 	}
-	platform_device_register(&sd_device);
+
 #ifdef CONFIG_FIRMWARE_IN_KERNEL
 	/* Check whether we can load the firmware for audio. */
 	load_module_firmware("audsrv.irx", 0);
 #endif
-	platform_device_register(&audio_device);
+
+	platform_add_devices(ps2_platform_devices, ARRAY_SIZE(ps2_platform_devices));
 
 	return 0;
 }
-arch_initcall(ps2_dev_init);
+arch_initcall(ps2_board_setup);

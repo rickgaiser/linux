@@ -318,22 +318,14 @@ console_initcall(ps2_uart_console_init);
 
 #endif /* CONFIG_SERIAL_PS2_UART_CONSOLE */
 
-static struct platform_device ps2_uart_device = {
-	.name			= DRV_NAME,
-	.id				= 0,
-	.dev			= {
-		.platform_data	= NULL,
-	},
-};
-
 static struct uart_driver ps2_uart_driver = {
-	.owner			= THIS_MODULE,
+	.owner		= THIS_MODULE,
 	.driver_name	= DRV_NAME,
-	.dev_name		= "ttyS",
-	.major			= TTY_MAJOR,
-	.minor			= 64,
-	.nr				= 1,
-	.cons			= PS2_UART_CONSOLE,
+	.dev_name	= "ttyS",
+	.major		= TTY_MAJOR,
+	.minor		= 64,
+	.nr		= 1,
+	.cons		= PS2_UART_CONSOLE,
 };
 
 static int ps2_uart_probe(struct platform_device *dev)
@@ -365,21 +357,17 @@ static int __init ps2_uart_init(void)
 {
 	int result;
 
-	result = uart_register_driver(&ps2_uart_driver);
-	if (result)
-		return result;
-	result = platform_driver_register(&ps2_uart_platform_driver);
-	if (result == 0) {
-		result = platform_device_register(&ps2_uart_device);
-		if (result != 0) {
-			platform_driver_unregister(&ps2_uart_platform_driver);
-			uart_unregister_driver(&ps2_uart_driver);
-		}
-	} else {
-		uart_unregister_driver(&ps2_uart_driver);
-	}
+	printk("PS2 UART serial driver");
 
-	return 0;
+	result = uart_register_driver(&ps2_uart_driver);
+	if (result != 0)
+		return result;
+
+	result = platform_driver_register(&ps2_uart_platform_driver);
+	if (result != 0)
+		uart_unregister_driver(&ps2_uart_driver);
+
+	return result;
 }
 
 void __exit ps2_uart_exit(void)
@@ -393,7 +381,7 @@ void __exit ps2_uart_exit(void)
 	}
 }
 
-module_init (ps2_uart_init);
+module_init(ps2_uart_init);
 module_exit(ps2_uart_exit);
 
 MODULE_DESCRIPTION("PS2 UART driver");
