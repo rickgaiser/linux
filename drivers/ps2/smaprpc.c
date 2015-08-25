@@ -18,8 +18,6 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#if defined(linux)
-
 #include <linux/platform_device.h>
 #include <linux/kthread.h>
 
@@ -501,14 +499,9 @@ static void __exit smaprpc_exit(void)
 	return;
 }
 
-
 module_init(smaprpc_init);
 module_exit(smaprpc_exit);
 
 MODULE_AUTHOR("Juergen Urban");
 MODULE_DESCRIPTION("PlayStation 2 ethernet device driver for slim PSTwo");
 MODULE_LICENSE("GPL");
-
-/*--------------------------------------------------------------------------*/
-
-#endif /* linux */
