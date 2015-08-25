@@ -21,6 +21,7 @@
 #if defined(linux)
 
 #include <linux/platform_device.h>
+#include <linux/kthread.h>
 
 #include <asm/mach-ps2/sbios.h>
 
@@ -125,7 +126,7 @@ static int smaprpc_start_xmit(struct sk_buff *skb, struct net_device *net_dev)
 	spin_lock_irqsave(&smap->spinlock, flags);
 
 	smaprpc_skb_enqueue(&smap->txqueue, skb);
-	wake_up(&smap->wait_smaprun);
+	wake_up_interruptible(&smap->wait_smaprun);
 	spin_unlock_irqrestore(&smap->spinlock, flags);
 	return (0);
 }
@@ -326,37 +327,17 @@ static void smaprpc_rpc_setup(struct smaprpc_chan *smap)
 static int smaprpc_thread(void *arg)
 {
 	struct smaprpc_chan *smap = (struct smaprpc_chan *) arg;
-	sigset_t blocked, oldset;
-
-	siginitsetinv(&blocked, sigmask(SIGKILL)|sigmask(SIGINT)|sigmask(SIGTERM));
-	sigprocmask(SIG_SETMASK, &blocked, &oldset);
-
-	/* get rid of all our resources related to user space */
-	daemonize("smaprpc");
-
-	smap->smaprun_task = current;
 
 	while (1) {
-		DECLARE_WAITQUEUE(wait, current);
-
-		add_wait_queue(&smap->wait_smaprun, &wait);
-		set_current_state(TASK_INTERRUPTIBLE);
-
 		smaprpc_run(smap);
 
-		schedule();
-		remove_wait_queue(&smap->wait_smaprun, &wait);
-		if (signal_pending(current))
+		interruptible_sleep_on(&smap->wait_smaprun);
+
+		if (kthread_should_stop())
 			break;
 	}
 
-	smap->smaprun_task = NULL;
-	if (smap->smaprun_compl != NULL)
-		complete(smap->smaprun_compl);	/* notify that we've exited */
-
-	sigprocmask(SIG_SETMASK, &oldset, NULL);
-
-	return (0);
+	return 0;
 }
 
 static void smaprpc_rpcend_notify(void *arg)
@@ -454,7 +435,7 @@ static int smaprpc_probe(struct platform_device *dev)
 	smaprpc_rpc_setup(smap);
 
 	if (smap->rpc_initialized) {
-		kernel_thread(smaprpc_thread, (void *) smap, 0);
+		smap->smaprun_task = kthread_run(smaprpc_thread, smap, "ps2smaprpc");
 
 		printk("Slim PlayStation 2 SMAP(Ethernet) device driver.\n");
 
@@ -483,15 +464,7 @@ static int smaprpc_driver_remove(struct platform_device *pdev)
 	}
 
 	if (smap->smaprun_task != NULL) {
-		struct completion compl;
-
-		init_completion(&compl);
-		smap->smaprun_compl = &compl;
-		send_sig(SIGKILL, smap->smaprun_task, 1);
-
-		/* wait the thread exit */
-		wait_for_completion(&compl);
-		smap->smaprun_compl = NULL;
+		kthread_stop(smap->smaprun_task);
 	}
 	if (smap->shared_addr != NULL) {
 		kfree(smap->shared_addr);

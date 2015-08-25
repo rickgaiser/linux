@@ -21,6 +21,7 @@
 #if defined(linux)
 
 #include <linux/platform_device.h>
+#include <linux/kthread.h>
 
 #include "smap.h"
 
@@ -1336,18 +1337,10 @@ smap_timeout_thread(void *arg)
 	struct smap_chan *smap = (struct smap_chan *)arg;
 	struct net_device *net_dev = (struct net_device *)smap->net_dev;
 	unsigned long flags;
-	sigset_t blocked, oldset;
-
-	siginitsetinv(&blocked, sigmask(SIGKILL)|sigmask(SIGINT)|sigmask(SIGTERM));
-	sigprocmask(SIG_SETMASK, &blocked, &oldset);
-
-	daemonize("smap timeout");
-
-	smap->timeout_task = current;
 
 	while(1) {
 		interruptible_sleep_on(&smap->wait_timeout);
-		if (signal_pending(current))
+		if (kthread_should_stop())
 			break;
 
 		printk("%s: tx timeout ticks = %ld\n",
@@ -1373,12 +1366,6 @@ smap_timeout_thread(void *arg)
 		smap->net_stats.tx_errors++;
 		netif_wake_queue(net_dev);
 	}
-
-	smap->timeout_task = NULL;
-	if (smap->timeout_compl != NULL)
-		complete(smap->timeout_compl);/* notify that we've exited */
-
-	sigprocmask(SIG_SETMASK, &oldset, NULL);
 
 	return(0);
 }
@@ -2636,36 +2623,17 @@ static int
 smap_thread(void *arg)
 {
 	struct smap_chan *smap = (struct smap_chan *)arg;
-	sigset_t blocked, oldset;
-
-	siginitsetinv(&blocked, sigmask(SIGKILL)|sigmask(SIGINT)|sigmask(SIGTERM));
-	sigprocmask(SIG_SETMASK, &blocked, &oldset);
-
-	/* get rid of all our resources related to user space */
-	daemonize("smap");
-
-	smap->smaprun_task = current;
 
 	while (1) {
-		wait_queue_t wait;
-		init_waitqueue_entry(&wait, current);
-		add_wait_queue(&smap->wait_smaprun, &wait);
-		set_current_state(TASK_INTERRUPTIBLE);
+		smap_run(smap);
 
-		(void)smap_run(smap);
+		interruptible_sleep_on(&smap->wait_smaprun);
 
-		schedule();
-		remove_wait_queue(&smap->wait_smaprun, &wait);
-		if (signal_pending(current))
+		if (kthread_should_stop())
 			break;
 	}
 
-	smap->smaprun_task = NULL;
-	if (smap->smaprun_compl != NULL)
-		complete(smap->smaprun_compl);	/* notify that we've exited */
-	sigprocmask(SIG_SETMASK, &oldset, NULL);
-
-	return(0);
+	return 0;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2723,32 +2691,17 @@ static int
 smap_chk_linkvalid_thread(void *arg)
 {
 	struct smap_chan *smap = (struct smap_chan *)arg;
-	sigset_t blocked, oldset;
-
-	siginitsetinv(&blocked, sigmask(SIGKILL)|sigmask(SIGINT)|sigmask(SIGTERM));
-	sigprocmask(SIG_SETMASK, &blocked, &oldset);
-
-	/* get rid of all our resources related to user space */
-	daemonize("smap chk lv %d", smap_chklv_ival); /* up to 16B */
-
-	smap->chk_linkvalid_task = current;
 
 	while (1) {
 		(void)smap_chk_linkvalid(smap);
 
 		interruptible_sleep_on_timeout(&smap->wait_chk_linkvalid,
 						HZ * smap_chklv_ival);
-		if (signal_pending(current))
+		if (kthread_should_stop())
 			break;
 	}
 
-	smap->chk_linkvalid_task = NULL;
-	if (smap->chk_linkvalid_compl != NULL)
-		complete(smap->chk_linkvalid_compl);/* notify that we've exited */
-
-	sigprocmask(SIG_SETMASK, &oldset, NULL);
-
-	return(0);
+	return 0;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2762,13 +2715,6 @@ static int
 smap_init_thread(void *arg)
 {
 	struct smap_chan *smap = (struct smap_chan *)arg;
-	sigset_t blocked, oldset;
-
-	siginitsetinv(&blocked, sigmask(SIGKILL)|sigmask(SIGINT)|sigmask(SIGTERM));
-	sigprocmask(SIG_SETMASK, &blocked, &oldset);
-
-	/* get rid of all our resources related to user space */
-	daemonize("smap init");
 
 	smap_reset(smap, RESET_INIT);
 	smap_txrx_XXable(smap, DISABLE);
@@ -2791,9 +2737,7 @@ smap_init_thread(void *arg)
 
 	smap->flags |= SMAP_F_INITDONE;
 
-	sigprocmask(SIG_SETMASK, &oldset, NULL);
-
-	return(0);
+	return 0;
 }
 
 extern int ps2_pccard_present;
@@ -2891,16 +2835,16 @@ static int smap_probe(struct platform_device *dev)
 	}
 
 	/* create and start thread */
-	kernel_thread(smap_init_thread, (void *)smap, 0);
+	smap->init_task = kthread_run(smap_init_thread, smap, "ps2smap init");
 	if (smap_chklv_ival > 0) {
 		if (smap_chklv_ival > 999)
 			smap_chklv_ival = 999;	/* MAX: a three-digit number */
-		kernel_thread(smap_chk_linkvalid_thread, (void *)smap, 0);
+		smap->chk_linkvalid_task = kthread_run(smap_chk_linkvalid_thread, smap, "ps2smap chk lv %d", smap_chklv_ival);
 	}
 #ifdef HAVE_TX_TIMEOUT
-	kernel_thread(smap_timeout_thread, (void *)smap, 0);
+	smap->timeout_task = kthread_run(smap_timeout_thread, smap, "ps2smap timeout");
 #endif /* HAVE_TX_TIMEOUT */
-	kernel_thread(smap_thread, (void *)smap, 0);
+	smap->smaprun_task = kthread_run(smap_thread, smap, "ps2smap");
 
 	printk("Fat PlayStation 2 SMAP(Ethernet) device driver.\n");
 
@@ -2925,39 +2869,15 @@ static int smap_driver_remove(struct platform_device *pdev)
 	struct smap_chan *smap = netdev_priv(net_dev);
 
 	if (smap->chk_linkvalid_task != NULL) {
-		struct completion compl;
-
-		init_completion(&compl);
-		smap->chk_linkvalid_compl = &compl;
-		send_sig(SIGKILL, smap->chk_linkvalid_task, 1);
-
-		/* wait the thread exit */
-		wait_for_completion(&compl);
-		smap->chk_linkvalid_compl = NULL;
+		kthread_stop(smap->chk_linkvalid_task);
 	}
 #ifdef HAVE_TX_TIMEOUT
 	if (smap->timeout_task != NULL) {
-		struct completion compl;
-
-		init_completion(&compl);
-		smap->timeout_compl = &compl;
-		send_sig(SIGKILL, smap->timeout_task, 1);
-
-		/* wait the thread exit */
-		wait_for_completion(&compl);
-		smap->timeout_compl = NULL;
+		kthread_stop(smap->timeout_task);
 	}
 #endif /* HAVE_TX_TIMEOUT */
 	if (smap->smaprun_task != NULL) {
-		struct completion compl;
-
-		init_completion(&compl);
-		smap->smaprun_compl = &compl;
-		send_sig(SIGKILL, smap->smaprun_task, 1);
-
-		/* wait the thread exit */
-		wait_for_completion(&compl);
-		smap->smaprun_compl = NULL;
+		kthread_stop(smap->smaprun_task);
 	}
 
 	printk("%s: unloading...", net_dev->name);

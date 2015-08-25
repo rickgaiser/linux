@@ -25,6 +25,7 @@
 #include <linux/iso_fs.h>
 #include <linux/interrupt.h>
 #include <linux/major.h>
+#include <linux/kthread.h>
 
 #include "cdvd.h"
 
@@ -300,6 +301,9 @@ ps2cdvd_getevent(int timeout)
     unsigned long flags;
     struct timer_list timer;
 
+    if (kthread_should_stop())
+	return (EV_EXIT);
+
     init_timer(&timer);
     timer.function = (void(*)(u_long))ps2cdvd_timer;
     timer.expires = jiffies + (timeout);
@@ -386,9 +390,6 @@ ps2cdvd_thread(void *arg)
     unsigned long flags;
     long sn;
     int nsects;
-
-    /* get rid of all our resources related to user space */
-    daemonize("ps2cdvd thread");
 
     ps2cdvd.state = STAT_INIT;
     new_state = STAT_CHECK_DISC;
@@ -677,9 +678,6 @@ ps2cdvd_thread(void *arg)
     }
     spin_unlock_irqrestore(&cdvd_queue_lock, flags);
     }
-
-    /* notify we are exiting */
-    up(&ps2cdvd.ack_sem);
 
     return (0);
 }
@@ -1073,8 +1071,8 @@ int __init ps2cdvd_init(void)
 	/*
 	 * start control thread
 	 */
-	ps2cdvd.thread_id = kernel_thread(ps2cdvd_thread, &ps2cdvd, CLONE_VM);
-	if (ps2cdvd.thread_id < 0) {
+	ps2cdvd.cdvd_task = kthread_run(ps2cdvd_thread, &ps2cdvd, "ps2cdvd");
+	if (ps2cdvd.cdvd_task == NULL) {
 		printk(KERN_ERR "ps2cdvd: can't start thread\n");
 		ps2cdvd_cleanup();
 		return (-1);
@@ -1141,10 +1139,8 @@ ps2cdvd_cleanup()
 	DPRINT(DBG_VERBOSE, "cleanup\n");
 
 	if (ps2cdvd_initialized & PS2CDVD_INIT_THREAD) {
-		DPRINT(DBG_VERBOSE, "stop thread %d\n", ps2cdvd.thread_id);
-		kill_pid(find_get_pid(ps2cdvd.thread_id), SIGKILL, 1);
-		/* wait for the thread to exit */
-		down(&ps2cdvd.ack_sem);
+		DPRINT(DBG_VERBOSE, "stop thread\n");
+		kthread_stop(ps2cdvd.cdvd_task);
 	}
 
 	ps2cdvd_lock("cdvd_cleanup");

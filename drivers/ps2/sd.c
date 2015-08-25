@@ -25,6 +25,7 @@
 #include <linux/interrupt.h>
 #include <linux/soundcard.h>
 #include <linux/platform_device.h>
+#include <linux/kthread.h>
 
 #include <asm/io.h>
 #include <asm/addrspace.h>
@@ -1060,8 +1061,8 @@ return (-EFAULT);    \
 		struct sched_param param = { .sched_priority = priority };
 
 		DPRINT(DBG_COMMAND, "ioctl(PS2SDCTL_CHANGE_THPRI)\n");
-		/* TBD: Check if virtual pid is correct thing to search in Linux 2.6. */
-		if ((tsk = find_task_by_vpid(ps2sd_mc.thread_id)) == NULL) {
+		tsk = ps2sd_mc.sd_task;
+		if (tsk == NULL) {
 			printk("ps2sd: sound thread doesn't exist.\n");
 			return -1;
 		}
@@ -1208,15 +1209,15 @@ ps2sd_thread(void *arg)
 {
 	int status, i;
 
-	/* get rid of all our resources related to user space */
-	daemonize("ps2sd thread");
-
 	/* notify we are running */
 	complete(&ps2sd_mc.ack_comp);
 
 	while (1) {
-		if (down_interruptible(&ps2sd_mc.intr_sem))
-			goto out;
+		interruptible_sleep_on(&ps2sd_mc.intr_wait);
+
+		if (kthread_should_stop())
+			break;
+
 		DPRINT(DBG_INTR, "DMA interrupt service thread\n");
 
 		spin_lock_irq(&ps2sd_mc.spinlock);
@@ -1242,11 +1243,7 @@ ps2sd_thread(void *arg)
 		DPRINT(DBG_INTR, "DMA interrupt service thread...sleep\n");
 	}
 
- out:
 	DPRINT(DBG_INFO, "the thread is exiting...\n");
-
-	/* notify we are exiting */
-	complete(&ps2sd_mc.ack_comp);
 
 	return (0);
 }
@@ -1260,7 +1257,7 @@ ps2sd_intr(void* argx, int dmach)
 	spin_unlock(&ps2sd_mc.spinlock);
 	DPRINT(DBG_INTR, "DMA interrupt %d\n", dmach);
 #ifdef PS2SD_USE_THREAD
-	up(&ps2sd_mc.intr_sem);
+	wake_up_interruptible(&ps2sd_mc.intr_wait);
 #endif
 
 	return (0);
@@ -2624,10 +2621,7 @@ static int ps2sd_probe(struct platform_device *dev)
 	ps2sif_unlock(ps2sd_mc.lock);
 
 	ps2sd_mc.init |= PS2SD_INIT_UNIT;
-#ifdef PS2SD_USE_THREAD
-	/* Initialize mutex, if interrupts happens before starting thread. */
-	sema_init(&ps2sd_mc.intr_sem, 0);
-#endif
+
 	res = ps2sd_attach_unit(&ps2sd_units[0], 0, 0, &ps2sd_mixers[0],
 			      UNIT0_FLAGS);
 	if (res < 0)
@@ -2648,11 +2642,12 @@ static int ps2sd_probe(struct platform_device *dev)
 	/*
 	 * start interrupt service thread
 	 */
+	init_waitqueue_head(&ps2sd_mc.intr_wait);
 	init_completion(&ps2sd_mc.ack_comp);
-	ps2sd_mc.thread_id = kernel_thread(ps2sd_thread, NULL, CLONE_VM);
-	if (ps2sd_mc.thread_id < 0) {
+	ps2sd_mc.sd_task = kthread_run(ps2sd_thread, NULL, "ps2sd");
+	if (ps2sd_mc.sd_task == NULL) {
 		printk(KERN_ERR "ps2sd: can't start thread\n");
-		res = ps2sd_mc.thread_id;
+		res = -1;
 		goto error_out;
 	}
 	/* wait for the thread to start */
@@ -2751,10 +2746,8 @@ static void ps2sd_cleanup(void)
 	 * stop thread
 	 */
 	if (ps2sd_mc.init & PS2SD_INIT_THREAD) {
-		DPRINT(DBG_VERBOSE, "stop thread %d\n", ps2sd_mc.thread_id);
-		kill_pid(find_get_pid(ps2sd_mc.thread_id), SIGKILL, 1);
-		/* wait for the thread to exit */
-		wait_for_completion(&ps2sd_mc.ack_comp);
+		DPRINT(DBG_VERBOSE, "stop thread\n");
+		kthread_stop(ps2sd_mc.sd_task);
 	}
 	ps2sd_mc.init &= ~PS2SD_INIT_THREAD;
 #endif
