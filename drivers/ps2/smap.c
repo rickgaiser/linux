@@ -18,9 +18,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#if defined(linux)
 #include <linux/kthread.h>
-
 #include <linux/platform_device.h>
 
 #include "smap.h"
@@ -2955,14 +2953,9 @@ static void __exit smap_exit(void)
 	return;
 }
 
-
 module_init(smap_init);
 module_exit(smap_exit);
 
 MODULE_AUTHOR("Juergen Urban");
 MODULE_DESCRIPTION("PlayStation 2 ethernet device driver for fat PS2.");
 MODULE_LICENSE("GPL");
-
-/*--------------------------------------------------------------------------*/
-
-#endif /* linux */
