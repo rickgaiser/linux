@@ -487,20 +487,7 @@ static struct platform_driver smap_driver = {
 		.owner	= THIS_MODULE,
 	},
 };
-
-static int __init smaprpc_init(void)
-{
-	return platform_driver_register(&smap_driver);
-}
-
-static void __exit smaprpc_exit(void)
-{
-	platform_driver_unregister(&smap_driver);
-	return;
-}
-
-module_init(smaprpc_init);
-module_exit(smaprpc_exit);
+module_platform_driver(smap_driver);
 
 MODULE_AUTHOR("Juergen Urban");
 MODULE_DESCRIPTION("PlayStation 2 ethernet device driver for slim PSTwo");

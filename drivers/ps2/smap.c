@@ -2915,20 +2915,7 @@ static struct platform_driver smap_driver = {
 		.owner	= THIS_MODULE,
 	},
 };
-
-static int __init smap_init(void)
-{
-	return platform_driver_register(&smap_driver);
-}
-
-static void __exit smap_exit(void)
-{
-	platform_driver_unregister(&smap_driver);
-	return;
-}
-
-module_init(smap_init);
-module_exit(smap_exit);
+module_platform_driver(smap_driver);
 
 MODULE_AUTHOR("Juergen Urban");
 MODULE_DESCRIPTION("PlayStation 2 ethernet device driver for fat PS2.");
