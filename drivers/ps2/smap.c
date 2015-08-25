@@ -2585,20 +2585,6 @@ smap_run(struct smap_chan *smap)
 		return;
 	if ((smap->flags & SMAP_F_INITDONE) == 0)
 		return;
-	if ((smap->flags & SMAP_F_OPENED) == 0) {
-		spin_lock_irqsave(&smap->spinlock, flags);
-		while (smap->txqueue.qlen > 0) {
-			spin_unlock_irqrestore(&smap->spinlock, flags);
-			(void)smap_start_xmit2(smap);
-			(void)smap_tx_intr(smap->net_dev);
-			spin_lock_irqsave(&smap->spinlock, flags);
-		}
-		spin_unlock_irqrestore(&smap->spinlock, flags);
-		if (smap->tx_qpkt_compl != NULL)
-			complete(smap->tx_qpkt_compl); /*notify all pkts sent*/
-		netif_stop_queue(smap->net_dev);
-		return;
-	}
 
 	for (;;) {
 		if ((smap->flags & SMAP_F_OPENED) == 0) {
