@@ -36,9 +36,9 @@
 #include <asm/mach-ps2/dma.h>
 #include <asm/mach-ps2/sifdefs.h>
 #include <asm/mach-ps2/sbios.h>
+#include <asm/mach-ps2/iopmodules.h>
 
 #include "loadfile.h"
-#include "iopmodules.h"
 
 void (*__wbflush)(void);
 
