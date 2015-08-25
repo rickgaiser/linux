@@ -74,15 +74,13 @@ struct smap_chan {
 	wait_queue_head_t wait_linkvalid;
 	wait_queue_head_t wait_chk_linkvalid;
 	struct task_struct *chk_linkvalid_task;
-	struct completion *chk_linkvalid_compl;
 	wait_queue_head_t wait_smaprun;
 	struct task_struct *smaprun_task;
-	struct completion *smaprun_compl;
+	struct task_struct *init_task;
 	struct completion *tx_qpkt_compl;
 #ifdef HAVE_TX_TIMEOUT
 	wait_queue_head_t wait_timeout;
 	struct task_struct *timeout_task;
-	struct completion *timeout_compl;
 #endif /* HAVE_TX_TIMEOUT */
 	spinlock_t spinlock;
 	int txicnt, rxicnt;

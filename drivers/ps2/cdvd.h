@@ -149,7 +149,7 @@ struct ps2cdvd_ctx {
 	struct semaphore	wait_sem;
 	volatile int		ievent, event;
 	spinlock_t		ievent_lock;
-	int			thread_id;
+	struct task_struct	*cdvd_task;
 	struct request_queue	*cdvd_queue;
 };
 
