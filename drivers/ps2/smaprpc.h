@@ -60,7 +60,6 @@ struct smaprpc_chan {
 	struct semaphore smap_rpc_sema;
 
 	struct task_struct *smaprun_task;
-	struct completion *smaprun_compl;
 	wait_queue_head_t wait_smaprun;
 
 	struct sk_buff_head txqueue;

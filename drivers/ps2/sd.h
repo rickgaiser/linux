@@ -91,9 +91,9 @@ struct ps2sd_module_context {
 	spinlock_t spinlock;
 
 #ifdef PS2SD_USE_THREAD
-	pid_t thread_id;
+	struct task_struct *sd_task;
 	volatile int intr_status;
-	struct semaphore intr_sem;
+	wait_queue_head_t intr_wait;
 	struct completion ack_comp;
 #endif
 };
