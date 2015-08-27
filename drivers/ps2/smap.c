@@ -23,6 +23,8 @@
 
 #include <linux/platform_device.h>
 
+#include <asm/mach-ps2/iopmodules.h>
+
 #include "smap.h"
 
 #define INW(x) inw((uint32_t)(x))
@@ -2801,6 +2803,12 @@ static int __devinit smap_probe(struct platform_device *dev)
 
 	if (ps2_pccard_present != 0x0100) {
 		printk("PlayStation 2 HDD/Ethernet device NOT present.\n");
+		return(-ENODEV);
+	}
+
+	r = load_module_firmware("ps2/smap.irx", 0);
+	if (r < 0) {
+		printk("ps2smap: loading firmware failed\n");
 		return(-ENODEV);
 	}
 
