@@ -26,11 +26,9 @@
 #include <linux/sched.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
-#include <linux/pm.h>
 #include <linux/platform_device.h>
 
 #include <asm/bootinfo.h>
-#include <asm/reboot.h>
 
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/dma.h>
@@ -39,6 +37,7 @@
 #include <asm/mach-ps2/iopmodules.h>
 
 #include "loadfile.h"
+#include "reset.h"
 
 void (*__wbflush)(void);
 
@@ -112,21 +111,6 @@ static void ps2_wbflush(void)
 	inl(ps2sif_bustophys(0));
 }
 
-static void ps2_machine_restart(char *command)
-{
-	ps2_halt(SB_HALT_MODE_RESTART);
-}
-
-static void ps2_machine_halt(void)
-{
-	ps2_halt(SB_HALT_MODE_HALT);
-}
-
-static void ps2_machine_off(void)
-{
-	ps2_halt(SB_HALT_MODE_PWROFF);
-}
-
 static long ps2_panic_blink(int state)
 {
 	static int last_blink;
@@ -154,9 +138,7 @@ static long ps2_panic_blink(int state)
 
 void __init plat_mem_setup(void)
 {
-	_machine_restart = ps2_machine_restart;
-	_machine_halt = ps2_machine_halt;
-	pm_power_off = ps2_machine_off;
+	ps2_reset_init();
 	panic_blink = ps2_panic_blink;
 
 	__wbflush = ps2_wbflush;

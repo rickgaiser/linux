@@ -38,7 +38,6 @@ extern void prom_putchar(char);
 extern int ps2_printf(const char *fmt, ...);
 extern int ps2sif_initiopheap(void);
 extern int ps2rtc_init(void);
-void ps2_halt(int mode);
 int ps2_powerbutton_init(void);
 int ps2_powerbutton_enable_auto_shutoff(int enable_auto_shutoff);
 

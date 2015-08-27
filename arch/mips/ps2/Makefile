@@ -12,6 +12,7 @@ obj-y				+= iopheap.o
 obj-y				+= rtc.o
 obj-y				+= siflock.o
 obj-y				+= powerbutton.o
+obj-y				+= reset.o
 obj-y				+= iopdebug.o
 obj-$(CONFIG_SYSFS_IOP_MODULES)	+= iopmodules.o
 obj-$(CONFIG_SYSFS_IOP_MODULES)	+= loadfile.o
