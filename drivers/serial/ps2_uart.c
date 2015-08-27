@@ -28,7 +28,7 @@
 #define DRV_NAME "ps2-uart"
 
 /* 20 ms */
-#define DELAY_TIME 2
+#define DELAY_TIME_MS 20
 
 /* SIO Registers.  */
 /* Most of these are based off of Toshiba documentation for the TX49 and the
@@ -121,18 +121,20 @@ static void ps2_uart_set_termios(struct uart_port *port, struct ktermios *termio
 {
 }
 
-static void ps2_uart_rx_chars(struct uart_port *port)
+static int ps2_uart_rx_chars(struct uart_port *port)
 {
 	unsigned char ch, flag;
 	unsigned short status;
+	int rv = 0;
 
 	if(!(inw(SIO_ISR) & 0x0f00))
-		return;
+		return rv;
 
 	while ((status = inw(SIO_ISR)) & 0x0f00) {
 		ch = inb(SIO_RXFIFO);
 		flag = TTY_NORMAL;
 		port->icount.rx++;
+		rv++;
 
 		outw(7, SIO_ISR);
 
@@ -142,6 +144,8 @@ static void ps2_uart_rx_chars(struct uart_port *port)
 	}
 
 	tty_flip_buffer_push(port->state->port.tty);
+
+	return rv;
 }
 
 static void ps2_uart_tx_chars(struct uart_port *port)
@@ -178,6 +182,8 @@ static void ps2_uart_timer (unsigned long data)
 {
 	struct uart_port *port;
 	struct tty_struct *tty;
+	struct circ_buf *xmit;
+	int irx;
 
 	port = (struct uart_port *)data;
 	if (!port)
@@ -188,15 +194,20 @@ static void ps2_uart_timer (unsigned long data)
 	if (!tty)
 		return;
 
-	/* Restart the timer */
-	timer->expires = jiffies + DELAY_TIME;
-	add_timer (timer);
-
 	/* Receive data */
-	ps2_uart_rx_chars(port);
+	irx = ps2_uart_rx_chars(port);
 
 	/* Transmit data */
 	ps2_uart_tx_chars(port);
+
+	/* Restart the timer */
+	xmit = &port->state->xmit;
+	if ((uart_circ_chars_pending(xmit) > 0) || (irx > 0))
+		/* Transmit/Receive ASAP */
+		mod_timer(timer, jiffies + 1);
+	else
+		/* Normal polling */
+		mod_timer(timer, jiffies + DELAY_TIME_MS * HZ / 1000);
 }
 
 static void ps2_uart_config_port(struct uart_port *port, int flags)
@@ -214,7 +225,7 @@ static int ps2_uart_startup(struct uart_port *port)
 	memset(timer, 0, sizeof(*timer));
 	init_timer(timer);
 	timer->data = (unsigned long )port;
-	timer->expires = jiffies + DELAY_TIME;
+	timer->expires = jiffies + DELAY_TIME_MS * HZ / 1000;
 	timer->function = ps2_uart_timer;
 	add_timer (timer);
 
