@@ -34,7 +34,6 @@
 #include <asm/mach-ps2/dma.h>
 #include <asm/mach-ps2/sifdefs.h>
 #include <asm/mach-ps2/sbios.h>
-#include <asm/mach-ps2/iopmodules.h>
 
 #include "loadfile.h"
 #include "reset.h"
@@ -200,11 +199,6 @@ static int __init ps2_board_setup(void)
 		printk("No SMAP network device found.");
 		break;
 	}
-
-#ifdef CONFIG_FIRMWARE_IN_KERNEL
-	/* Check whether we can load the firmware for audio. */
-	load_module_firmware("audsrv.irx", 0);
-#endif
 
 	platform_add_devices(ps2_platform_devices, ARRAY_SIZE(ps2_platform_devices));
 
