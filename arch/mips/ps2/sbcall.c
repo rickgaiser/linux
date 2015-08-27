@@ -305,20 +305,9 @@ int sbios_rpc(int func, void *arg, int *result)
 
 
 /*
- *  Miscellaneous functions
- */
-
-void ps2_halt(int mode)
-{
-    struct sb_halt_arg arg;
-    arg.mode = mode;
-    sbios(SB_HALT, &arg);
-}
-
-
-/*
  *  SIF interrupt handler
  */
+
 static irqreturn_t sif0_dma_handler(int irq, void *dev_id)
 {
     sbios(SB_SIFCMDINTRHDLR, 0);
