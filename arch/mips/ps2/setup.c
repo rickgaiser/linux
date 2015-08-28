@@ -77,9 +77,24 @@ static struct platform_device ps2_smaprpc_device = {
 	.id		= -1,
 };
 
-static struct platform_device ps2_gs_device = {
+static struct platform_device ps2_fb_device = {
 	.name           = "ps2fb",
 	.id		= -1,
+};
+
+static struct resource ps2_gs_resources[] = {
+	{
+		.start	= IRQ_GS_VSYNC,
+		.end	= IRQ_GS_VSYNC,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device ps2_gs_device = {
+	.name           = "ps2gs",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(ps2_gs_resources),
+	.resource	= ps2_gs_resources,
 };
 
 static struct platform_device ps2_sd_device = {
@@ -238,6 +253,7 @@ void __init plat_mem_setup(void)
 }
 
 static struct platform_device *ps2_platform_devices[] __initdata = {
+	&ps2_fb_device,
 	&ps2_gs_device,
 	&ps2_usb_ohci_device,
 	&ps2_sd_device,
