@@ -50,4 +50,5 @@ obj-$(CONFIG_DRM_UDL) += udl/
 obj-$(CONFIG_DRM_AST) += ast/
 obj-$(CONFIG_DRM_SHMOBILE) +=shmobile/
 obj-$(CONFIG_DRM_TEGRA) += tegra/
+obj-$(CONFIG_DRM_PS2GS)	+= ps2gs/
 obj-y			+= i2c/
