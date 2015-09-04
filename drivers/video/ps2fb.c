@@ -59,6 +59,7 @@ static int ps2fb_map(struct fb_info *info);
 static int ps2fb_unmap(struct fb_info *info);
 static int ps2fb_switch_to_mapped(struct fb_info *info);
 static int ps2fb_switch_to_unmapped(struct fb_info *info);
+static int ps2fb_dma_send_sg(struct scatterlist *sgl, int sg_nents);
 int ps2fb_dma_send(const void *ptr, size_t size);
 
 #ifdef CONFIG_PS2_CONSOLE_LARGEBUF
@@ -1486,23 +1487,18 @@ static void ps2fb_dma_send_cb(void *id)
 	complete(&dma_completion);
 }
 
-int ps2fb_dma_send(const void *ptr, size_t size)
+static int ps2fb_dma_send_sg(struct scatterlist *sgl, int sg_nents)
 {
 	struct dma_chan *chan = ps2fb.chan;
-	struct scatterlist sgl;
 	struct dma_async_tx_descriptor *desc;
 	//dma_cookie_t cookie;
 	int nr_sg;
 
-	sg_init_table(&sgl, 1);
-	sg_set_buf(&sgl, ptr, size);
-	sg_mark_end(&sgl);
-
-	nr_sg = dma_map_sg(chan->device->dev, &sgl, 1, DMA_TO_DEVICE);
+	nr_sg = dma_map_sg(chan->device->dev, sgl, sg_nents, DMA_TO_DEVICE);
 	if (nr_sg == 0)
 		return -1;
 
-	desc = dmaengine_prep_slave_sg(chan, &sgl, nr_sg, DMA_TO_DEVICE, DMA_PREP_INTERRUPT);
+	desc = dmaengine_prep_slave_sg(chan, sgl, nr_sg, DMA_TO_DEVICE, DMA_PREP_INTERRUPT);
 	if (desc) {
 		desc->callback = ps2fb_dma_send_cb;
 		desc->callback_param = NULL;
@@ -1514,6 +1510,17 @@ int ps2fb_dma_send(const void *ptr, size_t size)
 	}
 
 	return 0;
+}
+
+int ps2fb_dma_send(const void *ptr, size_t size)
+{
+	struct scatterlist sgl;
+
+	sg_init_table(&sgl, 1);
+	sg_set_buf(&sgl, ptr, size);
+	sg_mark_end(&sgl);
+
+	return ps2fb_dma_send_sg(&sgl, 1);
 }
 
 static bool ps2fb_dma_filter_fn(struct dma_chan *chan, void *param)
