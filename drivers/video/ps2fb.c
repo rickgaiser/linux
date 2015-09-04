@@ -65,11 +65,7 @@ static void ps2fb_sgl_kick(void);
 static void ps2fb_sgl_add_cont(const void *ptr, unsigned int len);
 static void ps2fb_sgl_add(const void *ptr, unsigned int len);
 
-#ifdef CONFIG_PS2_CONSOLE_LARGEBUF
-#define BUF_SIZE	(4096 * 8)
-#else
-#define BUF_SIZE	1024
-#endif
+#define BUF_SIZE	(4 * 1024)
 static unsigned char buf[BUF_SIZE] __attribute__ ((aligned(16)));
 
 #define SGL_MAX 256
@@ -660,9 +656,8 @@ static void ps2_paintsimg8_16(struct ps2_screeninfo *info, int sx, int sy, int w
  *		@param height Height of frame
  *		@param data Source pointer which was allocated with rvmalloc()
  */
-static void ps2fb_copyframe(struct ps2_screeninfo *info, int sx, int sy, int width, int height, const void *data)
+static u64 *ps2fb_copyframe(u64 *gsp, struct ps2_screeninfo *info, int sx, int sy, int width, int height, const void *data)
 {
-	u64 *gsp = (u64 *)buf;
 	void *gsp_h;
 	int fbw = (info->w + 63) / 64;
 	int bpp;
@@ -710,14 +705,16 @@ static void ps2fb_copyframe(struct ps2_screeninfo *info, int sx, int sy, int wid
 
 	*gsp++ = PS2_GIFTAG_SET_TOPHALF(ALIGN16(bpp * width * height) / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
 	*gsp++ = 0;
-	ps2fb_dma_send(buf, ((unsigned long) gsp) - ((unsigned long) gsp_h));
 
+	ps2fb_sgl_add_cont(gsp_h, ((unsigned long) gsp) - ((unsigned long) gsp_h));
 	ps2fb_sgl_add(data, ALIGN16(bpp * width * height));
-	ps2fb_sgl_kick();
+
+	return gsp;
 }
 
 static void ps2fb_redraw(struct fb_info *info)
 {
+	u64 *gsp = (u64 *)buf;
 	int offset;
 	int y;
 	int maxheight;
@@ -755,8 +752,9 @@ static void ps2fb_redraw(struct fb_info *info)
 		if (h > maxheight) {
 			h = maxheight;
 		}
-		ps2fb_copyframe(&par->screeninfo, 0, y, par->screeninfo.w, h, info->screen_base + y * offset);
+		gsp = ps2fb_copyframe(gsp, &par->screeninfo, 0, y, par->screeninfo.w, h, info->screen_base + y * offset);
 	}
+	ps2fb_sgl_kick();
 }
 
 /* Convert resolution to ps2 mode format. */
