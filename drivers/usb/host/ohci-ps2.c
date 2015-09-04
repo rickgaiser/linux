@@ -27,15 +27,7 @@
 
 #define ERROR(args...) printk(KERN_ERR "ohci-ps: " args);
 
-/* Copied from drivers/base/dma-coherent.c */
-struct dma_coherent_mem {
-	void		*virt_base;
-	u32		device_base;
-	int		size;
-	int		flags;
-	unsigned long	*bitmap;
-};
-
+static dma_addr_t iop_dma_addr = 0;
 
 static int ohci_ps2_start(struct usb_hcd *hcd)
 {
@@ -95,16 +87,17 @@ static const struct hc_driver ohci_ps2_hc_driver = {
 static int
 iopheap_alloc_coherent(struct device *dev, size_t size, int flags)
 {
-	dma_addr_t addr;
+	if (iop_dma_addr != 0)
+		return 0;
 
-	addr = ps2sif_allociopheap(size);
-	if (addr != 0) {
-		if (!dma_declare_coherent_memory(dev, ps2sif_bustophys(addr),
-						 addr,
+	iop_dma_addr = ps2sif_allociopheap(size);
+	if (iop_dma_addr != 0) {
+		if (!dma_declare_coherent_memory(dev, ps2sif_bustophys(iop_dma_addr),
+						 iop_dma_addr,
 						 size,
 						 flags)) {
 			ERROR("cannot declare coherent memory\n");
-			ps2sif_freeiopheap(addr);
+			ps2sif_freeiopheap(iop_dma_addr);
 			return -ENXIO;
 		}
 		return 0;
@@ -117,15 +110,12 @@ iopheap_alloc_coherent(struct device *dev, size_t size, int flags)
 static void
 iopheap_free_coherent(struct device *dev)
 {
-	dma_addr_t addr;
-	struct dma_coherent_mem *mem = dev->dma_mem;
-
-	if (!mem)
+	if (iop_dma_addr == 0)
 		return;
 
-	addr = ps2sif_bustophys(mem->device_base);
 	dma_release_declared_memory(dev);
-	ps2sif_freeiopheap(addr);
+	ps2sif_freeiopheap(iop_dma_addr);
+	iop_dma_addr = 0;
 }
 
 #define resource_len(r) (((r)->end - (r)->start) + 1)
