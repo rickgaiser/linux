@@ -61,6 +61,9 @@ static int ps2fb_switch_to_mapped(struct fb_info *info);
 static int ps2fb_switch_to_unmapped(struct fb_info *info);
 static int ps2fb_dma_send_sg(struct scatterlist *sgl, int sg_nents);
 int ps2fb_dma_send(const void *ptr, size_t size);
+static void ps2fb_sgl_kick(void);
+static void ps2fb_sgl_add_cont(const void *ptr, unsigned int len);
+static void ps2fb_sgl_add(const void *ptr, unsigned int len);
 
 #ifdef CONFIG_PS2_CONSOLE_LARGEBUF
 #define BUF_SIZE	(4096 * 8)
@@ -69,12 +72,17 @@ int ps2fb_dma_send(const void *ptr, size_t size);
 #endif
 static unsigned char buf[BUF_SIZE] __attribute__ ((aligned(16)));
 
+#define SGL_MAX 256
 struct ps2fb_priv {
 	int is_blanked;
 	int is_kicked;
 	int mapped;
 	struct task_struct *task;
 	struct dma_chan *chan;
+
+	/* Scatter gather list */
+	struct scatterlist *sgl;
+	int sgl_used;
 };
 static struct ps2fb_priv ps2fb;
 
@@ -259,6 +267,86 @@ u32 colto32(struct fb_var_screeninfo *var, u32 col)
 	rv = (r << 0) | (g << 8) | (b << 16) | (t << 24);
 
 	return rv;
+}
+
+static void ps2fb_sgl_kick(void){
+	ps2fb_dma_send_sg(ps2fb.sgl, ps2fb.sgl_used);
+	ps2fb.sgl_used = 0;
+}
+
+static void ps2fb_sgl_add_cont(const void *ptr, unsigned int len)
+{
+	sg_set_buf(&ps2fb.sgl[ps2fb.sgl_used], ptr, len);
+
+	ps2fb.sgl_used++;
+	if (ps2fb.sgl_used == SGL_MAX) {
+		ps2fb_sgl_kick();
+	}
+}
+
+static void ps2fb_sgl_add(const void *ptr, unsigned int len)
+{
+	unsigned int page;
+	unsigned int start;
+	unsigned int end;
+	unsigned int s;
+	unsigned int offset;
+	void *cur_start;
+	unsigned int cur_size;
+
+	start = (unsigned int) ptr;
+	cur_start = 0;
+	cur_size = 0;
+
+	/* First align to page boundary */
+	s = start & (PAGE_SIZE - 1);
+	s = PAGE_SIZE - s;
+	if (s < PAGE_SIZE) {
+		if (s > len) {
+			s = len;
+		}
+		offset = start & (PAGE_SIZE - 1);
+		/* vmalloc_to_pfn is only working with redraw handler. */
+		cur_start = phys_to_virt(PFN_PHYS(vmalloc_to_pfn((void *) start))) + offset;
+		cur_size = ALIGN16(s);
+		start += s;
+		len -= s;
+	}
+
+	end = ALIGN16(start + len);
+
+	for (page = start; page < end; page += PAGE_SIZE) {
+		void *addr;
+		unsigned int size;
+
+		addr = phys_to_virt(PFN_PHYS(vmalloc_to_pfn((void *) page)));
+		size = end - page;
+		if (size > PAGE_SIZE) {
+			size = PAGE_SIZE;
+		}
+
+		if (cur_size > 0) {
+			if (addr == (cur_start + cur_size)) {
+				/* contiguous physical memory. */
+				cur_size += size;
+			} else {
+				ps2fb_sgl_add_cont(cur_start, ALIGN16(cur_size));
+
+				cur_size = size;
+				cur_start = addr;
+			}
+		} else {
+			cur_start = addr;
+			cur_size = size;
+		}
+	}
+
+	if (cur_size > 0) {
+		ps2fb_sgl_add_cont(cur_start, ALIGN16(cur_size));
+
+		cur_size = 0;
+		cur_start = 0;
+	}
 }
 
 /**
@@ -562,71 +650,6 @@ static void ps2_paintsimg8_16(struct ps2_screeninfo *info, int sx, int sy, int w
 	ps2fb_dma_send(buf, packetlen);
 }
 
-void ps2fb_dma_send_old(const void *data, unsigned long len)
-{
-	unsigned long page;
-	unsigned long start;
-	unsigned long end;
-	unsigned long s;
-	unsigned long offset;
-	void *cur_start;
-	unsigned long cur_size;
-
-	start = (unsigned long) data;
-	cur_start = 0;
-	cur_size = 0;
-
-	s = start & (PAGE_SIZE - 1);
-	s = PAGE_SIZE - s;
-	if (s < PAGE_SIZE) {
-		if (s > len) {
-			s = len;
-		}
-		offset = start & (PAGE_SIZE - 1);
-		/* vmalloc_to_pfn is only working with redraw handler. */
-		cur_start = phys_to_virt(PFN_PHYS(vmalloc_to_pfn((void *) start))) + offset;
-		cur_size = ALIGN16(s);
-		start += s;
-		len -= s;
-	}
-
-	end = ALIGN16(start + len);
-
-	for (page = start; page < end; page += PAGE_SIZE) {
-		void *addr;
-		unsigned long size;
-
-		addr = phys_to_virt(PFN_PHYS(vmalloc_to_pfn((void *) page)));
-		size = end - page;
-		if (size > PAGE_SIZE) {
-			size = PAGE_SIZE;
-		}
-
-		if (cur_size > 0) {
-			if (addr == (cur_start + cur_size)) {
-				/* contigous physical memory. */
-				cur_size += size;
-			} else {
-				/* Start DMA transfer for current data. */
-				ps2fb_dma_send(cur_start, ALIGN16(cur_size));
-
-				cur_size = size;
-				cur_start = addr;
-			}
-		} else {
-			cur_start = addr;
-			cur_size = size;
-		}
-	}
-	if (cur_size > 0) {
-		/* Start DMA transfer for current data. */
-		ps2fb_dma_send(cur_start, ALIGN16(cur_size));
-
-		cur_size = 0;
-		cur_start = 0;
-	}
-}
-
 /**
  *		Copy data to framebuffer on GS side.
  *
@@ -689,7 +712,8 @@ static void ps2fb_copyframe(struct ps2_screeninfo *info, int sx, int sy, int wid
 	*gsp++ = 0;
 	ps2fb_dma_send(buf, ((unsigned long) gsp) - ((unsigned long) gsp_h));
 
-	ps2fb_dma_send_old(data, ALIGN16(bpp * width * height));
+	ps2fb_sgl_add(data, ALIGN16(bpp * width * height));
+	ps2fb_sgl_kick();
 }
 
 static void ps2fb_redraw(struct fb_info *info)
@@ -1633,6 +1657,13 @@ static int ps2fb_probe(struct platform_device *pdev)
 	if (!info) {
 		return -ENOMEM;
 	}
+
+	ps2fb.sgl = vzalloc(SGL_MAX * sizeof(struct scatterlist));
+	if (!ps2fb.sgl) {
+		return -ENOMEM;
+	}
+	sg_init_table(ps2fb.sgl, SGL_MAX);
+	ps2fb.sgl_used = 0;
 
 	/*
 	 * Here we set the screen_base to the virtual memory address
