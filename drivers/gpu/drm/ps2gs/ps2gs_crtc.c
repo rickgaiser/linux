@@ -28,6 +28,11 @@
 #include "ps2gs_regs.h"
 #include "ps2gs_vga.h"
 
+#define PS2GS_REG_SMODE2_DPMS_ON	0x0
+#define PS2GS_REG_SMODE2_DPMS_STANDBY	0x1
+#define PS2GS_REG_SMODE2_DPMS_SUSPEND	0x2
+#define PS2GS_REG_SMODE2_DPMS_OFF	0x3
+
 #define to_ps2gs_crtc(c)	container_of(c, struct ps2gs_crtc, crtc)
 
 //static void ps2gs_crtc_set_display_timing(struct ps2gs_crtc *gscrtc)
@@ -50,7 +55,7 @@ static void ps2gs_crtc_start(struct ps2gs_crtc *gscrtc)
 	ps2gs_plane_setup(gscrtc->gsplane);
 
 	/* VESA DPMS ON */
-	outq(GS_SET_SMODE2(1, 0, 0x0), GS_REG_SMODE2);
+	outq(GS_SET_SMODE2(1, 0, gscrtc->dpms), GS_REG_SMODE2);
 
 	/* Enable the read circuit */
 	outq(GS_SET_PMODE(0, 1, 0, 1, 0, 0x80), GS_REG_PMODE);
@@ -68,7 +73,7 @@ static void ps2gs_crtc_stop(struct ps2gs_crtc *gscrtc)
 	gscrtc->gsplane->enabled = false;
 
 	/* VESA DPMS OFF */
-	outq(GS_SET_SMODE2(1, 0, 0x3), GS_REG_SMODE2);
+	outq(GS_SET_SMODE2(1, 0, gscrtc->dpms), GS_REG_SMODE2);
 
 	/* Disable the read circuits */
 	outq(GS_SET_PMODE(0, 0, 0, 1, 0, 0x80), GS_REG_PMODE);
@@ -87,7 +92,7 @@ void ps2gs_crtc_resume(struct ps2gs_crtc *gscrtc)
 {
 	FUNC_DEBUG();
 
-	if (gscrtc->dpms != DRM_MODE_DPMS_ON)
+	if (gscrtc->dpms != PS2GS_REG_SMODE2_DPMS_ON)
 		return;
 
 	ps2gs_crtc_start(gscrtc);
@@ -106,19 +111,29 @@ static void ps2gs_crtc_update_base(struct ps2gs_crtc *gscrtc)
 static void ps2gs_crtc_dpms(struct drm_crtc *crtc, int mode)
 {
 	struct ps2gs_crtc *gscrtc = to_ps2gs_crtc(crtc);
+	int gsmode;
 
 	FUNC_DEBUG();
 
-	if (gscrtc->dpms == mode)
+	switch(mode)
+	{
+	case DRM_MODE_DPMS_ON:		gsmode = PS2GS_REG_SMODE2_DPMS_ON;	break;
+	case DRM_MODE_DPMS_STANDBY:	gsmode = PS2GS_REG_SMODE2_DPMS_STANDBY;	break;
+	case DRM_MODE_DPMS_SUSPEND:	gsmode = PS2GS_REG_SMODE2_DPMS_SUSPEND;	break;
+	case DRM_MODE_DPMS_OFF:		gsmode = PS2GS_REG_SMODE2_DPMS_OFF;	break;
+	default: return;
+	}
+
+	if (gscrtc->dpms == gsmode)
 		return;
 
-	if (mode == DRM_MODE_DPMS_ON) {
+	gscrtc->dpms = mode;
+
+	if (gsmode == PS2GS_REG_SMODE2_DPMS_ON) {
 		ps2gs_crtc_start(gscrtc);
 	} else {
 		ps2gs_crtc_stop(gscrtc);
 	}
-
-	gscrtc->dpms = mode;
 }
 
 static bool ps2gs_crtc_mode_fixup(struct drm_crtc *crtc,
@@ -137,8 +152,8 @@ static void ps2gs_crtc_mode_prepare(struct drm_crtc *crtc)
 
 	FUNC_DEBUG();
 
+	gscrtc->dpms = PS2GS_REG_SMODE2_DPMS_OFF;
 	ps2gs_crtc_stop(gscrtc);
-	gscrtc->dpms = DRM_MODE_DPMS_OFF;
 }
 
 static int ps2gs_crtc_mode_set(struct drm_crtc *crtc,
@@ -174,8 +189,8 @@ static void ps2gs_crtc_mode_commit(struct drm_crtc *crtc)
 
 	FUNC_DEBUG();
 
+	gscrtc->dpms = PS2GS_REG_SMODE2_DPMS_ON;
 	ps2gs_crtc_start(gscrtc);
-	gscrtc->dpms = DRM_MODE_DPMS_ON;
 }
 
 static int ps2gs_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
