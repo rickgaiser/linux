@@ -276,6 +276,7 @@ static struct dma_async_tx_descriptor *ps2_dma_prep_slave_sg(
 	unsigned long flags, void *context)
 {
 	struct ps2_dma_chan *chan = to_ps2_dma_chan(c);
+	struct ps2_dma_dev *dmadev = ps2_dma_chan_get_dev(chan);
 	struct ps2_dma_desc *desc;
 	struct scatterlist *sg;
 	unsigned int i;
@@ -287,6 +288,20 @@ static struct dma_async_tx_descriptor *ps2_dma_prep_slave_sg(
 	for_each_sg(sgl, sg, sg_len, i) {
 		desc->sg[i].addr = sg_dma_address(sg);
 		desc->sg[i].len = sg_dma_len(sg);
+
+		/* Physical RAM is fixed to 32MiB */
+		if (desc->sg[i].addr > (32*1024*1024))
+		{
+			dev_err(dmadev->ddev.dev, "invalid addr: 0x%p\n", (void *)desc->sg[i].addr);
+			return NULL;
+		}
+
+		/* Max length is 2^15-1 qwords = 512KiB-16 */
+		if (desc->sg[i].len > ((512*1024)-16))
+		{
+			dev_err(dmadev->ddev.dev, "invalid len: %d\n", desc->sg[i].len);
+			return NULL;
+		}
 	}
 
 	desc->num_sgs = sg_len;
