@@ -22,9 +22,12 @@
 
 struct ps2gs_device;
 struct ps2gs_plane;
+struct task_struct;
 
 struct ps2gs_crtc {
 	struct drm_crtc crtc;
+
+	struct task_struct *task;
 
 	unsigned int mmio_offset;
 	bool started;

@@ -14,6 +14,8 @@
 
 #include <linux/clk.h>
 #include <linux/mutex.h>
+#include <linux/kthread.h>
+#include <linux/freezer.h>
 
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
@@ -23,6 +25,7 @@
 
 #include "ps2gs_crtc.h"
 #include "ps2gs_drv.h"
+#include "ps2gs_fb.h"
 #include "ps2gs_kms.h"
 #include "ps2gs_plane.h"
 #include "ps2gs_regs.h"
@@ -313,14 +316,38 @@ static const struct drm_crtc_funcs crtc_funcs = {
 	.page_flip	= ps2gs_crtc_page_flip,
 };
 
+static int ps2fbd(void *arg)
+{
+	struct ps2gs_crtc *gscrtc = arg;
+
+	set_freezable();
+	while (!kthread_should_stop()) {
+		try_to_freeze();
+		set_current_state(TASK_INTERRUPTIBLE);
+
+		schedule();
+
+		ps2gs_fb_redraw(gscrtc->crtc.fb);
+	}
+	return 0;
+}
+
 int ps2gs_crtc_create(struct ps2gs_device *gs)
 {
 	struct ps2gs_crtc *gscrtc = &gs->gscrtc;
 	struct drm_crtc *crtc = &gscrtc->crtc;
+	struct task_struct *task;
 	int ret;
 
 	FUNC_DEBUG();
 
+	task = kthread_run(ps2fbd, gscrtc, "ps2gs redraw");
+	if (IS_ERR(task)) {
+		printk("ps2gs: kthread_run failed\n");
+		return -EINVAL;
+	}
+
+	gscrtc->task = task;
 	gscrtc->mmio_offset = 0;
 	gscrtc->dpms = DRM_MODE_DPMS_ON;
 	gscrtc->gsplane = &gs->gsplane;
@@ -347,15 +374,10 @@ void ps2gs_crtc_enable_vblank(struct ps2gs_crtc *gscrtc, bool enable)
 
 void ps2gs_crtc_irq(struct ps2gs_crtc *gscrtc)
 {
-	//u32 status;
-
 	//FUNC_DEBUG();
 
-	//status = ps2gs_crtc_read(gscrtc, DSSR);
-	//ps2gs_crtc_write(gscrtc, DSRCR, status & DSRCR_MASK);
+	wake_up_process(gscrtc->task);
 
-	//if (status & DSSR_VBK) {
-		drm_handle_vblank(gscrtc->crtc.dev, 0);
-		ps2gs_crtc_finish_page_flip(gscrtc);
-	//}
+	drm_handle_vblank(gscrtc->crtc.dev, 0);
+	ps2gs_crtc_finish_page_flip(gscrtc);
 }

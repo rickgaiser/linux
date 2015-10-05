@@ -25,9 +25,11 @@
 #include <drm/drm_gem_cma_helper.h>
 
 #include "ps2gs_crtc.h"
+#include "ps2gs_dma.h"
 #include "ps2gs_drv.h"
-#include "ps2gs_kms.h"
+#include "ps2gs_fb.h"
 #include "ps2gs_fbdev.h"
+#include "ps2gs_kms.h"
 #include "ps2gs_regs.h"
 
 /* -----------------------------------------------------------------------------
@@ -96,6 +98,20 @@ static int ps2gs_load(struct drm_device *dev, unsigned long flags)
 	ret = ps2gs_modeset_init(gs);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to initialize DRM/KMS\n");
+		goto done;
+	}
+
+	/* DMA channel */
+	ret = ps2gs_dma_init(gs);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to get dma channel\n");
+		goto done;
+	}
+
+	/* Framebuffer Oprations */
+	ret = ps2gs_fb_init();
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to init fb ops\n");
 		goto done;
 	}
 
