@@ -1,26 +1,10 @@
-#include <linux/kernel.h>
-#include <linux/errno.h>
-#include <linux/string.h>
-#include <linux/ctype.h>
-#include <linux/mm.h>
-#include <linux/slab.h>
-#include <linux/delay.h>
-#include <linux/fb.h>
-#include <linux/init.h>
-#include <linux/vmalloc.h>
-#include <linux/scatterlist.h>
-
 #include <linux/ps2/gs.h>
 
 #include <asm/mach-ps2/gsfunc.h>
 #include <asm/mach-ps2/eedev.h>
 
 #include <drm/drmP.h>
-#include <drm/drm_crtc.h>
-#include <drm/drm_fb_helper.h>
-#include <drm/drm_crtc_helper.h>
 #include <drm/drm_gem_cma_helper.h>
-#include <drm/drm_fb_cma_helper.h>
 
 #include "ps2gs_dma.h"
 #include "ps2gs_drv.h"

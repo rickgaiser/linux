@@ -16,7 +16,6 @@
 #define __PS2GS_DRV_H__
 
 #include <linux/kernel.h>
-#include <linux/mutex.h>
 
 #include "ps2gs_crtc.h"
 #include "ps2gs_plane.h"

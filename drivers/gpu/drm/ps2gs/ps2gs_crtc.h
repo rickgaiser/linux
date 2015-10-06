@@ -15,8 +15,6 @@
 #ifndef __PS2GS_CRTC_H__
 #define __PS2GS_CRTC_H__
 
-#include <linux/mutex.h>
-
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 
