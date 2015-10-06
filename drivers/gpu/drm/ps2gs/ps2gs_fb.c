@@ -26,17 +26,6 @@
 #include "ps2gs_drv.h"
 
 
-#define BUF_SIZE	(4 * 1024)
-static unsigned char buf[BUF_SIZE] __attribute__ ((aligned(16)));
-
-#define SGL_MAX 256
-struct ps2fb_priv {
-	/* Scatter gather list */
-	struct scatterlist *sgl;
-	int sgl_used;
-};
-static struct ps2fb_priv ps2fb;
-
 /*
  * Copied from drivers/gpu/drm/drm_fB_cma_helper.c
  */
@@ -53,98 +42,6 @@ static inline struct drm_fb_cma *to_fb_cma(struct drm_framebuffer *fb)
 	return container_of(fb, struct drm_fb_cma, fb);
 }
 
-static void ps2fb_sgl_kick(void){
-	//FUNC_DEBUG();
-
-	if (ps2fb.sgl_used > 0) {
-		ps2gs_dma_send_sg(ps2fb.sgl, ps2fb.sgl_used);
-		ps2fb.sgl_used = 0;
-	}
-}
-
-static void ps2fb_sgl_add_cont(const void *ptr, unsigned int len)
-{
-	//FUNC_DEBUG();
-	//printk("ps2gs: %s(0x%p, %d)\n", __func__, ptr, len);
-
-	sg_set_buf(&ps2fb.sgl[ps2fb.sgl_used], ptr, len);
-
-	ps2fb.sgl_used++;
-	if (ps2fb.sgl_used == SGL_MAX) {
-		ps2fb_sgl_kick();
-	}
-}
-
-#if 0
-static void ps2fb_sgl_add(const void *ptr, unsigned int len)
-{
-	unsigned int page;
-	unsigned int start;
-	unsigned int end;
-	unsigned int s;
-	unsigned int offset;
-	void *cur_start;
-	unsigned int cur_size;
-
-	//FUNC_DEBUG();
-	printk("ps2gs: %s(0x%p, %d)\n", __func__, ptr, len);
-
-	start = (unsigned int) ptr;
-	cur_start = 0;
-	cur_size = 0;
-
-	/* First align to page boundary */
-	s = start & (PAGE_SIZE - 1);
-	s = PAGE_SIZE - s;
-	if (s < PAGE_SIZE) {
-		if (s > len) {
-			s = len;
-		}
-		offset = start & (PAGE_SIZE - 1);
-		/* vmalloc_to_pfn is only working with redraw handler. */
-		cur_start = phys_to_virt(PFN_PHYS(vmalloc_to_pfn((void *) start))) + offset;
-		cur_size = ALIGN16(s);
-		start += s;
-		len -= s;
-	}
-
-	end = ALIGN16(start + len);
-
-	for (page = start; page < end; page += PAGE_SIZE) {
-		void *addr;
-		unsigned int size;
-
-		addr = phys_to_virt(PFN_PHYS(vmalloc_to_pfn((void *) page)));
-		size = end - page;
-		if (size > PAGE_SIZE) {
-			size = PAGE_SIZE;
-		}
-
-		if (cur_size > 0) {
-			if (addr == (cur_start + cur_size)) {
-				/* contiguous physical memory. */
-				cur_size += size;
-			} else {
-				ps2fb_sgl_add_cont(cur_start, ALIGN16(cur_size));
-
-				cur_size = size;
-				cur_start = addr;
-			}
-		} else {
-			cur_start = addr;
-			cur_size = size;
-		}
-	}
-
-	if (cur_size > 0) {
-		ps2fb_sgl_add_cont(cur_start, ALIGN16(cur_size));
-
-		cur_size = 0;
-		cur_start = 0;
-	}
-}
-#endif
-
 /* QWC   field is 16 bits, so 2^16-1 quad words MAX */
 #define PS2_MAX_DMA_SIZE ((64*1024-1)*16)
 /* NLOOP field is 15 bits, so 2^15-1 quad words MAX */
@@ -153,7 +50,7 @@ void ps2gs_fb_redraw(struct drm_framebuffer *fb)
 {
 	struct drm_fb_cma *fb_cma = to_fb_cma(fb);
 	struct drm_gem_cma_object *obj = fb_cma->obj[0];
-	u64 *gsp = (u64 *)buf;
+	u64 *gsp = (u64 *)ps2gs_dma_buf;
 	void *gsp_h;
 	unsigned long stride;
 	unsigned long y;
@@ -214,28 +111,21 @@ void ps2gs_fb_redraw(struct drm_framebuffer *fb)
 		*gsp++ = PS2_GIFTAG_SET_TOPHALF(size / 16, 1, 0, 0, PS2_GIFTAG_FLG_IMAGE, 0);
 		*gsp++ = 0;
 
-		ps2fb_sgl_add_cont(gsp_h, ((unsigned long) gsp) - ((unsigned long) gsp_h));
+		ps2gs_dma_sgl_add_cont(gsp_h, ((unsigned long) gsp) - ((unsigned long) gsp_h));
 		gsp_h = gsp;
 #if 0
-		ps2fb_sgl_add(data, ALIGN16(bpp * width * height));
+		ps2gs_dma_sgl_add(data, ALIGN16(bpp * width * height));
 #else
-		ps2fb_sgl_add_cont(fb_vaddr + (y * stride), size);
+		ps2gs_dma_sgl_add_cont(fb_vaddr + (y * stride), size);
 #endif
 	}
-	ps2fb_sgl_kick();
+	ps2gs_dma_sgl_kick();
 }
 
 int
 ps2gs_fb_init(void)
 {
 	FUNC_DEBUG();
-
-	ps2fb.sgl = vzalloc(SGL_MAX * sizeof(struct scatterlist));
-	if (!ps2fb.sgl) {
-		return -ENOMEM;
-	}
-	sg_init_table(ps2fb.sgl, SGL_MAX);
-	ps2fb.sgl_used = 0;
 
 	return 0;
 }

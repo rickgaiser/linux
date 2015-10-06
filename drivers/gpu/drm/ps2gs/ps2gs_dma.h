@@ -19,7 +19,14 @@ struct scatterlist;
 
 int ps2gs_dma_init(struct ps2gs_device *gs);
 
+/* Send immediately */
 int ps2gs_dma_send(const void *ptr, size_t size);
 int ps2gs_dma_send_sg(struct scatterlist *sgl, int sg_nents);
+
+/* Send via scatter gather list */
+extern unsigned char ps2gs_dma_buf[];
+void ps2gs_dma_sgl_kick(void);
+void ps2gs_dma_sgl_add_cont(const void *ptr, size_t size);
+void ps2gs_dma_sgl_add(const void *ptr, size_t size);
 
 #endif /* __PS2GS_DMA_H__ */
