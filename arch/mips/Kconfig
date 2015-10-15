@@ -848,6 +848,7 @@ config SONY_PS2
 	select USB_OHCI_LITTLE_ENDIAN
 	select CEVT_R4K
 	select CSRC_R4K
+	select HAVE_PATA_PLATFORM
 	help
 	  This enables support for Sony Playstation 2.
 

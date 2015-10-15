@@ -27,6 +27,7 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/platform_device.h>
+#include <linux/ata_platform.h>
 
 #include <asm/bootinfo.h>
 
@@ -96,6 +97,49 @@ static struct platform_device ps2_sbios_device = {
 static struct platform_device ps2_uart_device = {
 	.name		= "ps2-uart",
 	.id		= -1,
+};
+
+/*
+ * PATA disk driver
+ *
+ * Compatible with:
+ *  - driver/ide (old)
+ *  - drivers/ata (new)
+ */
+static struct resource ps2_pata_resources[] = {
+	/* IO base, 8 16bit registers */
+	[0] = {
+		.start	= CPHYSADDR(0xb4000040),
+		.end	= CPHYSADDR(0xb4000040 + (8 * 2) - 1),
+		.flags	= IORESOURCE_MEM,
+	},
+	/* CTRL base, 1 16bit register */
+	[1] = {
+		.start	= CPHYSADDR(0xb400005c),
+		.end	= CPHYSADDR(0xb400005c + (1 * 2) - 1),
+		.flags	= IORESOURCE_MEM,
+	},
+	/* IRQ */
+	[2] = {
+		.start	= IRQ_SBUS_PCIC,
+		.end	= IRQ_SBUS_PCIC,
+		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_SHAREABLE,
+	},
+};
+
+static struct pata_platform_info ps2_pata_platform_data = {
+	.ioport_shift	= 1,
+	.irq_flags	= IRQF_SHARED,
+};
+
+static struct platform_device ps2_pata_device = {
+	.name		= "pata_platform",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(ps2_pata_resources),
+	.resource	= ps2_pata_resources,
+	.dev  = {
+		.platform_data	= &ps2_pata_platform_data,
+	},
 };
 
 static unsigned int ps2_blink_frequency = 500;
@@ -190,6 +234,7 @@ static int __init ps2_board_setup(void)
 
 	switch (ps2_pccard_present) {
 	case 0x0100:
+		platform_device_register(&ps2_pata_device);
 		platform_device_register(&ps2_smap_device);
 		break;
 	case 0x0200:
