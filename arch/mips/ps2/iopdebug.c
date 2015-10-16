@@ -24,15 +24,54 @@
 #include <asm/mach-ps2/sbios.h>
 
 
+#define USE_MESSAGE_BUFFER
+#define IOP_MAX_MSG_LEN 80
+
+
 typedef struct {
        struct t_SifCmdHeader sifcmd;
-       char text[80];
+       char text[IOP_MAX_MSG_LEN];
 } iop_text_data_t;
+
+#ifdef USE_MESSAGE_BUFFER
+static char text[IOP_MAX_MSG_LEN];
+static int writepos = 0;
+static int msg_count = 0;
+#endif
 
 
 static void iopdebug_printk(iop_text_data_t *data, void *arg)
 {
-	printk("IOP: %s", data->text);
+#ifdef USE_MESSAGE_BUFFER
+	int i = 0;
+
+	msg_count++;
+	while (data->text[i] != 0) {
+		char c = data->text[i++];
+		text[writepos++] = c;
+
+		/* Invalid message */
+		if (i >= IOP_MAX_MSG_LEN-1) {
+			pr_err("iopdebug: string not terminated\n");
+			writepos = 0;
+			break;
+		}
+
+		if (writepos >= IOP_MAX_MSG_LEN-1) {
+			pr_err("iopdebug: overflow\n");
+			writepos = 0;
+		}
+
+		if (c == '\n') {
+			text[writepos] = 0;
+			writepos = 0;
+
+			pr_info("IOP%d: %s", msg_count, text);
+		}
+	}
+#else
+	pr_info("IOP: %s", data->text);
+#endif
 }
 
 int __init iopdebug_init(void)
@@ -44,7 +83,7 @@ int __init iopdebug_init(void)
 	addcmdhandlerparam.func = iopdebug_printk;
 	addcmdhandlerparam.data = NULL;
 	if (sbios(SB_SIFADDCMDHANDLER, &addcmdhandlerparam) < 0) {
-		printk("Failed to initialize IOP debug handler.\n");
+		pr_err("iopdebug: Failed to add command handler.\n");
 		return -1;
 	}
 
