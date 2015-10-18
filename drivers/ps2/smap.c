@@ -92,10 +92,6 @@ static int  smap_thread(void *arg);
 static void smap_chk_linkvalid(struct smap_chan *smap);
 static int  smap_chk_linkvalid_thread(void *arg);
 static int  smap_init_thread(void *arg);
-static inline void eth_copy_and_sum (struct sk_buff *dest, unsigned char *src, int len, int base)
-{
-	memcpy (dest->data, src, len);
-}
 
 /*--------------------------------------------------------------------------*/
 
@@ -690,34 +686,7 @@ smappiorecv:
 			SMAP_BD_NEXT(l_rxbdi);
 		}
 	}
-#if 1	/*XXX*//* it may be able to delete this clause if 2.4 */
-	{
-	/*
-	 * eth_copy_and_sum() expects that ETH_P_IP packet has
-	 * 34 or more bytes in "length" argument unconditionally.
-	 */
-		for (i = 0; i < rcvpkt; i++) {
-			struct ethhdr *eth;
-			if (pkt_err & (1 << i))
-				continue;
-			if (pioflag) {
-				rxbp = smap->rxbuf;
-			} else {
-				rxbp = (u_int8_t *)(smap->rxdma_request.sdd[i].i_addr);
-			}
-			eth = (struct ethhdr *)rxbp;
-			pkt_len = smap->rxdma_request.sdd[i].sdd_misc;
-			if ( (eth->h_proto == htons(ETH_P_IP)) &&
-						(pkt_len < 14 + 20) ) {
-				if (smap->flags & SMAP_F_PRINT_MSG) {
-					printk("%s:rx intr(%d): IP packet len(%d) error\n",
-						net_dev->name, i, pkt_len);
-				}
-				pkt_err |= (1 << i);
-			}
-		}
-	}
-#endif
+
 	for (i = 0; i < rcvpkt; i++) {
 		if (pkt_err & (1 << i))
 			continue;
@@ -735,12 +704,8 @@ smappiorecv:
 			break;
 		}
 		skb_reserve(skb, 2);	/* 16 byte align the data fields */
-#if 1
-		eth_copy_and_sum(skb, rxbp, pkt_len, 0);
+		skb_copy_to_linear_data(skb, rxbp, pkt_len);
 		skb_put(skb, pkt_len);
-#else
-		memcpy(skb_put(skb, pkt_len), rxbp, pkt_len);
-#endif
 		skb->dev = net_dev;
 		skb->protocol = eth_type_trans(skb, net_dev);
 		net_dev->last_rx = jiffies;
