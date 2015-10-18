@@ -71,10 +71,6 @@ static void smaprpc_skb_enqueue(struct sk_buff_head *head,
 static void smaprpc_skb_enqueue(struct sk_buff_head *head,
 	struct sk_buff *newsk);
 static struct sk_buff *smaprpc_skb_dequeue(struct sk_buff_head *head);
-static inline void eth_copy_and_sum (struct sk_buff *dest, unsigned char *src, int len, int base)
-{
-	memcpy (dest->data, src, len);
-}
 
 /*--------------------------------------------------------------------------*/
 
@@ -362,7 +358,7 @@ static void handleSmapIRQ(iop_sifCmdSmapIrq_t * pkt, void *arg)
 		return;
 	}
 	skb_reserve(skb, 2);		/* 16 byte align the data fields */
-	eth_copy_and_sum(skb, data, pkt->size, 0);
+	skb_copy_to_linear_data(skb, data, pkt->size);
 	skb_put(skb, pkt->size);
 	skb->dev = smap->net_dev;
 	skb->protocol = eth_type_trans(skb, smap->net_dev);
