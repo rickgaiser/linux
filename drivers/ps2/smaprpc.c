@@ -352,7 +352,7 @@ static void handleSmapIRQ(iop_sifCmdSmapIrq_t * pkt, void *arg)
 	data = phys_to_virt(pkt->payload);
 	dma_cache_inv((unsigned long) data, pkt->size);
 
-	skb = dev_alloc_skb(pkt->size + 2);
+	skb = netdev_alloc_skb(smap->net_dev, pkt->size + 2);
 	if (skb == NULL) {
 		printk("%s:handleSmapIRQ, skb alloc error\n", smap->net_dev->name);
 		return;
