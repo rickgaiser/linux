@@ -697,7 +697,7 @@ smappiorecv:
 		}
 		pkt_len = smap->rxdma_request.sdd[i].sdd_misc;
 
-		skb = dev_alloc_skb(pkt_len + 2);
+		skb = netdev_alloc_skb(net_dev, pkt_len + 2);
 		if (skb == NULL) {
 			printk("%s:rx intr(%d): skb alloc error\n",
 						net_dev->name, i);
