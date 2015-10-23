@@ -22,6 +22,7 @@
 
 #include <asm/mach-ps2/sifdefs.h>
 #include <asm/mach-ps2/sbios.h>
+#include <asm/mach-ps2/iopmodules.h>
 
 
 #define USE_MESSAGE_BUFFER
@@ -87,6 +88,10 @@ int __init iopdebug_init(void)
 		return -1;
 	}
 
+	if (load_module_firmware("ps2/eedebug.irx", 0) < 0) {
+		pr_err("iopdebug: loading ps2/eedebug.irx failed\n");
+		return -1;
+	}
+
 	return 0;
 }
-arch_initcall(iopdebug_init);
