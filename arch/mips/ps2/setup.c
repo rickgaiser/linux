@@ -35,9 +35,12 @@
 #include <asm/mach-ps2/dma.h>
 #include <asm/mach-ps2/sifdefs.h>
 #include <asm/mach-ps2/sbios.h>
+#include <asm/mach-ps2/iopmodules.h>
 
 #include "loadfile.h"
 #include "reset.h"
+
+extern int iopdebug_init(void);
 
 void (*__wbflush)(void);
 
@@ -231,18 +234,27 @@ static int __init ps2_board_setup(void)
 #ifdef CONFIG_SYSFS_IOP_MODULES
 	ps2_loadfile_init();
 #endif
+	iopdebug_init();
 
-	switch (ps2_pccard_present) {
-	case 0x0100:
-		platform_device_register(&ps2_pata_device);
-		platform_device_register(&ps2_smap_device);
-		break;
-	case 0x0200:
+	if (ps2_pccard_present == 0x0200) {
+		pr_info("Playstation 2 SLIM\n");
+
+		if (load_module_firmware("ps2/intrelay-dev9-rpc.irx", 0) < 0)
+			pr_err("loading ps2/intrelay-dev9-rpc.irx failed\n");
+
 		platform_device_register(&ps2_smaprpc_device);
-		break;
-	default:
-		printk("No SMAP network device found.");
-		break;
+	}
+	else {
+		pr_info("Playstation 2 FAT\n");
+
+		if (load_module_firmware("ps2/intrelay-dev9.irx", 0) < 0)
+			pr_err("loading ps2/intrelay-dev9.irx failed\n");
+
+		if (ps2_pccard_present == 0x0100) {
+			pr_info(" - With network adapter\n");
+			platform_device_register(&ps2_pata_device);
+			platform_device_register(&ps2_smap_device);
+		}
 	}
 
 	platform_add_devices(ps2_platform_devices, ARRAY_SIZE(ps2_platform_devices));
