@@ -41,12 +41,11 @@ static void smap_tx_intr(struct net_device *net_dev);
 static void smap_rx_intr(struct net_device *net_dev);
 static void smap_emac3_intr(struct net_device *net_dev);
 static irqreturn_t smap_interrupt(int irq, void *dev_id);
-#if 0
 static u_int8_t smap_bitrev(u_int8_t val);
 static u_int32_t smap_crc32(u_int32_t crcval, u_int8_t cval);
 static u_int32_t smap_calc_crc32(struct smap_chan *smap, u_int8_t *addr);
 static int  smap_store_new_mc_list(struct smap_chan *smap);
-#endif
+static void smap_multicast_list(struct net_device *net_dev);
 static struct net_device_stats * smap_get_stats(struct net_device *net_dev);
 static int  smap_open(struct net_device *net_dev);
 static int  smap_close(struct net_device *net_dev);
@@ -967,7 +966,6 @@ end:
 
 #define	POLY32	0x04C11DB7
 
-#if 0
 static u_int8_t
 smap_bitrev(u_int8_t val)
 {
@@ -1048,7 +1046,40 @@ smap_store_new_mc_list(struct smap_chan *smap)
 	}
 	return(sethtbl);
 }
-#endif
+
+static void
+smap_multicast_list(struct net_device *net_dev)
+{
+	struct smap_chan *smap = netdev_priv(net_dev);
+	u_int32_t e3v;
+
+	/* stop tx/rx */
+	(void)smap_txrx_XXable(smap, DISABLE);
+
+	/* disable promisc, all multi, indvi hash and group hash mode */
+	e3v = EMAC3REG_READ(smap, SMAP_EMAC3_RxMODE);
+	e3v &= ~(E3_RX_PROMISC|E3_RX_PROMISC_MCAST|E3_RX_INDIVID_HASH|E3_RX_MCAST);
+	EMAC3REG_WRITE(smap, SMAP_EMAC3_RxMODE, e3v);
+
+	if (net_dev->flags & IFF_PROMISC) {
+		e3v |= E3_RX_PROMISC;
+	} else if (net_dev->flags & IFF_ALLMULTI) {
+		e3v |= E3_RX_PROMISC_MCAST;
+	} else if (netdev_mc_count(net_dev) == 0) {
+	    /* Nothing to do, because INDIVID_ADDR & BCAST are already set */
+	} else {
+		if (smap_store_new_mc_list(smap))
+			e3v |= E3_RX_MCAST;
+	}
+
+	/* set RxMODE register */
+	EMAC3REG_WRITE(smap, SMAP_EMAC3_RxMODE, e3v);
+
+	/* start tx/rx */
+	(void)smap_txrx_XXable(smap, ENABLE);
+
+	return;
+}
 
 /*--------------------------------------------------------------------------*/
 
@@ -2734,6 +2765,7 @@ static const struct net_device_ops smap_netdev_ops = {
 	.ndo_do_ioctl		= smap_ioctl,
 	.ndo_start_xmit		= smap_start_xmit,
 	.ndo_get_stats		= smap_get_stats,
+	.ndo_set_rx_mode	= smap_multicast_list,
 	.ndo_validate_addr	= eth_validate_addr,
 	.ndo_set_mac_address 	= NULL,
 	.ndo_change_mtu		= eth_change_mtu,
