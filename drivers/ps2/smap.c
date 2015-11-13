@@ -79,7 +79,6 @@ static void smap_rpcend_notify(void *arg);
 static void smap_dma_setup(struct smap_chan *smap);
 static void smap_run(struct smap_chan *smap);
 static int  smap_thread(void *arg);
-static int  smap_init_thread(void *arg);
 
 /*--------------------------------------------------------------------------*/
 
@@ -2268,29 +2267,7 @@ module_param(smap_dma_enable, int, 0);
 MODULE_PARM_DESC(smap_dma_enable,
 		"Enable DMA.");
 
-static int
-smap_init_thread(void *arg)
-{
-	struct smap_chan *smap = (struct smap_chan *)arg;
-
-	smap_reset(smap, RESET_INIT);
-	smap_txrx_XXable(smap, DISABLE);
-	smap_txbd_init(smap);
-	smap_rxbd_init(smap);
-
-	if (smap_dma_enable) {
-		smap_dma_setup(smap);
-	} else {
-		printk("PlayStation 2 SMAP: PIO mode.\n");
-		smap->flags &= ~(SMAP_F_DMA_ENABLE|SMAP_F_DMA_TX_ENABLE|SMAP_F_DMA_RX_ENABLE);
-	}
-
-	smap->irq = IRQ_SBUS_PCIC;
-
-	smap->flags |= SMAP_F_INITDONE;
-
-	return 0;
-}
+/*--------------------------------------------------------------------------*/
 
 /* ethtool support */
 static int smap_get_settings(struct net_device *ndev, struct ethtool_cmd *cmd)
@@ -2428,13 +2405,27 @@ static int smap_probe(struct platform_device *dev)
 
 
 	/* create and start thread */
-	smap->init_task = kthread_run(smap_init_thread, smap, "ps2smap init");
 #ifdef HAVE_TX_TIMEOUT
 	smap->timeout_task = kthread_run(smap_timeout_thread, smap, "ps2smap timeout");
 #endif /* HAVE_TX_TIMEOUT */
 	smap->smaprun_task = kthread_run(smap_thread, smap, "ps2smap");
 
-	printk("Fat PlayStation 2 SMAP(Ethernet) device driver.\n");
+	smap_reset(smap, RESET_INIT);
+	smap_txrx_XXable(smap, DISABLE);
+	smap_txbd_init(smap);
+	smap_rxbd_init(smap);
+
+	if (smap_dma_enable) {
+		smap_dma_setup(smap);
+	} else {
+		smap->flags &= ~(SMAP_F_DMA_ENABLE|SMAP_F_DMA_TX_ENABLE|SMAP_F_DMA_RX_ENABLE);
+	}
+
+	smap->irq = IRQ_SBUS_PCIC;
+
+	smap->flags |= SMAP_F_INITDONE;
+
+	printk("Fat PlayStation 2 SMAP(Ethernet) device driver, %s mode\n", (smap->flags & SMAP_F_DMA_ENABLE) ? "DMA" : "PIO");
 
 	return(0);	/* success */
 
