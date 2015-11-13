@@ -88,7 +88,7 @@ smap_skb_queue_init(struct smap_chan *smap, struct sk_buff_head *head)
 	unsigned long flags;
 
 	spin_lock_irqsave(&smap->spinlock, flags);
-	(void)skb_queue_head_init(head);
+	skb_queue_head_init(head);
 	spin_unlock_irqrestore(&smap->spinlock, flags);
 
 	return;
@@ -97,14 +97,14 @@ smap_skb_queue_init(struct smap_chan *smap, struct sk_buff_head *head)
 static void
 smap_skb_enqueue(struct sk_buff_head *head, struct sk_buff *newsk)
 {
-	(void)skb_queue_tail(head, newsk);
+	skb_queue_tail(head, newsk);
 	return;
 }
 
 static void
 smap_skb_requeue(struct sk_buff_head *head, struct sk_buff *newsk)
 {
-	(void)skb_queue_head(head, newsk);
+	skb_queue_head(head, newsk);
 	return;
 }
 
@@ -159,7 +159,7 @@ smap_start_xmit(struct sk_buff *skb, struct net_device *net_dev)
 		return(-EAGAIN);
 	}
 
-	(void)smap_skb_enqueue(&smap->txqueue, skb);
+	smap_skb_enqueue(&smap->txqueue, skb);
 	wake_up_interruptible(&smap->wait_smaprun);
 	spin_unlock_irqrestore(&smap->spinlock, flags);
 	return(0);
@@ -226,7 +226,7 @@ smap_start_xmit2(struct smap_chan *smap)
 	}
 	if (tx_re_q && skb) {
 		spin_lock_irqsave(&smap->spinlock, flags);
-		(void)smap_skb_requeue(&smap->txqueue, skb);
+		smap_skb_requeue(&smap->txqueue, skb);
 		spin_unlock_irqrestore(&smap->spinlock, flags);
 	}
 	if (i == 0)
@@ -284,7 +284,7 @@ smappiosend:
 			smap->txdma_request.sdd[i].sdd_misc = 0;
 			if (skb) {
 				spin_lock_irqsave(&smap->spinlock, flags);
-				(void)smap_skb_requeue(&smap->txqueue, skb);
+				smap_skb_requeue(&smap->txqueue, skb);
 				spin_unlock_irqrestore(&smap->spinlock, flags);
 				tx_re_q |= (1 << i);
 			}
@@ -907,7 +907,7 @@ static irqreturn_t smap_interrupt(int irq, void *dev_id)
 		wake_up_interruptible(&smap->wait_smaprun);
 	}
 	if (stat & INTR_EMAC3) {
-		(void)smap_emac3_intr(net_dev);
+		smap_emac3_intr(net_dev);
 	}
 end:
 	spin_unlock_irqrestore(&smap->spinlock, flags);
@@ -1006,7 +1006,7 @@ smap_multicast_list(struct net_device *net_dev)
 	u_int32_t e3v;
 
 	/* stop tx/rx */
-	(void)smap_txrx_XXable(smap, DISABLE);
+	smap_txrx_XXable(smap, DISABLE);
 
 	/* disable promisc, all multi, indvi hash and group hash mode */
 	e3v = EMAC3REG_READ(smap, SMAP_EMAC3_RxMODE);
@@ -1028,7 +1028,7 @@ smap_multicast_list(struct net_device *net_dev)
 	EMAC3REG_WRITE(smap, SMAP_EMAC3_RxMODE, e3v);
 
 	/* start tx/rx */
-	(void)smap_txrx_XXable(smap, ENABLE);
+	smap_txrx_XXable(smap, ENABLE);
 
 	return;
 }
@@ -1122,10 +1122,10 @@ smap_open(struct net_device *net_dev)
 		goto open_error;
 	}
 
-	(void)smap_fifo_reset(smap);
-	(void)smap_emac3_re_init(smap);
-	(void)smap_txbd_init(smap);
-	(void)smap_rxbd_init(smap);
+	smap_fifo_reset(smap);
+	smap_emac3_re_init(smap);
+	smap_txbd_init(smap);
+	smap_rxbd_init(smap);
 
 	if (smap->irq == 0) {
 		printk("%s: invalid irq\n", net_dev->name);
@@ -1144,13 +1144,13 @@ smap_open(struct net_device *net_dev)
 		}
 	}
 
-	(void)smap_skb_queue_init(smap, &smap->txqueue);
+	smap_skb_queue_init(smap, &smap->txqueue);
 	smap->txicnt = smap->rxicnt = 0;
 
-	(void)smap_clear_all_interrupt(smap);
-	(void)smap_interrupt_XXable(smap, ENABLE);
+	smap_clear_all_interrupt(smap);
+	smap_interrupt_XXable(smap, ENABLE);
 
-	(void)smap_txrx_XXable(smap, ENABLE);
+	smap_txrx_XXable(smap, ENABLE);
 
 	phy_start(smap->phydev);
 
@@ -1209,17 +1209,17 @@ smap_close(struct net_device *net_dev)
 	netif_stop_queue(net_dev);
 
 	/* stop DMA */
-	(void)smap_dma_force_break(smap);
+	smap_dma_force_break(smap);
 
-	(void)smap_skb_queue_clear(smap, &smap->txqueue);
+	smap_skb_queue_clear(smap, &smap->txqueue);
 
-	(void)smap_txrx_XXable(smap, DISABLE);
+	smap_txrx_XXable(smap, DISABLE);
 
-	(void)smap_interrupt_XXable(smap, DISABLE);
-	(void)smap_clear_all_interrupt(smap);
+	smap_interrupt_XXable(smap, DISABLE);
+	smap_clear_all_interrupt(smap);
 	smap->txicnt = smap->rxicnt = 0;
 
-	(void)free_irq(smap->irq, net_dev);
+	free_irq(smap->irq, net_dev);
 
 	netif_carrier_off(net_dev);
 
@@ -1292,13 +1292,13 @@ smap_ioctl(struct net_device *net_dev, struct ifreq *ifr, int cmd)
 		break;
 
 	case SMAP_IOC_DUMPREG:
-		(void)smap_dump_reg(smap);
-		(void)smap_dump_emac3_reg(smap);
+		smap_dump_reg(smap);
+		smap_dump_emac3_reg(smap);
 		break;
 
 	case SMAP_IOC_DUMPBD:
-		(void)smap_dump_txbd(smap);
-		(void)smap_dump_rxbd(smap);
+		smap_dump_txbd(smap);
+		smap_dump_rxbd(smap);
 		break;
 
 	case SMAP_IOC_DUMPFLAG:
@@ -1385,15 +1385,15 @@ smap_timeout_thread(void *arg)
 #endif
 		smap->flags &= ~(SMAP_F_LINKESTABLISH|SMAP_F_LINKVALID);
 		netif_carrier_off(net_dev);
-		(void)smap_dma_force_break(smap);
-		(void)smap_reset(smap, RESET_INIT);
-		(void)smap_txrx_XXable(smap, DISABLE);
+		smap_dma_force_break(smap);
+		smap_reset(smap, RESET_INIT);
+		smap_txrx_XXable(smap, DISABLE);
 		netif_carrier_on(net_dev);
-		(void)smap_txbd_init(smap);
-		(void)smap_rxbd_init(smap);
-		(void)smap_clear_all_interrupt(smap);
-		(void)smap_interrupt_XXable(smap, ENABLE);
-		(void)smap_txrx_XXable(smap, ENABLE);
+		smap_txbd_init(smap);
+		smap_rxbd_init(smap);
+		smap_clear_all_interrupt(smap);
+		smap_interrupt_XXable(smap, ENABLE);
+		smap_txrx_XXable(smap, ENABLE);
 
 		net_dev->trans_start = jiffies;		/* save new timestamp */
 		smap->net_stats.tx_errors++;
@@ -1541,14 +1541,14 @@ static void
 smap_reg_init(struct smap_chan *smap)
 {
 
-	(void)smap_interrupt_XXable(smap, DISABLE);
-	(void)smap_clear_all_interrupt(smap);
+	smap_interrupt_XXable(smap, DISABLE);
+	smap_clear_all_interrupt(smap);
 
 	/* BD mode */
 	WRITE_SMAPREG8(smap, SMAP_BD_MODE, 0);	/* swap */
 
 	/* reset TX/RX FIFO */
-	(void)smap_fifo_reset(smap);
+	smap_fifo_reset(smap);
 
 	return;
 }
@@ -1613,7 +1613,7 @@ static void
 smap_emac3_init(struct smap_chan *smap, int reset_only)
 {
 	/* reset emac3 */
-	(void)smap_emac3_soft_reset(smap);
+	smap_emac3_soft_reset(smap);
 
 	/* EMAC3 operating MODE */
 	EMAC3REG_WRITE(smap, SMAP_EMAC3_MODE1, SMAP_EMAC3_MODE1_DEF);
@@ -1622,12 +1622,12 @@ smap_emac3_init(struct smap_chan *smap, int reset_only)
 		return;
 
 	/* clear interrupt */
-	(void)smap_clear_all_interrupt(smap);
+	smap_clear_all_interrupt(smap);
 	/* disable interrupt */
-	(void)smap_interrupt_XXable(smap, DISABLE);
+	smap_interrupt_XXable(smap, DISABLE);
 
 	/* permanently set to default value */
-	(void)smap_emac3_set_defvalue(smap);
+	smap_emac3_set_defvalue(smap);
 
 	return;
 }
@@ -1635,9 +1635,9 @@ smap_emac3_init(struct smap_chan *smap, int reset_only)
 static void
 smap_emac3_re_init(struct smap_chan *smap)
 {
-	(void)smap_emac3_soft_reset(smap);
+	smap_emac3_soft_reset(smap);
 	EMAC3REG_WRITE(smap, SMAP_EMAC3_MODE1, smap->txmode_val);
-	(void)smap_emac3_set_defvalue(smap);
+	smap_emac3_set_defvalue(smap);
 	return;
 }
 
@@ -2199,8 +2199,8 @@ smap_run(struct smap_chan *smap)
 			spin_lock_irqsave(&smap->spinlock, flags);
 			while (smap->txqueue.qlen > 0) {
 				spin_unlock_irqrestore(&smap->spinlock, flags);
-				(void)smap_start_xmit2(smap);
-				(void)smap_tx_intr(smap->net_dev);
+				smap_start_xmit2(smap);
+				smap_tx_intr(smap->net_dev);
 				spin_lock_irqsave(&smap->spinlock, flags);
 			}
 			spin_unlock_irqrestore(&smap->spinlock, flags);
@@ -2213,21 +2213,21 @@ smap_run(struct smap_chan *smap)
 		spin_lock_irqsave(&smap->spinlock, flags);
 		if ((smap->txqueue.qlen > 0) && (smap->flags & SMAP_F_OPENED)) {
 			spin_unlock_irqrestore(&smap->spinlock, flags);
-			(void)smap_start_xmit2(smap);
+			smap_start_xmit2(smap);
 		} else
 			spin_unlock_irqrestore(&smap->spinlock, flags);
 
 		spin_lock_irqsave(&smap->spinlock, flags);
 		if ((smap->txicnt > 0) && (smap->flags & SMAP_F_OPENED)) {
 			spin_unlock_irqrestore(&smap->spinlock, flags);
-			(void)smap_tx_intr(smap->net_dev);
+			smap_tx_intr(smap->net_dev);
 		} else
 			spin_unlock_irqrestore(&smap->spinlock, flags);
 
 		spin_lock_irqsave(&smap->spinlock, flags);
 		if ((smap->rxicnt > 0) && (smap->flags & SMAP_F_OPENED)) {
 			spin_unlock_irqrestore(&smap->spinlock, flags);
-			(void)smap_rx_intr(smap->net_dev);
+			smap_rx_intr(smap->net_dev);
 		} else
 			spin_unlock_irqrestore(&smap->spinlock, flags);
 
@@ -2465,7 +2465,7 @@ static int smap_remove(struct platform_device *pdev)
 	netif_carrier_off(net_dev);
 	unregister_netdev(net_dev);
 
-	(void)smap_reset(smap, RESET_ONLY);
+	smap_reset(smap, RESET_ONLY);
 
 	if (smap->dtxbuf) {
 		kfree(smap->dtxbuf);
