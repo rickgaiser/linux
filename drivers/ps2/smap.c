@@ -2510,7 +2510,7 @@ smap_dma_setup(struct smap_chan *smap)
 	}
 	wait_for_completion(&compl);
 	/* Access IOP memory cached. */
-	smap->txdma_ibuf = phys_to_virt(ps2sif_bustophys(smap->txdma_ibuf));
+	smap->txdma_ibuf = phys_to_virt(ps2sif_bustophys((dma_addr_t)smap->txdma_ibuf));
 	smap->flags |= (SMAP_F_DMA_TX_ENABLE|SMAP_F_DMA_ENABLE);
 
 	if (smap->flags & SMAP_F_PRINT_MSG) {
@@ -2529,7 +2529,7 @@ smap_dma_setup(struct smap_chan *smap)
 	}
 	wait_for_completion(&compl);
 	/* Access IOP memory cached. */
-	smap->rxdma_ibuf = phys_to_virt(ps2sif_bustophys(smap->rxdma_ibuf));
+	smap->rxdma_ibuf = phys_to_virt(ps2sif_bustophys((dma_addr_t)smap->rxdma_ibuf));
 	smap->flags |= (SMAP_F_DMA_RX_ENABLE|SMAP_F_DMA_ENABLE);
 
 	if (smap->flags & SMAP_F_PRINT_MSG) {
