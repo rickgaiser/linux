@@ -2436,7 +2436,7 @@ error:
 	return(-ENODEV);
 }
 
-static int __devexit smap_driver_remove(struct platform_device *pdev)
+static int __devexit smap_remove(struct platform_device *pdev)
 {
 	struct net_device *net_dev = platform_get_drvdata(pdev);
 	struct smap_chan *smap = netdev_priv(net_dev);
@@ -2475,7 +2475,7 @@ static int __devexit smap_driver_remove(struct platform_device *pdev)
 
 static struct platform_driver smap_driver = {
 	.probe	= smap_probe,
-	.remove	= __devexit_p(smap_driver_remove),
+	.remove	= __devexit_p(smap_remove),
 	.driver	= {
 		.name	= "ps2smap",
 		.owner	= THIS_MODULE,
