@@ -349,7 +349,6 @@ static void handleSmapIRQ(iop_sifCmdSmapIrq_t * pkt, void *arg)
 
 	u8 *data;
 
-	dma_cache_inv((unsigned long) pkt, sizeof(*pkt));
 	data = phys_to_virt(pkt->payload);
 	dma_cache_inv((unsigned long) data, pkt->size);
 
