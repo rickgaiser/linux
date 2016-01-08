@@ -22,6 +22,7 @@
 #include <linux/kthread.h>
 
 #include <asm/mach-ps2/sbios.h>
+#include <asm/mach-ps2/iopmodules.h>
 
 #include "smaprpc.h"
 
@@ -391,6 +392,11 @@ static int smaprpc_probe(struct platform_device *dev)
 	if (ps2_pccard_present != 0x0200) {
 		printk("PlayStation 2 HDD/Ethernet device NOT present (slim PSTwo).\n");
 		return (-ENODEV);
+	}
+
+	if (load_module_firmware("ps2/smaprpc.irx", 0) < 0) {
+		printk("ps2smaprpc: loading ps2/smaprpc.irx failed\n");
+		return -ENODEV;
 	}
 
 	net_dev = alloc_etherdev(sizeof(struct smaprpc_chan));
