@@ -68,7 +68,6 @@ struct smap_chan {
 	volatile u_int8_t *base;
 	volatile struct smapbd *txbd;
 	volatile struct smapbd *rxbd;
-	u_int8_t hwaddr[6];
 	u_int8_t ppwc;
 	u_int32_t txmode_val;
 	struct net_device_stats net_stats;

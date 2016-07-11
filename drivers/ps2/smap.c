@@ -1031,6 +1031,26 @@ smap_multicast_list(struct net_device *net_dev)
 	return;
 }
 
+static int
+smap_set_mac_address(struct net_device *net_dev, void *p)
+{
+	struct sockaddr *addr = p;
+	struct smap_chan *smap = netdev_priv(net_dev);
+
+	if (netif_running(net_dev))
+		return -EBUSY;
+
+	memcpy(net_dev->dev_addr, addr->sa_data, ETH_ALEN);
+
+	EMAC3REG_WRITE(smap, SMAP_EMAC3_ADDR_HI,
+			net_dev->dev_addr[0] <<  8 | net_dev->dev_addr[1]);
+	EMAC3REG_WRITE(smap, SMAP_EMAC3_ADDR_LO,
+			net_dev->dev_addr[2] << 24 | net_dev->dev_addr[3] << 16 |
+			net_dev->dev_addr[4] <<  8 | net_dev->dev_addr[5]);
+
+	return 0;
+}
+
 /*--------------------------------------------------------------------------*/
 
 static struct net_device_stats *
@@ -1574,14 +1594,15 @@ smap_emac3_soft_reset(struct smap_chan *smap)
 static void
 smap_emac3_set_defvalue(struct smap_chan *smap)
 {
+	struct net_device *net_dev = smap->net_dev;
 	u_int32_t e3v;
 
 	/* set HW address */
-	e3v = ( (smap->hwaddr[0] << 8) | smap->hwaddr[1] );
-	EMAC3REG_WRITE(smap, SMAP_EMAC3_ADDR_HI, e3v);
-	e3v = ( (smap->hwaddr[2] << 24) | (smap->hwaddr[3] << 16) |
-			(smap->hwaddr[4] << 8) | smap->hwaddr[5] );
-	EMAC3REG_WRITE(smap, SMAP_EMAC3_ADDR_LO, e3v);
+	EMAC3REG_WRITE(smap, SMAP_EMAC3_ADDR_HI,
+			net_dev->dev_addr[0] <<  8 | net_dev->dev_addr[1]);
+	EMAC3REG_WRITE(smap, SMAP_EMAC3_ADDR_LO,
+			net_dev->dev_addr[2] << 24 | net_dev->dev_addr[3] << 16 |
+			net_dev->dev_addr[4] <<  8 | net_dev->dev_addr[5]);
 
 	/* Inter-frame GAP */
 	EMAC3REG_WRITE(smap, SMAP_EMAC3_INTER_FRAME_GAP, 4);
@@ -1803,9 +1824,10 @@ static int
 smap_get_node_addr(struct smap_chan *smap)
 {
 	int i;
+	char mac_addr[6];
 	u_int16_t *macp, cksum, sum = 0;
 
-	macp = (u_int16_t *)smap->hwaddr;
+	macp = (u_int16_t *)mac_addr;
 	smap_eeprom_read(smap, 0x0, macp, 3);
 	smap_eeprom_read(smap, 0x3, &cksum, 1);
 
@@ -1817,17 +1839,15 @@ smap_get_node_addr(struct smap_chan *smap)
 		printk("checksum %04x is read from EEPROM, "
 			"and %04x is calculated by mac address read now.\n",
 							cksum, sum);
-		smap_print_mac_address(smap, smap->hwaddr);
-		memset(smap->hwaddr, 0, 6);
+		smap_print_mac_address(smap, mac_addr);
 		return(-1);
 	}
-	smap_print_mac_address(smap, smap->hwaddr);
+	smap_print_mac_address(smap, mac_addr);
 	if (!smap->net_dev) {
 		printk("%s: net_dev is error(null).\n", smap->net_dev->name);
-		memset(smap->hwaddr, 0, 6);
 		return(-1);
 	}
-	memcpy(smap->net_dev->dev_addr, smap->hwaddr, 6);
+	memcpy(smap->net_dev->dev_addr, mac_addr, 6);
 	return(0);
 }
 
@@ -2305,7 +2325,7 @@ static const struct net_device_ops smap_netdev_ops = {
 	.ndo_get_stats		= smap_get_stats,
 	.ndo_set_multicast_list = smap_multicast_list,
 	.ndo_validate_addr	= eth_validate_addr,
-	.ndo_set_mac_address 	= NULL,
+	.ndo_set_mac_address 	= smap_set_mac_address,
 	.ndo_change_mtu		= eth_change_mtu,
 #ifdef HAVE_TX_TIMEOUT
 	.ndo_tx_timeout		= smap_tx_timeout,
