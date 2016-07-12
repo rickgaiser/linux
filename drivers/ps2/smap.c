@@ -208,7 +208,7 @@ smap_start_xmit2(struct smap_chan *smap)
 
 		if (smap->flags & SMAP_F_DMA_TX_ENABLE) {
 			memcpy((char *)(smap->txdma_ibuf + smap->txdma_request.size), skb->data, skb->len);
-			smap->txdma_request.sdd[i].i_addr = 
+			smap->txdma_request.sdd[i].i_addr =
 				(unsigned int)(smap->txdma_ibuf + smap->txdma_request.size);
 		} else {
 			smap->txdma_request.sdd[i].i_addr = 0;
@@ -570,7 +570,7 @@ smap_rx_intr(struct net_device *net_dev)
 			}
 			if (smap->flags & SMAP_F_PRINT_MSG) {
 				printk("%s:Rx intr(%d): [%d]=stat(0x%04x, 0x%04x), len(%d, 0x%04x), ptr(0x%04x)\n", net_dev->name, i, l_rxbdi, rxstat,INW(&rxbd->ctrl_stat),INW(&rxbd->length),INW(&rxbd->length),INW(&rxbd->pointer));
-			} 
+			}
 			pkt_err |= (1 << i);
 			break;
 		}
@@ -1340,7 +1340,7 @@ smap_ioctl(struct net_device *net_dev, struct ifreq *ifr, int cmd)
 		break;
 
 	default:
-		retval = phy_mii_ioctl(smap->phydev, ifr, cmd);
+		retval = phy_mii_ioctl(smap->phydev, if_mii(ifr), cmd);
 		break;
 	}
 
@@ -1392,7 +1392,7 @@ smap_timeout_thread(void *arg)
 		smap_clear_all_interrupt(smap);
 		smap_interrupt_XXable(smap, ENABLE);
 		smap_txrx_XXable(smap, ENABLE);
-		(void)smap_multicast_list(smap->net_dev);
+		smap_multicast_list(smap->net_dev);
 
 		net_dev->trans_start = jiffies;		/* save new timestamp */
 		smap->net_stats.tx_errors++;
@@ -1719,7 +1719,7 @@ smap_eeprom_get_data(struct smap_chan *smap)
 static void
 smap_eeprom_start_op(struct smap_chan *smap, int op)
 {
-	/* set port direction */    
+	/* set port direction */
 	WRITE_SMAPREG8(smap, SMAP_PIOPORT_DIR, (PP_SCLK | PP_CSEL | PP_DIN));
 
 	/* rise chip select */
@@ -2261,7 +2261,6 @@ smap_thread(void *arg)
 
 /*--------------------------------------------------------------------------*/
 
-				(void)smap_multicast_list(smap->net_dev);
 static int smap_dma_enable = 1;
 module_param(smap_dma_enable, int, 0);
 MODULE_PARM_DESC(smap_dma_enable,
@@ -2293,7 +2292,7 @@ static const struct ethtool_ops smap_ethtool_ops = {
 	.set_settings = smap_set_settings,
 	.nway_reset = smap_nway_reset,
 	.get_link = ethtool_op_get_link,
-	.get_ts_info = ethtool_op_get_ts_info,
+	//.get_ts_info = ethtool_op_get_ts_info,
 };
 
 extern int ps2_pccard_present;
