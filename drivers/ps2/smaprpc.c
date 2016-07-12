@@ -31,6 +31,7 @@
 #define SMAP_CMD_SEND 1
 #define SMAP_CMD_SET_BUFFER 2
 #define SMAP_CMD_GET_MAC_ADDR 3
+#define SMAP_CMD_SET_MAC_ADDR 4
 
 #define SIF_SMAP_RECEIVE 0x07
 
@@ -199,6 +200,44 @@ static int smaprpc_open(struct net_device *net_dev)
 	smaprpc_skb_queue_init(smap, &smap->txqueue);
 
 	return (0);					/* success */
+}
+
+static int
+smaprpc_set_mac_address(struct net_device *net_dev, void *p)
+{
+	int rv;
+	struct completion compl;
+	struct sockaddr *addr = p;
+	struct smaprpc_chan *smap = netdev_priv(net_dev);
+
+	if (netif_running(net_dev))
+		return -EBUSY;
+
+	init_completion(&compl);
+	down(&smap->smap_rpc_sema);
+
+		memset(smap_rpc_data, 0, 32);
+		memcpy(smap_rpc_data, addr->sa_data, ETH_ALEN);
+
+		do {
+			rv = ps2sif_callrpc(&smap->cd_smap_rpc, SMAP_CMD_SET_MAC_ADDR,
+				SIF_RPCM_NOWAIT,
+				(void *) smap_rpc_data, 32, // send
+				smap_rpc_data, sizeof(smap_rpc_data), // receive
+				(ps2sif_endfunc_t) smaprpc_rpcend_notify, (void *) &compl);
+		} while (rv == -E_SIF_PKT_ALLOC);
+
+		if (rv != 0) {
+			printk("%s: SMAP_CMD_SET_MAC_ADDR failed, (%d)\n", smap->net_dev->name,
+				rv);
+		} else {
+			wait_for_completion(&compl);
+			memcpy(net_dev->dev_addr, addr->sa_data, ETH_ALEN);
+		}
+
+	up(&smap->smap_rpc_sema);
+
+	return 0;
 }
 
 static int smaprpc_close(struct net_device *net_dev)
@@ -375,7 +414,7 @@ static const struct net_device_ops smaprpc_netdev_ops = {
 	.ndo_start_xmit		= smaprpc_start_xmit,
 	.ndo_get_stats		= smaprpc_get_stats,
 	.ndo_validate_addr	= eth_validate_addr,
-	.ndo_set_mac_address 	= NULL,
+	.ndo_set_mac_address 	= smaprpc_set_mac_address,
 	.ndo_change_mtu		= eth_change_mtu,
 #ifdef CONFIG_NET_POLL_CONTROLLER
 	.ndo_poll_controller = NULL,
