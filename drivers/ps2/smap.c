@@ -2348,12 +2348,6 @@ static int __devinit smap_probe(struct platform_device *dev)
 		return(-ENODEV);
 	}
 
-	//r = load_module_firmware("ps2/smap.irx", 0);
-	//if (r < 0) {
-	//	printk("ps2smap: loading firmware failed\n");
-	//	return(-ENODEV);
-	//}
-
 	net_dev = alloc_etherdev(sizeof(struct smap_chan));
 	if (!net_dev) {
 		return -ENOMEM;
