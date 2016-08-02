@@ -37,7 +37,6 @@
 #include <asm/mach-ps2/siflock.h>
 #include <asm/mach-ps2/sound.h>
 #include <asm/mach-ps2/bootinfo.h>
-#include <asm/mach-ps2/iopmodules.h>
 
 #include "../../sound/oss/sound_config.h"
 #include "iopmem.h"
@@ -2539,12 +2538,6 @@ static int __devinit ps2sd_probe(struct platform_device *dev)
 
 	printk("PlayStation 2 Sound driver");
 	printk("\n");
-
-	res = load_module_firmware("ps2/audsrv.irx", 0);
-	if (res < 0) {
-		printk("ps2sd: loading firmware failed\n");
-		return(-ENODEV);
-	}
 
 	ps2sd_mc.init = 0;
 	ps2sd_mc.iopzero = 0;
