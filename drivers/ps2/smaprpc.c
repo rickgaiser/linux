@@ -302,7 +302,7 @@ static void smaprpc_rpc_setup(struct smaprpc_chan *smap)
 		while (j--);
 	}
 	if (smap->cd_smap_rpc.serve == 0) {
-		printk("%s: smap rpc setup: bind error 1, network will not work on slim PSTwo\n",
+		printk("%s: smap rpc setup: bind error 1, network will not work\n",
 			smap->net_dev->name);
 		return;
 	}
@@ -427,8 +427,8 @@ static int __devinit smaprpc_probe(struct platform_device *dev)
 	struct smaprpc_chan *smap = NULL;
 	struct sb_sifaddcmdhandler_arg addcmdhandlerparam;
 
-	if (ps2_pccard_present != 0x0200) {
-		printk("PlayStation 2 HDD/Ethernet device NOT present (slim PSTwo).\n");
+	if (ps2_pccard_present == 0) {
+		printk("PlayStation 2 Ethernet device NOT present.\n");
 		return (-ENODEV);
 	}
 
@@ -475,13 +475,13 @@ static int __devinit smaprpc_probe(struct platform_device *dev)
 	if (smap->rpc_initialized) {
 		smap->smaprun_task = kthread_run(smaprpc_thread, smap, "ps2smaprpc");
 
-		printk("Slim PlayStation 2 SMAP(Ethernet) device driver.\n");
+		printk("PlayStation 2 SMAP(Ethernet) rpc device driver.\n");
 
 		return (0);				/* success */
 	}
 	unregister_netdev(net_dev);
 error:
-	printk("Slim PlayStation 2 SMAP(Ethernet) device not found.\n");
+	printk("PlayStation 2 SMAP(Ethernet) rpc device not found.\n");
 	free_netdev(net_dev);
 	return (-ENODEV);
 }
@@ -543,5 +543,5 @@ module_init(smaprpc_init);
 module_exit(smaprpc_exit);
 
 MODULE_AUTHOR("Juergen Urban");
-MODULE_DESCRIPTION("PlayStation 2 ethernet device driver for slim PSTwo");
+MODULE_DESCRIPTION("PlayStation 2 SMAP(Ethernet) rpc device driver");
 MODULE_LICENSE("GPL");
