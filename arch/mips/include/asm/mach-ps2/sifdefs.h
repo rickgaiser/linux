@@ -22,6 +22,7 @@
 #define __ASM_PS2_SIFDEFS_H
 
 #include <linux/types.h>
+#include "sbios.h"
 
 /*
  * SIF DMA defines
@@ -90,10 +91,10 @@ typedef struct _sif_serve_data {
 	unsigned int		command;
 	ps2sif_rpcfunc_t	func;
 	void			*buff;
-	int			size;	
+	int			size;
 	ps2sif_rpcfunc_t	cfunc;
 	void			*cbuff;
-	int			csize;	
+	int			csize;
 	ps2sif_clientdata_t *client;
 	void			*paddr;
 	unsigned int		fno;
@@ -111,11 +112,11 @@ typedef struct _sif_queue_data {
 	struct _sif_serve_data	*link;
 	struct _sif_serve_data	*start;
 	struct _sif_serve_data	*end;
-	struct _sif_queue_data	*next;  
+	struct _sif_queue_data	*next;
 	struct wait_queue	*waitq;
 	void			(*callback)(void*);
 	void			*callback_arg;
-} ps2sif_queuedata_t; 
+} ps2sif_queuedata_t;
 
 /* call & bind mode */
 #define SIF_RPCM_NOWAIT		0x01	/* not wait for end of function */
@@ -138,6 +139,7 @@ typedef struct _sif_queue_data {
 /* functions */
 
 int __init ps2sif_init(void);
+int ps2sif_addcmdhandler(u_int fid, ps2_addr_t func, ps2_addr_t data);
 int ps2sif_bindrpc(ps2sif_clientdata_t *, unsigned int, unsigned int, ps2sif_endfunc_t, void *);
 int ps2sif_callrpc(ps2sif_clientdata_t *, unsigned int, unsigned int, void *, int, void *, int, ps2sif_endfunc_t, void *);
 

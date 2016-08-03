@@ -42,6 +42,8 @@ EXPORT_SYMBOL(__ps2sif_setdma_wait);
 EXPORT_SYMBOL(__ps2sif_dmastat_wait);
 EXPORT_SYMBOL(ps2sif_writebackdcache);
 
+EXPORT_SYMBOL(ps2sif_addcmdhandler);
+
 EXPORT_SYMBOL(ps2sif_bindrpc);
 EXPORT_SYMBOL(ps2sif_callrpc);
 EXPORT_SYMBOL(ps2sif_checkstatrpc);
@@ -122,6 +124,19 @@ void ps2sif_writebackdcache(const void *addr, int size)
     dma_cache_wback_inv((unsigned long)addr, size);
 }
 
+
+/*
+ *  SIF CMD functions
+ */
+
+int ps2sif_addcmdhandler(u_int fid, ps2_addr_t func, ps2_addr_t data)
+{
+    	struct sb_sifaddcmdhandler_arg arg;
+    	arg.fid  = fid;
+    	arg.func = func;
+    	arg.data = data;
+        return sbios(SB_SIFADDCMDHANDLER, &arg);
+}
 
 /*
  *  SIF RPC functions
@@ -373,21 +388,11 @@ int __init ps2sif_init(void)
     if (sbios(SB_SIFSETCMDBUFFER, &setcmdhandlerbufferparam) < 0) {
         printk("Failed to initialize EEDEBUG handler (1).\n");
     } else {
-    	struct sb_sifaddcmdhandler_arg addcmdhandlerparam;
-
-    	addcmdhandlerparam.fid = 0x20;
-    	addcmdhandlerparam.func = handleRPCIRQ;
-    	addcmdhandlerparam.data = NULL;
-
-        if (sbios(SB_SIFADDCMDHANDLER, &addcmdhandlerparam) < 0) {
+        if (ps2sif_addcmdhandler(0x20, handleRPCIRQ, NULL) < 0) {
             printk("Failed to initialize SIF IRQ handler.\n");
         }
 
-    	addcmdhandlerparam.fid = 20;
-    	addcmdhandlerparam.func = handleRPCPowerBtn;
-    	addcmdhandlerparam.data = NULL;
-
-        if (sbios(SB_SIFADDCMDHANDLER, &addcmdhandlerparam) < 0) {
+        if (ps2sif_addcmdhandler(20, handleRPCPowerBtn, NULL) < 0) {
             printk("Failed to initialize SIF power button handler.\n");
         }
     }
