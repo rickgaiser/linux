@@ -18,6 +18,7 @@
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/sifdefs.h>
 #include <asm/mach-ps2/sbios.h>
+#include <asm/mach-ps2/iopmodules.h>
 
 #define AUDSRV_IRX 0x870884d
 
@@ -525,6 +526,18 @@ static int __devinit ps2audio_probe(struct platform_device *dev)
 	int ret;
 	audsrv_data_t *data;
 	struct snd_pcm *pcm;
+
+	/* There are more implementations of libsd, choose one in kernelloader
+	if (load_module_firmware("ps2/freesd.irx", 0) < 0) {
+		printk("ps2audio: loading ps2/freesd.irx failed\n");
+		return -ENODEV;
+	}
+	*/
+
+	if (load_module_firmware("ps2/audsrv.irx", 0) < 0) {
+		printk("ps2audio: loading ps2/audsrv.irx failed\n");
+		return -ENODEV;
+	}
 
 	data = kmalloc(sizeof(*data), GFP_KERNEL);
 	if (data == NULL) {
