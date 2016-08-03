@@ -30,6 +30,7 @@
 #include <asm/mach-ps2/ps2.h>
 #include <asm/mach-ps2/sifdefs.h>
 #include <asm/mach-ps2/sbios.h>
+#include <asm/mach-ps2/iopmodules.h>
 
 #define POWEROFF_SID 0x9090900
 
@@ -86,6 +87,11 @@ static int __init tge_powerhook(void)
 	struct completion compl;
 	int rv;
 	volatile int j;
+
+	if (load_module_firmware("ps2/poweroff.irx", 0) < 0) {
+		pr_err("loading ps2/poweroff.irx failed\n");
+		return -1;
+	}
 
 	init_completion(&compl);
 

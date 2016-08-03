@@ -230,11 +230,12 @@ static int __init ps2_board_setup(void)
 	ps2dma_init();
 	ps2sif_init();
 	ps2rtc_init();
-	ps2_powerbutton_init();
 #ifdef CONFIG_SYSFS_IOP_MODULES
 	ps2_loadfile_init();
 #endif
 	iopdebug_init();
+
+	ps2_powerbutton_init();
 
 	if (ps2_pccard_present == 0x0200) {
 		pr_info("Playstation 2 SLIM\n");
