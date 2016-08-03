@@ -42,7 +42,8 @@ static ps2sif_clientdata_t cd_poweroff_rpc;
 static int rpc_initialized;
 DECLARE_MUTEX(poweroff_rpc_sema);
 
-static void ps2_powerbutton_handler(void *);
+static void ps2_powerbutton_cmd_handler(struct t_SifCmdHeader *sifcmd, void *arg);
+static void ps2_powerbutton_rte_handler(void *);
 
 static void poweroff_rpcend_notify(void *arg)
 {
@@ -71,7 +72,7 @@ static int __init rte_powerhook(void)
 	} while (res == -1);
 
 	/* install power button hook */
-	arg.func = ps2_powerbutton_handler;
+	arg.func = ps2_powerbutton_rte_handler;
 	arg.arg = NULL;
 	sbios(SB_CDVD_POWERHOOK, &arg);
 
@@ -87,6 +88,11 @@ static int __init tge_powerhook(void)
 	struct completion compl;
 	int rv;
 	volatile int j;
+
+	if (ps2sif_addcmdhandler(20, ps2_powerbutton_cmd_handler, NULL) < 0) {
+		printk("Failed to initialize SIF power button handler.\n");
+		return -1;
+	}
 
 	if (load_module_firmware("ps2/poweroff.irx", 0) < 0) {
 		pr_err("loading ps2/poweroff.irx failed\n");
@@ -170,7 +176,13 @@ int __init ps2_powerbutton_init(void)
 	}
 }
 
-static void ps2_powerbutton_handler(void *arg)
+static void ps2_powerbutton_cmd_handler(struct t_SifCmdHeader *sifcmd, void *arg)
+{
+	/* give a SIGPWR signal to init proc */
+	kill_cad_pid(SIGPWR, 0);
+}
+
+static void ps2_powerbutton_rte_handler(void *arg)
 {
 	/* give a SIGPWR signal to init proc */
 	kill_cad_pid(SIGPWR, 0);

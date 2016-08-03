@@ -349,12 +349,6 @@ void handleRPCIRQ(iop_sifCmdBufferIrq_t *sifCmdBufferIrq, void *arg)
 	do_IRQ(sifCmdBufferIrq->data[0]);
 }
 
-static void handleRPCPowerBtn(iop_sifCmdBufferIrq_t *sifCmdBufferIrq, void *arg)
-{
-	/* give a SIGPWR signal to init proc */
-	kill_cad_pid(SIGPWR, 0);
-}
-
 
 /*
  *  Initialize
@@ -390,10 +384,6 @@ int __init ps2sif_init(void)
     } else {
         if (ps2sif_addcmdhandler(0x20, handleRPCIRQ, NULL) < 0) {
             printk("Failed to initialize SIF IRQ handler.\n");
-        }
-
-        if (ps2sif_addcmdhandler(20, handleRPCPowerBtn, NULL) < 0) {
-            printk("Failed to initialize SIF power button handler.\n");
         }
     }
     if (sbios(SB_SIFINITRPC, 0) < 0) {
