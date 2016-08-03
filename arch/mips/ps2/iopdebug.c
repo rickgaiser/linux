@@ -26,7 +26,7 @@
 
 
 #define USE_MESSAGE_BUFFER
-#define IOP_MAX_MSG_LEN 80
+#define IOP_MAX_MSG_LEN 100
 
 
 typedef struct {
