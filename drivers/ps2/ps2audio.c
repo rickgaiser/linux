@@ -425,7 +425,7 @@ static int play_audio(audsrv_data_t *data, void *buf1, uint32_t size1, void *buf
 	int rv;
 	struct completion compl;
 	uint8_t *p1;
-	
+
 	data->sbuff[0] = size1 + size2;
 	p1 = (void *) &data->sbuff[1];
 	memcpy(p1, buf1, size1);
@@ -527,12 +527,10 @@ static int __devinit ps2audio_probe(struct platform_device *dev)
 	audsrv_data_t *data;
 	struct snd_pcm *pcm;
 
-	/* There are more implementations of libsd, choose one in kernelloader
 	if (load_module_firmware("ps2/freesd.irx", 0) < 0) {
 		printk("ps2audio: loading ps2/freesd.irx failed\n");
 		return -ENODEV;
 	}
-	*/
 
 	if (load_module_firmware("ps2/audsrv.irx", 0) < 0) {
 		printk("ps2audio: loading ps2/audsrv.irx failed\n");
