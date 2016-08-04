@@ -55,6 +55,7 @@ config PS2_AUDIO
 	tristate "Support for PS2 Audio"
 	default y
 	depends on SONY_PS2 && SND
+	select SND_PCM
 	help
 	  Audio output for the Playstation 2. This driver requires that the
 	  echo /sbin/mdev >/proc/sys/kernel/hotplug
