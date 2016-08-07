@@ -102,6 +102,7 @@ static struct platform_device ps2_uart_device = {
 	.id		= -1,
 };
 
+#if 0
 /*
  * PATA disk driver
  *
@@ -144,6 +145,40 @@ static struct platform_device ps2_pata_device = {
 		.platform_data	= &ps2_pata_platform_data,
 	},
 };
+#else
+/*
+ * PATA disk driver
+ *
+ * For new Playstation 2 PATA driver
+ */
+static struct resource ps2_pata_resources[] = {
+	/* IO base, 8 16bit registers */
+	[0] = {
+		.start	= CPHYSADDR(0xb4000040),
+		.end	= CPHYSADDR(0xb4000040 + (8 * 2) - 1),
+		.flags	= IORESOURCE_MEM,
+	},
+	/* CTRL base, 1 16bit register */
+	[1] = {
+		.start	= CPHYSADDR(0xb400005c),
+		.end	= CPHYSADDR(0xb400005c + (1 * 2) - 1),
+		.flags	= IORESOURCE_MEM,
+	},
+	/* IRQ */
+	[2] = {
+		.start	= IRQ_SBUS_PCIC,
+		.end	= IRQ_SBUS_PCIC,
+		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_SHAREABLE,
+	},
+};
+
+static struct platform_device ps2_pata_device = {
+	.name		= "pata_ps2",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(ps2_pata_resources),
+	.resource	= ps2_pata_resources,
+};
+#endif
 
 static unsigned int ps2_blink_frequency = 500;
 module_param_named(panicblink, ps2_blink_frequency, uint, 0600);
@@ -251,8 +286,11 @@ static int __init ps2_board_setup(void)
 	else {
 		pr_info("Playstation 2 FAT\n");
 
-		if (load_module_firmware("ps2/intrelay-direct.irx", 0) < 0)
-			pr_err("loading ps2/intrelay-direct.irx failed\n");
+		if (load_module_firmware("ps2/ps2dev9.irx", 0) < 0)
+			pr_err("loading ps2/ps2dev9.irx failed\n");
+
+		if (load_module_firmware("ps2/intrelay-dev9.irx", 0) < 0)
+			pr_err("loading ps2/intrelay-dev9.irx failed\n");
 
 		if (ps2_pccard_present == 0x0100) {
 			pr_info(" - With network adapter\n");
