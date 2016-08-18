@@ -140,6 +140,7 @@ typedef struct _sif_queue_data {
 
 int __init ps2sif_init(void);
 int ps2sif_addcmdhandler(u_int fid, ps2_addr_t func, ps2_addr_t data);
+int ps2sif_sendcmd(u_int fid, ps2_addr_t pp, int ps, ps2_addr_t src, ps2_addr_t dest, int size);
 int ps2sif_bindrpc(ps2sif_clientdata_t *, unsigned int, unsigned int, ps2sif_endfunc_t, void *);
 int ps2sif_callrpc(ps2sif_clientdata_t *, unsigned int, unsigned int, void *, int, void *, int, ps2sif_endfunc_t, void *);
 

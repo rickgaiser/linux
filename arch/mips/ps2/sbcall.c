@@ -43,6 +43,7 @@ EXPORT_SYMBOL(__ps2sif_dmastat_wait);
 EXPORT_SYMBOL(ps2sif_writebackdcache);
 
 EXPORT_SYMBOL(ps2sif_addcmdhandler);
+EXPORT_SYMBOL(ps2sif_sendcmd);
 
 EXPORT_SYMBOL(ps2sif_bindrpc);
 EXPORT_SYMBOL(ps2sif_callrpc);
@@ -136,6 +137,18 @@ int ps2sif_addcmdhandler(u_int fid, ps2_addr_t func, ps2_addr_t data)
     	arg.func = func;
     	arg.data = data;
         return sbios(SB_SIFADDCMDHANDLER, &arg);
+}
+
+int ps2sif_sendcmd(u_int fid, ps2_addr_t pp, int ps, ps2_addr_t src, ps2_addr_t dest, int size)
+{
+    	struct sb_sifsendcmd_arg arg;
+	arg.fid  = fid;
+	arg.pp   = pp;
+	arg.ps   = ps;
+	arg.src  = src;
+	arg.dest = dest;
+	arg.size = size;
+        return sbios(SB_SIFSENDCMD, &arg);
 }
 
 /*

@@ -77,16 +77,11 @@ static void iopdebug_printk(iop_text_data_t *data, void *arg)
 
 int __init iopdebug_init(void)
 {
-	struct sb_sifaddcmdhandler_arg addcmdhandlerparam;
-
 	/* Add SIF command handler for incoming debug messages */
-	addcmdhandlerparam.fid = 0x10;
-	addcmdhandlerparam.func = iopdebug_printk;
-	addcmdhandlerparam.data = NULL;
-	if (sbios(SB_SIFADDCMDHANDLER, &addcmdhandlerparam) < 0) {
+        if (ps2sif_addcmdhandler(0x10, iopdebug_printk, NULL) < 0) {
 		pr_err("iopdebug: Failed to add command handler.\n");
 		return -1;
-	}
+        }
 
 	if (load_module_firmware("ps2/eedebug.irx", 0) < 0) {
 		pr_err("iopdebug: loading ps2/eedebug.irx failed\n");
