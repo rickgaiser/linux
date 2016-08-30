@@ -59,13 +59,12 @@ struct smaprpc_chan {
 	int rpc_initialized;
 	struct semaphore smap_rpc_sema;
 
-	struct task_struct *smaprun_task;
-	wait_queue_head_t wait_smaprun;
-
-	struct sk_buff_head txqueue;
-
 	void *shared_addr;
 	unsigned int shared_size;
+
+	u32 iop_data_buffer_addr;
+	u32 iop_data_buffer_size;
+	volatile u32 tx_queued;
 };
 
 /* flags */
