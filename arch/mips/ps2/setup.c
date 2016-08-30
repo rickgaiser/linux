@@ -66,12 +66,12 @@ static struct platform_device ps2_usb_ohci_device = {
 	.num_resources	= ARRAY_SIZE(ps2_usb_ohci_resources),
 	.resource	= ps2_usb_ohci_resources,
 };
-
+/*
 static struct platform_device ps2_smap_device = {
 	.name           = "ps2smap",
 	.id		= -1,
 };
-
+*/
 static struct platform_device ps2_smaprpc_device = {
 	.name           = "ps2smaprpc",
 	.id		= -1,
@@ -295,7 +295,7 @@ static int __init ps2_board_setup(void)
 		if (ps2_pccard_present == 0x0100) {
 			pr_info(" - With network adapter\n");
 			platform_device_register(&ps2_pata_device);
-			platform_device_register(&ps2_smap_device);
+			platform_device_register(&ps2_smaprpc_device);
 		}
 	}
 
