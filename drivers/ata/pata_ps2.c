@@ -28,19 +28,29 @@
 #define DRV_NAME "pata_ps2"
 #define DRV_VERSION "1.0"
 
-#define CMD_ATA_RW		0x18 // is this free?
 #define PATA_PS2_IRX		0xAAAABBBB
 #define PATA_PS2_GET_ADDR	3
 #define PATA_PS2_SET_DIR	4
 
-struct ps2_ata_cmd_rw {
-	struct t_SifCmdHeader sifcmd;
-	u32 write;
+#define CMD_ATA_RW		0x18 // is this CMD number free?
+struct ps2_ata_sg { /* 8 bytes */
 	u32 addr;
 	u32 size;
-	u32 callback;
-	u32 spare[16-4];
 };
+
+/* Commands need to be 16byte aligned */
+struct ps2_ata_cmd_rw {
+	/* Header: 16 bytes */
+	struct t_SifCmdHeader sifcmd;
+	/* Data: 8 bytes */
+	u32 write:1;
+	u32 callback:1;
+	u32 sg_count:30;
+	u32 _spare;
+};
+#define MAX_CMD_SIZE (112)
+#define CMD_BUFFER_SIZE (MAX_CMD_SIZE)
+#define MAX_SG_COUNT ((CMD_BUFFER_SIZE - sizeof(struct ps2_ata_cmd_rw)) / sizeof(struct ps2_ata_sg))
 
 struct ps2_ata_rpc_get_addr {
 	u32 ret;
@@ -66,8 +76,7 @@ struct ps2_port {
 
 
 static ps2sif_clientdata_t cd_rpc;
-//static u32 pata_ps2_rpc_data[2048] __attribute__ ((aligned(64)));
-static u8 pata_ps2_cmd_buffer[64] __attribute__ ((aligned(64)));
+static u8 pata_ps2_cmd_buffer[CMD_BUFFER_SIZE] __attribute__ ((aligned(64)));
 
 
 static void pata_ps2_rpcend_callback(void *arg)
@@ -138,24 +147,10 @@ static void pata_ps2_set_dmamode(struct ata_port *ap, struct ata_device *adev)
 }
 
 #define DMA_SIZE_ALIGN(s) (((s)+15)&~15)
-static void pata_ps2_dma_read(struct ps2_port *pp, dma_addr_t ee_addr, size_t datasize)
-{
-	struct ps2_ata_cmd_rw *cmd = (struct ps2_ata_cmd_rw *)pata_ps2_cmd_buffer;
-
-	cmd->write    = 0;
-	cmd->addr     = (u32)ee_addr;
-	cmd->size     = datasize;
-	cmd->callback = 1;
-
-	while (ps2sif_sendcmd(CMD_ATA_RW, cmd, DMA_SIZE_ALIGN(sizeof(struct ps2_ata_cmd_rw))
-			, NULL, NULL, 0) == 0) {
-		cpu_relax();
-	}
-}
-
 static void pata_ps2_dma_write(struct ps2_port *pp, dma_addr_t ee_addr, size_t datasize, u32 iop_addr)
 {
 	struct ps2_ata_cmd_rw *cmd = (struct ps2_ata_cmd_rw *)pata_ps2_cmd_buffer;
+	struct ps2_ata_sg *cmd_sg = (struct ps2_ata_sg *)(pata_ps2_cmd_buffer + sizeof(struct ps2_ata_cmd_rw));
 
 	if (datasize > pp->iop_data_buffer_size) {
 		dev_err(pp->dev, "pata_ps2_dma_write: %db too big for %d buffer, clipping\n", datasize, pp->iop_data_buffer_size);
@@ -163,11 +158,14 @@ static void pata_ps2_dma_write(struct ps2_port *pp, dma_addr_t ee_addr, size_t d
 	}
 
 	cmd->write    = 1;
-	cmd->addr     = iop_addr;
-	cmd->size     = datasize;
 	cmd->callback = 1;
 
-	while (ps2sif_sendcmd(CMD_ATA_RW, cmd, DMA_SIZE_ALIGN(sizeof(struct ps2_ata_cmd_rw))
+	cmd->sg_count = 1;
+	cmd_sg[0].addr = (u32)ee_addr;
+	cmd_sg[0].size = datasize;
+
+	while (ps2sif_sendcmd(CMD_ATA_RW, cmd
+			, DMA_SIZE_ALIGN(sizeof(struct ps2_ata_cmd_rw) + cmd->sg_count * sizeof(struct ps2_ata_sg))
 			, (void *)ee_addr, (void *)iop_addr, DMA_SIZE_ALIGN(datasize)) == 0) {
 		cpu_relax();
 	}
@@ -208,19 +206,46 @@ static void pata_ps2_dma_start(struct ata_queued_cmd *qc)
 	struct ps2_port *pp = qc->ap->private_data;
 	struct scatterlist *sg;
 
-	/* Get the current scatterlist for DMA */
-	sg = qc->cursg;
-	BUG_ON(!sg);
-
 	if ((qc->tf.flags & ATA_TFLAG_WRITE) != 0) {
 		/* Write */
+		sg = qc->cursg;
+		BUG_ON(!sg);
+
 		dev_info(pp->dev, "writing %db from 0x%pad\n", sg_dma_len(sg), (void *)sg_dma_address(sg));
 		pata_ps2_dma_write(pp, sg_dma_address(sg), sg_dma_len(sg), pp->iop_data_buffer_addr);
 	}
 	else {
 		/* Read */
 		//dev_info(pp->dev, "reading %db to 0x%pad\n", sg_dma_len(sg), (void *)sg_dma_address(sg));
-		pata_ps2_dma_read(pp, sg_dma_address(sg), sg_dma_len(sg));
+		//pata_ps2_dma_read(pp, sg_dma_address(sg), sg_dma_len(sg));
+		struct ps2_ata_cmd_rw *cmd = (struct ps2_ata_cmd_rw *)pata_ps2_cmd_buffer;
+		struct ps2_ata_sg *cmd_sg = (struct ps2_ata_sg *)(pata_ps2_cmd_buffer + sizeof(struct ps2_ata_cmd_rw));
+
+		cmd->write    = 0;
+		cmd->callback = 1;
+		cmd->sg_count = 0;
+
+		while (1) {
+			sg = qc->cursg;
+			BUG_ON(!sg);
+
+			cmd_sg[cmd->sg_count].addr = (u32)sg_dma_address(sg);
+			cmd_sg[cmd->sg_count].size = sg_dma_len(sg);
+			cmd->sg_count++;
+			if ((cmd->sg_count >= MAX_SG_COUNT) || sg_is_last(qc->cursg))
+				break;
+
+			qc->cursg = sg_next(qc->cursg);
+		}
+
+		//dev_info(pp->dev, "reading %d sg's\n", cmd->sg_count);
+
+		while (ps2sif_sendcmd(CMD_ATA_RW, cmd
+				, DMA_SIZE_ALIGN(sizeof(struct ps2_ata_cmd_rw) + cmd->sg_count * sizeof(struct ps2_ata_sg))
+				, NULL, NULL, 0) == 0) {
+			cpu_relax();
+		}
+
 	}
 }
 
@@ -299,9 +324,9 @@ static void pata_ps2_cmd_handle(void *data, void *harg)
 	unsigned long flags;
 
 	if (cmd_reply->write)
-		dev_info(pp->dev, "cmd write done received (0x%pad, %d)\n", (void *)cmd_reply->addr, cmd_reply->size);
+		dev_info(pp->dev, "cmd write done received\n");
 	else
-		;//dev_info(pp->dev, "cmd read  done received (0x%pad, %d)\n", (void *)cmd_reply->addr, cmd_reply->size);
+		;//dev_info(pp->dev, "cmd read  done received\n");
 
 	spin_lock_irqsave(&ap->host->lock, flags);
 
