@@ -146,41 +146,17 @@ static void pata_ps2_set_dmamode(struct ata_port *ap, struct ata_device *adev)
 	}
 }
 
-#define DMA_SIZE_ALIGN(s) (((s)+15)&~15)
-static void pata_ps2_dma_write(struct ps2_port *pp, dma_addr_t ee_addr, size_t datasize, u32 iop_addr)
-{
-	struct ps2_ata_cmd_rw *cmd = (struct ps2_ata_cmd_rw *)pata_ps2_cmd_buffer;
-	struct ps2_ata_sg *cmd_sg = (struct ps2_ata_sg *)(pata_ps2_cmd_buffer + sizeof(struct ps2_ata_cmd_rw));
-
-	if (datasize > pp->iop_data_buffer_size) {
-		dev_err(pp->dev, "pata_ps2_dma_write: %db too big for %d buffer, clipping\n", datasize, pp->iop_data_buffer_size);
-		datasize = pp->iop_data_buffer_size;
-	}
-
-	cmd->write    = 1;
-	cmd->callback = 1;
-
-	cmd->sg_count = 1;
-	cmd_sg[0].addr = (u32)ee_addr;
-	cmd_sg[0].size = datasize;
-
-	while (ps2sif_sendcmd(CMD_ATA_RW, cmd
-			, DMA_SIZE_ALIGN(sizeof(struct ps2_ata_cmd_rw) + cmd->sg_count * sizeof(struct ps2_ata_sg))
-			, (void *)ee_addr, (void *)iop_addr, DMA_SIZE_ALIGN(datasize)) == 0) {
-		cpu_relax();
-	}
-}
-
 static int dir = -1;
 static void pata_ps2_dma_setup(struct ata_queued_cmd *qc)
 {
 	struct ata_port *ap = qc->ap;
 	struct ps2_port *pp = qc->ap->private_data;
 	struct ps2_ata_rpc_set_dir *rpc_buffer;
-	int rv;
+	int rv, newdir;
 
-	if (dir != 0) {
-		dir = 0;
+	newdir = ((qc->tf.flags & ATA_TFLAG_WRITE) == 0) ? 0 : 1;
+	if (dir != newdir) {
+		dir = newdir;
 
 		rpc_buffer = (struct ps2_ata_rpc_set_dir *)pata_ps2_cmd_buffer;
 		rpc_buffer->dir = dir;
@@ -201,8 +177,11 @@ static void pata_ps2_dma_setup(struct ata_queued_cmd *qc)
 	ap->ops->sff_exec_command(ap, &qc->tf);
 }
 
+#define DMA_SIZE_ALIGN(s) (((s)+15)&~15)
 static void pata_ps2_dma_start(struct ata_queued_cmd *qc)
 {
+	struct ps2_ata_cmd_rw *cmd = (struct ps2_ata_cmd_rw *)pata_ps2_cmd_buffer;
+	struct ps2_ata_sg *cmd_sg = (struct ps2_ata_sg *)(pata_ps2_cmd_buffer + sizeof(struct ps2_ata_cmd_rw));
 	struct ps2_port *pp = qc->ap->private_data;
 	struct scatterlist *sg;
 
@@ -211,20 +190,32 @@ static void pata_ps2_dma_start(struct ata_queued_cmd *qc)
 		sg = qc->cursg;
 		BUG_ON(!sg);
 
-		dev_info(pp->dev, "writing %db from 0x%pad\n", sg_dma_len(sg), (void *)sg_dma_address(sg));
-		pata_ps2_dma_write(pp, sg_dma_address(sg), sg_dma_len(sg), pp->iop_data_buffer_addr);
+		if (sg_dma_len(sg) > pp->iop_data_buffer_size) {
+			dev_err(pp->dev, "write: %db too big for %d buffer\n", sg_dma_len(sg), pp->iop_data_buffer_size);
+			return;
+		}
+
+		cmd->write    = 1;
+		cmd->callback = 1;
+		cmd->sg_count = 1;
+		cmd_sg[0].addr = (u32)pp->iop_data_buffer_addr;
+		cmd_sg[0].size = sg_dma_len(sg);
+
+		//dev_info(pp->dev, "writing %db from 0x%pad\n", sg_dma_len(sg), (void *)sg_dma_address(sg));
+
+		while (ps2sif_sendcmd(CMD_ATA_RW, cmd
+				, DMA_SIZE_ALIGN(sizeof(struct ps2_ata_cmd_rw) + cmd->sg_count * sizeof(struct ps2_ata_sg))
+				, (void *)sg_dma_address(sg), (void *)pp->iop_data_buffer_addr, DMA_SIZE_ALIGN(sg_dma_len(sg))) == 0) {
+			cpu_relax();
+		}
 	}
 	else {
 		/* Read */
-		//dev_info(pp->dev, "reading %db to 0x%pad\n", sg_dma_len(sg), (void *)sg_dma_address(sg));
-		//pata_ps2_dma_read(pp, sg_dma_address(sg), sg_dma_len(sg));
-		struct ps2_ata_cmd_rw *cmd = (struct ps2_ata_cmd_rw *)pata_ps2_cmd_buffer;
-		struct ps2_ata_sg *cmd_sg = (struct ps2_ata_sg *)(pata_ps2_cmd_buffer + sizeof(struct ps2_ata_cmd_rw));
-
 		cmd->write    = 0;
 		cmd->callback = 1;
 		cmd->sg_count = 0;
 
+		/* Fill sg table */
 		while (1) {
 			sg = qc->cursg;
 			BUG_ON(!sg);
@@ -319,14 +310,14 @@ static void pata_ps2_cmd_handle(void *data, void *harg)
 	struct ps2_port *pp = (struct ps2_port *)harg;
 	struct ata_port *ap = pp->ap;
 	struct ata_queued_cmd *qc;
-	struct ps2_ata_cmd_rw *cmd_reply = (struct ps2_ata_cmd_rw *)data;
+	//struct ps2_ata_cmd_rw *cmd_reply = (struct ps2_ata_cmd_rw *)data;
 	u8 status;
 	unsigned long flags;
 
-	if (cmd_reply->write)
-		dev_info(pp->dev, "cmd write done received\n");
-	else
-		;//dev_info(pp->dev, "cmd read  done received\n");
+	//if (cmd_reply->write)
+	//	dev_info(pp->dev, "cmd write done received\n");
+	//else
+	//	dev_info(pp->dev, "cmd read  done received\n");
 
 	spin_lock_irqsave(&ap->host->lock, flags);
 
