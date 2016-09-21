@@ -45,7 +45,8 @@ struct ps2_ata_cmd_rw {
 	/* Data: 8 bytes */
 	u32 write:1;
 	u32 callback:1;
-	u32 sg_count:30;
+	u32 ata0_intr:1;
+	u32 sg_count:29;
 	u32 _spare;
 };
 #define MAX_CMD_SIZE (112)
@@ -310,7 +311,7 @@ static void pata_ps2_cmd_handle(void *data, void *harg)
 	struct ps2_port *pp = (struct ps2_port *)harg;
 	struct ata_port *ap = pp->ap;
 	struct ata_queued_cmd *qc;
-	//struct ps2_ata_cmd_rw *cmd_reply = (struct ps2_ata_cmd_rw *)data;
+	struct ps2_ata_cmd_rw *cmd_reply = (struct ps2_ata_cmd_rw *)data;
 	u8 status;
 	unsigned long flags;
 
@@ -329,8 +330,10 @@ static void pata_ps2_cmd_handle(void *data, void *harg)
 			qc->cursg = sg_next(qc->cursg);
 			pata_ps2_dma_start(qc);
 		}
-		else {
-			/* Wait for completion */
+		else if ((cmd_reply->write == 0) || (cmd_reply->ata0_intr == 1)) {
+			/* Wait for completion when there is no more data to transfer
+			 *  - NOTE: When writing we need to wait for the completion interrupt
+			 */
 			status = ioread8(ap->ioaddr.altstatus_addr);
 			if (status & (ATA_BUSY | ATA_DRQ)) {
 				dev_info(pp->dev, "status = %d\n", status);
