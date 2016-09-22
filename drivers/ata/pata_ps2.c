@@ -90,6 +90,7 @@ static void pata_ps2_rpcend_callback(void *arg)
 #define SPD_REGBASE			0x14000000 // EE
 //#define SPD_REGBASE			0x10000000 // IOP
 #define SPD_R_XFR_CTRL			0x32
+#define SPD_R_0x38			0x38
 #define SPD_R_IF_CTRL			0x64
 #define   SPD_IF_ATA_RESET		  0x80
 #define   SPD_IF_DMA_ENABLE		  0x04
@@ -147,30 +148,33 @@ static void pata_ps2_set_dmamode(struct ata_port *ap, struct ata_device *adev)
 	}
 }
 
+static void pata_ps2_set_dir(int dir)
+{
+	u16 val;
+
+	/* 0x38 ??: What does this do? this register also holds the number of blocks ready for DMA */
+	outw(3, SPD_REGBASE + SPD_R_0x38);
+
+	/* IF_CTRL: Save first bit (0=MWDMA, 1=UDMA) */
+	val = inw(SPD_REGBASE + SPD_R_IF_CTRL) & 1;
+	/* IF_CTRL: Set direction */
+	val |= (dir != 0) ? 0x4c : 0x4e;
+	outw(val, SPD_REGBASE + SPD_R_IF_CTRL);
+
+	/* XFR_CTRL: Set direction */
+	outw(dir | 0x6, SPD_REGBASE + SPD_R_XFR_CTRL);
+}
+
 static int dir = -1;
 static void pata_ps2_dma_setup(struct ata_queued_cmd *qc)
 {
 	struct ata_port *ap = qc->ap;
-	struct ps2_port *pp = qc->ap->private_data;
-	struct ps2_ata_rpc_set_dir *rpc_buffer;
-	int rv, newdir;
+	int newdir;
 
 	newdir = ((qc->tf.flags & ATA_TFLAG_WRITE) == 0) ? 0 : 1;
 	if (dir != newdir) {
 		dir = newdir;
-
-		rpc_buffer = (struct ps2_ata_rpc_set_dir *)pata_ps2_cmd_buffer;
-		rpc_buffer->dir = dir;
-
-		rv = ps2sif_callrpc(&cd_rpc, PATA_PS2_SET_DIR, SIF_RPCM_NOWAIT
-				, rpc_buffer, sizeof(struct ps2_ata_rpc_set_dir)
-				, NULL, 0
-				, pata_ps2_rpcend_callback, (void *)pp);
-		if (rv < 0) {
-			dev_err(pp->dev, "rpc setup: PATA_PS2_SET_DIR rv = %d.\n", rv);
-			return;
-		}
-		wait_for_completion(&pp->rpc_completion);
+		pata_ps2_set_dir(dir);
 	}
 
 	/* issue r/w command */
