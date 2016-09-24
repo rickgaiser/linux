@@ -46,6 +46,7 @@ EXPORT_SYMBOL(ps2_pccard_present);
 
 static struct ps2_bootinfo ps2_bootinfox;
 struct ps2_bootinfo *ps2_bootinfo = &ps2_bootinfox;
+EXPORT_SYMBOL(ps2_bootinfo);
 
 static void sbios_prints(const char *text)
 {

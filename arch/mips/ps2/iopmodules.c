@@ -258,6 +258,7 @@ ssize_t load_module_firmware(const char *path, size_t count)
 
 	return rv;
 }
+EXPORT_SYMBOL(load_module_firmware);
 
 static ssize_t load_module_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
 {
