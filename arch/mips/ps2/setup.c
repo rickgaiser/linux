@@ -28,6 +28,7 @@
 #include <linux/types.h>
 #include <linux/platform_device.h>
 #include <linux/ata_platform.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/bootinfo.h>
 
@@ -63,6 +64,11 @@ static struct resource ps2_usb_ohci_resources[] = {
 static struct platform_device ps2_usb_ohci_device = {
 	.name		= "ps2_ohci",
 	.id		= -1,
+	.dev = {
+		/* DMA memory is allocated from IOP heap. */
+		.dma_mask		= &ps2_usb_ohci_device.dev.coherent_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
 	.num_resources	= ARRAY_SIZE(ps2_usb_ohci_resources),
 	.resource	= ps2_usb_ohci_resources,
 };
