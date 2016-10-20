@@ -6,6 +6,12 @@
 #define __must_check			__attribute__((warn_unused_result))
 #define __compiler_offsetof(a, b)	__builtin_offsetof(a, b)
 
+/*
+ * A trick to suppress uninitialized variable warning without generating any
+ * code
+ */
+#define uninitialized_var(x) x = x
+
 /* Mark functions as cold. gcc will assume any path leading to a call
    to them will be unlikely.  This means a lot of manual unlikely()s
    are unnecessary now for any paths leading to the usual suspects
