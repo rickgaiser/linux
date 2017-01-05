@@ -1491,7 +1491,14 @@ static const struct pci_device_id pci_ids[] = {
 #ifdef CONFIG_X86_PS4
 	{
 		.vendor		= PCI_VENDOR_ID_SONY,
-		.device		= PCI_DEVICE_ID_SONY_ASDHCI,
+		.device		= PCI_DEVICE_ID_SONY_AEOLIA_SDHCI,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.driver_data	= (kernel_ulong_t)&sdhci_aeolia,
+	},
+	{
+		.vendor		= PCI_VENDOR_ID_SONY,
+		.device		= PCI_DEVICE_ID_SONY_BELIZE_SDHCI,
 		.subvendor	= PCI_ANY_ID,
 		.subdevice	= PCI_ANY_ID,
 		.driver_data	= (kernel_ulong_t)&sdhci_aeolia,

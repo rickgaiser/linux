@@ -221,6 +221,15 @@ struct irq_domain *apcie_create_irq_domain(struct apcie_dev *sc)
 	return msi_create_irq_domain(NULL, &apcie_msi_domain_info, parent);
 }
 
+static int apcie_is_compatible_device(struct pci_dev *dev)
+{
+	if (!dev || dev->vendor != PCI_VENDOR_ID_SONY) {
+		return 0;
+	}
+	return (dev->device == PCI_DEVICE_ID_SONY_AEOLIA_PCIE ||
+		dev->device == PCI_DEVICE_ID_SONY_BELIZE_PCIE);
+}
+
 int apcie_assign_irqs(struct pci_dev *dev, int nvec)
 {
 	int ret;
@@ -231,8 +240,7 @@ int apcie_assign_irqs(struct pci_dev *dev, int nvec)
 
 	sc_devfn = (dev->devfn & ~7) | AEOLIA_FUNC_ID_PCIE;
 	sc_dev = pci_get_slot(dev->bus, sc_devfn);
-	if (!sc_dev || sc_dev->vendor != PCI_VENDOR_ID_SONY ||
-		sc_dev->device != PCI_DEVICE_ID_SONY_APCIE) {
+	if (!apcie_is_compatible_device(sc_dev)) {
 		dev_err(&dev->dev, "apcie: this is not an Aeolia device\n");
 		ret = -ENODEV;
 		goto fail;
@@ -504,7 +512,8 @@ static int apcie_resume(struct pci_dev *dev) {
 #endif
 
 static const struct pci_device_id apcie_pci_tbl[] = {
-	{ PCI_DEVICE(PCI_VENDOR_ID_SONY, PCI_DEVICE_ID_SONY_APCIE), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_SONY, PCI_DEVICE_ID_SONY_AEOLIA_PCIE), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_SONY, PCI_DEVICE_ID_SONY_BELIZE_PCIE), },
 	{ }
 };
 MODULE_DEVICE_TABLE(pci, apcie_pci_tbl);

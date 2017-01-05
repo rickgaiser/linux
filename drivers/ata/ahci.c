@@ -564,7 +564,8 @@ static const struct pci_device_id ahci_pci_tbl[] = {
 	{ PCI_DEVICE(0x1c44, 0x8000), board_ahci },
 
 	/* Sony (PS4) */
-	{ PCI_VDEVICE(SONY, PCI_DEVICE_ID_SONY_AAHCI), board_ahci },
+	{ PCI_VDEVICE(SONY, PCI_DEVICE_ID_SONY_AEOLIA_AHCI), board_ahci },
+	{ PCI_VDEVICE(SONY, PCI_DEVICE_ID_SONY_BELIZE_AHCI), board_ahci },
 
 	/* Generic, PCI class code for AHCI */
 	{ PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID,
