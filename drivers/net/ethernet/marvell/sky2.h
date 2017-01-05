@@ -817,13 +817,7 @@ enum {
 
 /* Different PHY Types */
 enum {
-#ifdef CONFIG_X86_PS4
-	// On ps4, 1 is the phy in-use and 2 is a (possibly nonexistant) switch
-	// Change it here for now to keep diffs small
-	PHY_ADDR_MARV	= 1,
-#else
 	PHY_ADDR_MARV	= 0,
-#endif
 };
 
 #define RB_ADDR(offs, queue) ((u16) B16_RAM_REGS + (queue) + (offs))
@@ -2313,6 +2307,8 @@ struct sky2_hw {
 	struct timer_list    watchdog_timer;
 	struct work_struct   restart_work;
 	wait_queue_head_t    msi_wait;
+
+	u8		     phy_addr;
 
 	char		     irq_name[0];
 };

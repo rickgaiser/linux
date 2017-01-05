@@ -170,7 +170,7 @@ static int gm_phy_write(struct sky2_hw *hw, unsigned port, u16 reg, u16 val)
 
 	gma_write16(hw, port, GM_SMI_DATA, val);
 	gma_write16(hw, port, GM_SMI_CTRL,
-		    GM_SMI_CT_PHY_AD(PHY_ADDR_MARV) | GM_SMI_CT_REG_AD(reg));
+		    GM_SMI_CT_PHY_AD(hw->phy_addr) | GM_SMI_CT_REG_AD(reg));
 
 	for (i = 0; i < PHY_RETRIES; i++) {
 		u16 ctrl = gma_read16(hw, port, GM_SMI_CTRL);
@@ -195,7 +195,7 @@ static int __gm_phy_read(struct sky2_hw *hw, unsigned port, u16 reg, u16 *val)
 {
 	int i;
 
-	gma_write16(hw, port, GM_SMI_CTRL, GM_SMI_CT_PHY_AD(PHY_ADDR_MARV)
+	gma_write16(hw, port, GM_SMI_CTRL, GM_SMI_CT_PHY_AD(hw->phy_addr)
 		    | GM_SMI_CT_REG_AD(reg) | GM_SMI_CT_OP_RD);
 
 	for (i = 0; i < PHY_RETRIES; i++) {
@@ -1394,7 +1394,7 @@ static int sky2_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 
 	switch (cmd) {
 	case SIOCGMIIPHY:
-		data->phy_id = PHY_ADDR_MARV;
+		data->phy_id = hw->phy_addr;
 
 		/* fallthru */
 	case SIOCGMIIREG: {
@@ -3254,19 +3254,24 @@ static void sky2_reset(struct sky2_hw *hw)
 	u16 status;
 	int i;
 	u32 hwe_mask = Y2_HWE_ALL_MASK;
-	u32 val1, val2;
 
-	sky2_write32(hw, 0x60, 0x32100);
-	sky2_write32(hw, 0x64, 6);
-	sky2_write32(hw, 0x68, 0x63b9c);
-	sky2_write32(hw, 0x6c, 0x300);
-	val1 = sky2_read32(hw, 0x158);
-	val2 = sky2_read32(hw, 0x160);
-	printk("sky2_probe:unk-vals:%08x %08x\n", val1, val2);
-	val1 &= ~0x33333333;
-	val2 &= ~0xCC00000;
-	sky2_write32(hw, 0x158, val1);
-	sky2_write32(hw, 0x160, val2);
+#ifdef CONFIG_X86_PS4
+	if (pdev->vendor == PCI_VENDOR_ID_SONY &&
+	    pdev->device == PCI_DEVICE_ID_SONY_AEOLIA_GBE) {
+		u32 val1, val2;
+
+		sky2_write32(hw, 0x60, 0x32100);
+		sky2_write32(hw, 0x64, 6);
+		sky2_write32(hw, 0x68, 0x63b9c);
+		sky2_write32(hw, 0x6c, 0x300);
+		val1 = sky2_read32(hw, 0x158);
+		val2 = sky2_read32(hw, 0x160);
+		val1 &= ~0x33333333;
+		val2 &= ~0xCC00000;
+		sky2_write32(hw, 0x158, val1);
+		sky2_write32(hw, 0x160, val2);
+	}
+#endif
 
 	/* disable ASF */
 	if (hw->chip_id == CHIP_ID_YUKON_EX
@@ -3332,56 +3337,61 @@ static void sky2_reset(struct sky2_hw *hw)
 		sky2_pci_write32(hw, PCI_DEV_REG3, P_CLK_MACSEC_DIS);
 	}
 
-	// This causes the device to hang on aeolia
-	//if (hw->chip_id == CHIP_ID_YUKON_OPT ||
-	//    hw->chip_id == CHIP_ID_YUKON_PRM ||
-	//    hw->chip_id == CHIP_ID_YUKON_OP_2) {
-	//	u16 reg;
-	//
-	//	if (hw->chip_id == CHIP_ID_YUKON_OPT && hw->chip_rev == 0) {
-	//		/* disable PCI-E PHY power down (set PHY reg 0x80, bit 7 */
-	//		sky2_write32(hw, Y2_PEX_PHY_DATA, (0x80UL << 16) | (1 << 7));
-	//
-	//		/* set PHY Link Detect Timer to 1.1 second (11x 100ms) */
-	//		reg = 10;
-	//
-	//		/* re-enable PEX PM in PEX PHY debug reg. 8 (clear bit 12) */
-	//		sky2_write32(hw, Y2_PEX_PHY_DATA, PEX_DB_ACCESS | (0x08UL << 16));
-	//	} else {
-	//		/* set PHY Link Detect Timer to 0.4 second (4x 100ms) */
-	//		reg = 3;
-	//	}
-	//
-	//	reg <<= PSM_CONFIG_REG4_TIMER_PHY_LINK_DETECT_BASE;
-	//	reg |= PSM_CONFIG_REG4_RST_PHY_LINK_DETECT;
-	//
-	//	/* reset PHY Link Detect */
-	//	sky2_write8(hw, B2_TST_CTRL1, TST_CFG_WRITE_ON);
-	//	sky2_pci_write16(hw, PSM_CONFIG_REG4, reg);
-	//
-	//	/* check if PSMv2 was running before */
-	//	reg = sky2_pci_read16(hw, PSM_CONFIG_REG3);
-	//	if (reg & PCI_EXP_LNKCTL_ASPMC)
-	//		/* restore the PCIe Link Control register */
-	//		sky2_pci_write16(hw, pdev->pcie_cap + PCI_EXP_LNKCTL,
-	//				 reg);
-	//
-	//	if (hw->chip_id == CHIP_ID_YUKON_PRM &&
-	//		hw->chip_rev == CHIP_REV_YU_PRM_A0) {
-	//		/* change PHY Interrupt polarity to low active */
-	//		reg = sky2_read16(hw, GPHY_CTRL);
-	//		sky2_write16(hw, GPHY_CTRL, reg | GPC_INTPOL);
-	//
-	//		/* adapt HW for low active PHY Interrupt */
-	//		reg = sky2_read16(hw, Y2_CFG_SPC + PCI_LDO_CTRL);
-	//		sky2_write16(hw, Y2_CFG_SPC + PCI_LDO_CTRL, reg | PHY_M_UNDOC1);
-	//	}
-	//
-	//	sky2_write8(hw, B2_TST_CTRL1, TST_CFG_WRITE_OFF);
-	//
-	//	/* re-enable PEX PM in PEX PHY debug reg. 8 (clear bit 12) */
-	//	sky2_write32(hw, Y2_PEX_PHY_DATA, PEX_DB_ACCESS | (0x08UL << 16));
-	//}
+#ifdef CONFIG_X86_PS4
+	if (pdev->vendor == PCI_VENDOR_ID_SONY &&
+	    pdev->device == PCI_DEVICE_ID_SONY_AEOLIA_GBE) {
+		; /* Do not perform phy resets on aeolia, it will hang */
+	} else
+#endif
+	if (hw->chip_id == CHIP_ID_YUKON_OPT ||
+	    hw->chip_id == CHIP_ID_YUKON_PRM ||
+	    hw->chip_id == CHIP_ID_YUKON_OP_2) {
+		u16 reg;
+
+		if (hw->chip_id == CHIP_ID_YUKON_OPT && hw->chip_rev == 0) {
+			/* disable PCI-E PHY power down (set PHY reg 0x80, bit 7 */
+			sky2_write32(hw, Y2_PEX_PHY_DATA, (0x80UL << 16) | (1 << 7));
+
+			/* set PHY Link Detect Timer to 1.1 second (11x 100ms) */
+			reg = 10;
+
+			/* re-enable PEX PM in PEX PHY debug reg. 8 (clear bit 12) */
+			sky2_write32(hw, Y2_PEX_PHY_DATA, PEX_DB_ACCESS | (0x08UL << 16));
+		} else {
+			/* set PHY Link Detect Timer to 0.4 second (4x 100ms) */
+			reg = 3;
+		}
+
+		reg <<= PSM_CONFIG_REG4_TIMER_PHY_LINK_DETECT_BASE;
+		reg |= PSM_CONFIG_REG4_RST_PHY_LINK_DETECT;
+
+		/* reset PHY Link Detect */
+		sky2_write8(hw, B2_TST_CTRL1, TST_CFG_WRITE_ON);
+		sky2_pci_write16(hw, PSM_CONFIG_REG4, reg);
+
+		/* check if PSMv2 was running before */
+		reg = sky2_pci_read16(hw, PSM_CONFIG_REG3);
+		if (reg & PCI_EXP_LNKCTL_ASPMC)
+			/* restore the PCIe Link Control register */
+			sky2_pci_write16(hw, pdev->pcie_cap + PCI_EXP_LNKCTL,
+					 reg);
+
+		if (hw->chip_id == CHIP_ID_YUKON_PRM &&
+			hw->chip_rev == CHIP_REV_YU_PRM_A0) {
+			/* change PHY Interrupt polarity to low active */
+			reg = sky2_read16(hw, GPHY_CTRL);
+			sky2_write16(hw, GPHY_CTRL, reg | GPC_INTPOL);
+
+			/* adapt HW for low active PHY Interrupt */
+			reg = sky2_read16(hw, Y2_CFG_SPC + PCI_LDO_CTRL);
+			sky2_write16(hw, Y2_CFG_SPC + PCI_LDO_CTRL, reg | PHY_M_UNDOC1);
+		}
+
+		sky2_write8(hw, B2_TST_CTRL1, TST_CFG_WRITE_OFF);
+
+		/* re-enable PEX PM in PEX PHY debug reg. 8 (clear bit 12) */
+		sky2_write32(hw, Y2_PEX_PHY_DATA, PEX_DB_ACCESS | (0x08UL << 16));
+	}
 
 	/* Clear I2C IRQ noise */
 	sky2_write32(hw, B2_I2C_IRQ, 1);
@@ -3616,7 +3626,7 @@ static int sky2_get_settings(struct net_device *dev, struct ethtool_cmd *ecmd)
 
 	ecmd->transceiver = XCVR_INTERNAL;
 	ecmd->supported = sky2_supported_modes(hw);
-	ecmd->phy_address = PHY_ADDR_MARV;
+	ecmd->phy_address = hw->phy_addr;
 	if (sky2_is_copper(hw)) {
 		ecmd->port = PORT_TP;
 		ethtool_cmd_speed_set(ecmd, sky2->speed);
@@ -5048,6 +5058,16 @@ static int sky2_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		dev_err(&pdev->dev, "cannot map device registers\n");
 		goto err_out_free_hw;
 	}
+
+	hw->phy_addr = PHY_ADDR_MARV;
+#ifdef CONFIG_X86_PS4
+	if (pdev->vendor == PCI_VENDOR_ID_SONY &&
+	    pdev->device == PCI_DEVICE_ID_SONY_AEOLIA_GBE) {
+		/* aeolia supports some sort of "l2 switch" */
+		/* it has normal phy at addr 1 with a possibly-active switch ot addr 2 */
+		hw->phy_addr = 1;
+	}
+#endif
 
 	err = sky2_init(hw);
 	if (err)
