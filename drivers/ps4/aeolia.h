@@ -92,6 +92,10 @@ enum apcie_subfunc {
 #define APCIE_SPM_ICC_BASE		0x2c000
 #define APCIE_SPM_ICC_SIZE		0x1000
 
+/* Boot params passed from southbridge */
+#define APCIE_SPM_BP_BASE		0x2f000
+#define APCIE_SPM_BP_SIZE		0x20
+
 #define APCIE_SPM_ICC_REQUEST		0x0
 #define APCIE_SPM_ICC_REPLY		0x800
 

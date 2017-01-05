@@ -51,6 +51,7 @@
 
 #ifdef CONFIG_X86_PS4
 #include <asm/ps4.h>
+#include "../../../ps4/aeolia.h"
 #endif
 
 #include "sky2.h"
@@ -4764,15 +4765,51 @@ static const struct net_device_ops sky2_netdev_ops[2] = {
   },
 };
 
+#ifdef CONFIG_X86_PS4
+/* NOTE: This region is no longer referenced by current ps4 x86 code. */
+/* However it still contains the mac address. */
+static void aeolia_get_mac_address(struct sky2_hw *hw, unsigned char *addr) {
+	u8 default_addr[ETH_ALEN] = { 0x52, 0x54, 0x00, 0xf0, 0xff, 0x0f };
+	unsigned int mem_devfn = PCI_DEVFN(PCI_SLOT(hw->pdev->devfn), AEOLIA_FUNC_ID_MEM);
+	struct pci_dev *mem_dev;
+	phys_addr_t bp_base;
+	void __iomem *bp;
+
+	memcpy(addr, default_addr, sizeof(default_addr));
+
+	mem_dev = pci_get_slot(hw->pdev->bus, mem_devfn);
+	if (!mem_dev) {
+		dev_err(&hw->pdev->dev, "sky2: could not get handle to mem device\n");
+		return;
+	}
+
+	bp_base = pci_resource_start(mem_dev, 5) + APCIE_SPM_BP_BASE;
+	if (!request_mem_region(bp_base, APCIE_SPM_BP_SIZE, "spm.bp")) {
+		dev_err(&hw->pdev->dev, "sky2: failed to request bootparam SPM region\n");
+		return;
+	}
+
+	bp = ioremap(bp_base, APCIE_SPM_BP_SIZE);
+	if (!bp) {
+		dev_err(&hw->pdev->dev, "sky2: failed to map bootparam portion of SPM\n");
+		goto release_bp;
+	}
+
+	memcpy_fromio(addr, bp, ETH_ALEN);
+
+	iounmap(bp);
+release_bp:
+	release_mem_region(bp_base, APCIE_SPM_BP_SIZE);
+}
+#endif
+
 /* Initialize network device */
 static struct net_device *sky2_init_netdev(struct sky2_hw *hw, unsigned port,
 					   int highmem, int wol)
 {
 	struct sky2_port *sky2;
 	struct net_device *dev = alloc_etherdev(sizeof(*sky2));
-	//const void *iap;
-	// TODO this should be read from SPM
-	u8 mac_address[ETH_ALEN] = { 0x52, 0x54, 0x00, 0xf0, 0xff, 0x0f };
+	const void *iap;
 
 	if (!dev)
 		return NULL;
@@ -4838,20 +4875,23 @@ static struct net_device *sky2_init_netdev(struct sky2_hw *hw, unsigned port,
 	else
 		dev->max_mtu = ETH_JUMBO_MTU;
 
-	/* try to get mac address in the following order:
-	 * 1) from device tree data
-	 * 2) from internal registers set by bootloader
-	 */
-	/*
-	iap = of_get_mac_address(hw->pdev->dev.of_node);
-	if (iap)
-		memcpy(dev->dev_addr, iap, ETH_ALEN);
-	else
-		memcpy_fromio(dev->dev_addr, hw->regs + B2_MAC_1 + port * 8,
-			      ETH_ALEN);
-	*/
-	printk("FIXME: Using static eth0 mac addr\n");
-	memcpy(dev->dev_addr, mac_address, ETH_ALEN);
+#ifdef CONFIG_X86_PS4
+	if (hw->pdev->vendor == PCI_VENDOR_ID_SONY) {
+		aeolia_get_mac_address(hw, dev->dev_addr);
+	} else
+#endif
+	{
+		/* try to get mac address in the following order:
+		* 1) from device tree data
+		* 2) from internal registers set by bootloader
+		*/
+		iap = of_get_mac_address(hw->pdev->dev.of_node);
+		if (iap)
+			memcpy(dev->dev_addr, iap, ETH_ALEN);
+		else
+			memcpy_fromio(dev->dev_addr, hw->regs + B2_MAC_1 + port * 8,
+				ETH_ALEN);
+	}
 
 	/* if the address is invalid, use a random value */
 	if (!is_valid_ether_addr(dev->dev_addr)) {
@@ -5064,7 +5104,7 @@ static int sky2_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (pdev->vendor == PCI_VENDOR_ID_SONY &&
 	    pdev->device == PCI_DEVICE_ID_SONY_AEOLIA_GBE) {
 		/* aeolia supports some sort of "l2 switch" */
-		/* it has normal phy at addr 1 with a possibly-active switch ot addr 2 */
+		/* it has normal phy at addr 1 with a possibly-active switch at addr 2 */
 		hw->phy_addr = 1;
 	}
 #endif
