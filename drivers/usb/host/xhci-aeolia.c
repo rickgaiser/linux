@@ -243,6 +243,7 @@ static int xhci_aeolia_resume(struct device *dev)
 		if (retval < 0)
 			return retval;
 	}
+	return 0;
 }
 
 static const struct dev_pm_ops xhci_aeolia_pm_ops = {
