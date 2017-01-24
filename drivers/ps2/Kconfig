@@ -21,6 +21,7 @@ config PS2_ETHER_SMAPRPC
 	default y
 	depends on SONY_PS2
 	depends on NET
+	select PHYLIB
 	help
 	   This enables the driver for the builtin network adapter of the slim PSTwo.
 

@@ -1,5 +1,5 @@
 ps2smap-objs			:= smap.o smap_mdio.o
-ps2smaprpc-objs		:= smaprpc.o
+ps2smaprpc-objs				:= smaprpc.o smaprpc_mdio.o
 ps2pad-objs			:= pad.o
 ps2cdvd-objs		:= cdvd.o cdvdaltdev.o cdvddev.o cdvdutil.o
 ps2mc-objs			:= mc.o mcdir.o mcfile.o mcdev.o
