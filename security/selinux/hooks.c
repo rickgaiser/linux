@@ -97,6 +97,11 @@
 #define NUM_SEL_MNT_OPTS 5
 
 extern struct security_operations *security_ops;
+/* TmmSecure start */
+#ifdef SECSUBLSM_ENABLE
+extern struct security_operations seclsm_Operations;
+#endif
+/* TmmSecure end */
 
 /* SECMARK reference count */
 static atomic_t selinux_secmark_refcount = ATOMIC_INIT(0);
@@ -418,8 +423,11 @@ static int sb_finish_set_opts(struct super_block *sb)
 	    sbsec->behavior > ARRAY_SIZE(labeling_behaviors))
 		sbsec->flags &= ~SE_SBLABELSUPP;
 
-	/* Special handling for sysfs. Is genfs but also has setxattr handler*/
-	if (strncmp(sb->s_type->name, "sysfs", sizeof("sysfs")) == 0)
+	/* Special handling. Is genfs but also has in-core setxattr handler*/
+	if (!strcmp(sb->s_type->name, "sysfs") ||
+	    !strcmp(sb->s_type->name, "pstore") ||
+	    !strcmp(sb->s_type->name, "debugfs") ||
+	    !strcmp(sb->s_type->name, "rootfs"))
 		sbsec->flags |= SE_SBLABELSUPP;
 
 	/* Initialize the root inode. */
@@ -1520,6 +1528,11 @@ static int inode_has_perm(const struct cred *cred,
 	sid = cred_sid(cred);
 	isec = inode->i_security;
 
+	if (unlikely(!isec)){
+		printk(KERN_CRIT "[SELinux] isec is NULL, inode->i_security is already freed. \n");
+		return -EACCES;
+	}
+
 	return avc_has_perm_flags(sid, isec->sid, isec->sclass, perms, adp, flags);
 }
 
@@ -1853,6 +1866,68 @@ static inline u32 open_file_to_av(struct file *file)
 
 /* Hook functions begin here. */
 
+static int selinux_binder_set_context_mgr(struct task_struct *mgr)
+{
+	u32 mysid = current_sid();
+	u32 mgrsid = task_sid(mgr);
+
+	return avc_has_perm(mysid, mgrsid, SECCLASS_BINDER, BINDER__SET_CONTEXT_MGR, NULL);
+}
+
+static int selinux_binder_transaction(struct task_struct *from, struct task_struct *to)
+{
+	u32 mysid = current_sid();
+	u32 fromsid = task_sid(from);
+	u32 tosid = task_sid(to);
+	int rc;
+
+	if (mysid != fromsid) {
+		rc = avc_has_perm(mysid, fromsid, SECCLASS_BINDER, BINDER__IMPERSONATE, NULL);
+		if (rc)
+			return rc;
+	}
+
+	return avc_has_perm(fromsid, tosid, SECCLASS_BINDER, BINDER__CALL, NULL);
+}
+
+static int selinux_binder_transfer_binder(struct task_struct *from, struct task_struct *to)
+{
+	u32 fromsid = task_sid(from);
+	u32 tosid = task_sid(to);
+
+	return avc_has_perm(fromsid, tosid, SECCLASS_BINDER, BINDER__TRANSFER, NULL);
+}
+
+static int selinux_binder_transfer_file(struct task_struct *from, struct task_struct *to, struct file *file)
+{
+	u32 sid = task_sid(to);
+	struct file_security_struct *fsec = file->f_security;
+	struct inode *inode = file->f_path.dentry->d_inode;
+	struct inode_security_struct *isec = inode->i_security;
+	struct common_audit_data ad;
+	struct selinux_audit_data sad = {0,};
+	int rc;
+
+	COMMON_AUDIT_DATA_INIT(&ad, PATH);
+	ad.selinux_audit_data = &sad;
+	ad.u.path = file->f_path;
+
+	if (sid != fsec->sid) {
+		rc = avc_has_perm(sid, fsec->sid,
+				  SECCLASS_FD,
+				  FD__USE,
+				  &ad);
+		if (rc)
+			return rc;
+	}
+	// Do not apply permission checks to private files.
+	if (unlikely(IS_PRIVATE(inode)))
+		return 0;
+
+	return avc_has_perm(sid, isec->sid, isec->sclass, file_to_av(file),
+			    &ad);
+}
+
 static int selinux_ptrace_access_check(struct task_struct *child,
 				     unsigned int mode)
 {
@@ -1861,6 +1936,16 @@ static int selinux_ptrace_access_check(struct task_struct *child,
 	rc = cap_ptrace_access_check(child, mode);
 	if (rc)
 		return rc;
+
+/* TmmSecure start */
+#ifdef SECSUBLSM_ENABLE
+#ifndef CONFIG_ARCH_GOLDFISH
+   	rc = seclsm_Operations.ptrace_access_check (child, mode);
+   	if (rc)
+   		return rc;
+#endif
+#endif
+/* TmmSecure end */
 
 	if (mode & PTRACE_MODE_READ) {
 		u32 sid = current_sid();
@@ -2051,6 +2136,13 @@ static int selinux_bprm_set_creds(struct linux_binprm *bprm)
 		new_tsec->sid = old_tsec->exec_sid;
 		/* Reset exec SID on execve. */
 		new_tsec->exec_sid = 0;
+
+		/*
+		 * Minimize confusion: if no_new_privs and a transition is
+		 * explicitly requested, then fail the exec.
+		 */
+		if (bprm->unsafe & LSM_UNSAFE_NO_NEW_PRIVS)
+			return -EPERM;
 	} else {
 		/* Check for a default transition on this program. */
 		rc = security_transition_sid(old_tsec->sid, isec->sid,
@@ -2064,7 +2156,8 @@ static int selinux_bprm_set_creds(struct linux_binprm *bprm)
 	ad.selinux_audit_data = &sad;
 	ad.u.path = bprm->file->f_path;
 
-	if (bprm->file->f_path.mnt->mnt_flags & MNT_NOSUID)
+	if ((bprm->file->f_path.mnt->mnt_flags & MNT_NOSUID) ||
+	    (bprm->unsafe & LSM_UNSAFE_NO_NEW_PRIVS))
 		new_tsec->sid = old_tsec->sid;
 
 	if (new_tsec->sid == old_tsec->sid) {
@@ -2556,13 +2649,22 @@ static int selinux_sb_statfs(struct dentry *dentry)
 	return superblock_has_perm(cred, dentry->d_sb, FILESYSTEM__GETATTR, &ad);
 }
 
-static int selinux_mount(char *dev_name,
+static int selinux_mount(const char *dev_name,
 			 struct path *path,
-			 char *type,
+			 const char *type,
 			 unsigned long flags,
 			 void *data)
 {
 	const struct cred *cred = current_cred();
+
+/* TmmSecure start */
+#ifdef SECSUBLSM_ENABLE
+   	int rc;
+   	rc = seclsm_Operations.sb_mount (dev_name, path,type,flags,data);
+   	if (rc)
+   		return rc;
+#endif
+/* TmmSecure end */
 
 	if (flags & MS_REMOUNT)
 		return superblock_has_perm(cred, path->dentry->d_sb,
@@ -3020,6 +3122,48 @@ static void selinux_file_free_security(struct file *file)
 	file_free_security(file);
 }
 
+/*
+ * Check whether a task has the ioctl permission and cmd
+ * operation to an inode.
+ */
+int ioctl_has_perm(const struct cred *cred, struct file *file,
+		u32 requested, u16 cmd)
+{
+	struct common_audit_data ad;
+	struct file_security_struct *fsec = file->f_security;
+	struct inode *inode = file->f_path.dentry->d_inode;
+	struct inode_security_struct *isec = inode->i_security;
+	struct lsm_ioctlop_audit ioctl;
+	u32 ssid = cred_sid(cred);
+	struct selinux_audit_data sad = {0,};
+	int rc;
+	u8 driver = cmd >> 8;
+	u8 xperm = cmd & 0xff;
+
+	COMMON_AUDIT_DATA_INIT(&ad, IOCTL_OP);
+	ad.u.op = &ioctl;
+	ad.u.op->cmd = cmd;
+	ad.selinux_audit_data = &sad;
+	ad.u.op->path = file->f_path;
+
+	if (ssid != fsec->sid) {
+		rc = avc_has_perm(ssid, fsec->sid,
+				SECCLASS_FD,
+				FD__USE,
+				&ad);
+		if (rc)
+			goto out;
+	}
+
+	if (unlikely(IS_PRIVATE(inode)))
+		return 0;
+
+	rc = avc_has_extended_perms(ssid, isec->sid, isec->sclass,
+			requested, driver, xperm, &ad);
+out:
+	return rc;
+}
+
 static int selinux_file_ioctl(struct file *file, unsigned int cmd,
 			      unsigned long arg)
 {
@@ -3062,7 +3206,7 @@ static int selinux_file_ioctl(struct file *file, unsigned int cmd,
 	 * to the file's ioctl() function.
 	 */
 	default:
-		error = file_has_perm(cred, file, FILE__IOCTL);
+		error = ioctl_has_perm(cred, file, FILE__IOCTL, (u16) cmd);
 	}
 	return error;
 }
@@ -3268,6 +3412,15 @@ static int selinux_dentry_open(struct file *file, const struct cred *cred)
 	struct file_security_struct *fsec;
 	struct inode *inode;
 	struct inode_security_struct *isec;
+
+/* TmmSecure start */
+#ifdef SECSUBLSM_ENABLE
+   	int rc;
+   	rc = seclsm_Operations.dentry_open (file, cred);
+   	if (rc)
+   		return rc;
+#endif
+/* TmmSecure end */
 
 	inode = file->f_path.dentry->d_inode;
 	fsec = file->f_security;
@@ -3813,6 +3966,11 @@ static int sock_has_perm(struct task_struct *task, struct sock *sk, u32 perms)
 	struct selinux_audit_data sad = {0,};
 	struct lsm_network_audit net = {0,};
 	u32 tsid = task_sid(task);
+
+	if (unlikely(!sksec)){
+		printk(KERN_CRIT "[SELinux] sksec is NULL, socket is already freed. \n");
+		return -EINVAL;
+	}
 
 	if (sksec->sid == SECINITSID_KERNEL)
 		return 0;
@@ -5644,8 +5802,50 @@ static int selinux_key_getsecurity(struct key *key, char **_buffer)
 
 #endif
 
+/* TmmSecure start */
+#ifdef SECSUBLSM_ENABLE
+#ifdef CONFIG_SECURITY_PATH
+static int selinux_path_symlink (struct path *dir, struct dentry *dentry,
+			     const char *old_name)
+{
+	int rc=0;
+
+   	rc = seclsm_Operations.path_symlink (dir, dentry, old_name);
+	return rc;
+}
+
+static int selinux_path_link (struct dentry *old_dentry, struct path *new_dir,
+			  struct dentry *new_dentry)
+{
+	int rc=0;
+   	rc = seclsm_Operations.path_link (old_dentry, new_dir,new_dentry);
+	return rc;
+}
+
+static int selinux_path_rename (struct path *old_dir, struct dentry *old_dentry,
+			    struct path *new_dir, struct dentry *new_dentry)
+{
+	int rc=0;
+   	rc = seclsm_Operations.path_rename (old_dir, old_dentry, new_dir, new_dentry);
+	return rc;
+}
+#endif
+static int selinux_bprm_check_security (struct linux_binprm *bprm)
+{
+	int rc=0;
+   	rc = seclsm_Operations.bprm_check_security (bprm);
+	return rc;
+}
+#endif
+/* TmmSecure end */
+
 static struct security_operations selinux_ops = {
 	.name =				"selinux",
+
+	.binder_set_context_mgr =	selinux_binder_set_context_mgr,
+	.binder_transaction =		selinux_binder_transaction,
+	.binder_transfer_binder =	selinux_binder_transfer_binder,
+	.binder_transfer_file =		selinux_binder_transfer_file,
 
 	.ptrace_access_check =		selinux_ptrace_access_check,
 	.ptrace_traceme =		selinux_ptrace_traceme,
@@ -5677,6 +5877,17 @@ static struct security_operations selinux_ops = {
 	.sb_clone_mnt_opts =		selinux_sb_clone_mnt_opts,
 	.sb_parse_opts_str = 		selinux_parse_opts_str,
 
+
+/* TmmSecure start */
+#ifdef SECSUBLSM_ENABLE
+#ifdef CONFIG_SECURITY_PATH
+	.path_symlink = 		selinux_path_symlink,
+	.path_link = 		selinux_path_link,
+	.path_rename = 		selinux_path_rename,
+#endif
+	.bprm_check_security =      selinux_bprm_check_security,
+#endif
+/* TmmSecure end */
 
 	.inode_alloc_security =		selinux_inode_alloc_security,
 	.inode_free_security =		selinux_inode_free_security,
@@ -5841,6 +6052,12 @@ static struct security_operations selinux_ops = {
 #endif
 };
 
+/* TmmSecure start */
+#ifdef SECSUBLSM_ENABLE
+void seclsm_init(void);
+#endif
+/* TmmSecure end */
+
 static __init int selinux_init(void)
 {
 	if (!security_module_enable(&selinux_ops)) {
@@ -5873,6 +6090,11 @@ static __init int selinux_init(void)
 	else
 		printk(KERN_DEBUG "SELinux:  Starting in permissive mode\n");
 
+    /* TmmSecure start */
+#ifdef SECSUBLSM_ENABLE
+   seclsm_init();
+#endif
+    /* TmmSecure end */
 	return 0;
 }
 

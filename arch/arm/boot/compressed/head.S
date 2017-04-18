@@ -9,6 +9,11 @@
  * published by the Free Software Foundation.
  */
 #include <linux/linkage.h>
+#include <asm/memory.h>
+
+#ifdef CONFIG_KEXEC_HARDBOOT
+#include <asm/kexec.h>
+#endif
 
 	.arch	armv7-a
 /*
@@ -134,7 +139,31 @@ start:
 		.word	_edata			@ zImage end address
  THUMB(		.thumb			)
 1:		mov	r7, r1			@ save architecture ID
-		mov	r8, r2			@ save atags pointer
+		teq	r0, #0			@ Check for kexec_boot_atags.
+		movne	r8, r0			@ Save kexec_boot_tags.
+		moveq	r8, r2			@ save atags pointer
+
+#ifdef CONFIG_KEXEC_HARDBOOT
+		/* Check hardboot page for a kexec kernel. */
+		ldr	r3, =KEXEC_HB_PAGE_ADDR
+		ldr	r0, [r3]
+		ldr	r1, =KEXEC_HB_PAGE_MAGIC
+		teq	r0, r1
+		bne	not_booting_other
+
+		/* Clear hardboot page magic to avoid boot loop. */
+		mov	r0, #0
+		str	r0, [r3]
+
+		/* Load boot arguments and jump to kexec kernel. */
+		ldr	r0, [r3, #12]	@ kexec_boot_atags (r2: boot_atags)
+		ldr	r1, [r3, #8]	@ kexec_mach_type
+		ldr	pc, [r3, #4]	@ kexec_start_address
+
+		.ltorg
+
+not_booting_other:
+#endif
 
 #ifndef __ARM_ARCH_2__
 		/*
@@ -391,8 +420,11 @@ wont_overwrite:
  *   sp  = stack pointer
  */
 		orrs	r1, r0, r5
+#ifndef CONFIG_CRYPTO_FIPS
 		beq	not_relocated
-
+#else
+        beq not_relocated_copy
+#endif
 		add	r11, r11, r0
 		add	r12, r12, r0
 
@@ -405,6 +437,9 @@ wont_overwrite:
 		add	r2, r2, r0
 		add	r3, r3, r0
 
+#ifdef CONFIG_CRYPTO_FIPS
+        bl copy_compressed
+#endif
 		/*
 		 * Relocate all entries in the GOT table.
 		 * Bump bss entries to _edata + dtb size
@@ -457,6 +492,41 @@ not_relocated:	mov	r0, #0
 		add	r2, sp, #0x10000	@ 64k max
 		mov	r3, r7
 		bl	decompress_kernel
+
+/* Copy the kernel tagged list (atags):
+ *
+ * The kernel requires atags to be located in a direct-mapped region,
+ * usually below the kernel in the first 16 kB of RAM.  If they're above
+ * (the start of) the kernel, they need to be copied to a suitable
+ * location, e.g., the machine-defined params_phys.
+ *
+ * Still need to make sure that the copied tags don't overwrite either the
+ * kernel or decompressor code (or rather, the remainder of it since
+ * everything up to here has already been executed).
+ *
+ * r4: zreladdr (kernel start)
+ * r8: atags */
+
+		/* Don't need to copy atags if they're already below the kernel. */
+		cmp	r8, r4
+		blo	call_kernel
+
+		/* r1: min(zreladdr, pc) */
+		mov	r1, pc
+		cmp	r4, r1
+		movlo	r1, r4
+
+		/* Compute max space for atags, if max <= 0 don't copy. */
+		ldr	r0, =params_phys	@ dest
+		subs	r2, r1, r0		@ max = min(zreladdr, pc) - dest
+		bls	call_kernel
+
+		/* Copy atags to params_phys. */
+		mov	r1, r8			@ src
+		bl	copy_atags
+		mov	r8, r0
+
+call_kernel:
 		bl	cache_clean_flush
 		bl	cache_off
 		mov	r0, #0			@ must be zero
@@ -464,6 +534,8 @@ not_relocated:	mov	r0, #0
 		mov	r2, r8			@ restore atags pointer
  ARM(		mov	pc, r4	)		@ call kernel
  THUMB(		bx	r4	)		@ entry point is always ARM
+
+		.ltorg
 
 		.align	2
 		.type	LC0, #object
@@ -483,6 +555,46 @@ params:		ldr	r0, =0x10000100		@ params_phys for RPC
 		mov	pc, lr
 		.ltorg
 		.align
+#endif
+
+/*
+ * change@ksingh.sra-dallas - Copying the zImage to a secure location 
+ * this copy will be used to computer integrity for FIPS validation
+ */
+#ifdef CONFIG_CRYPTO_FIPS
+not_relocated_copy:
+		bl copy_compressed
+		b not_relocated
+
+copy_compressed:
+		// preserve the registers
+		PUSH {r1, r2, r4, r8, r9, r10}
+
+		// source address - zImage load address
+		movw r1, #:lower16:FIPS_KERNEL_RAM_BASE
+		movt r1, #:upper16:FIPS_KERNEL_RAM_BASE
+
+		// destination address - location where zImage copy will be made
+		movw r9, #:lower16:CONFIG_CRYPTO_FIPS_INTEG_COPY_ADDRESS
+	        movt r9, #:upper16:CONFIG_CRYPTO_FIPS_INTEG_COPY_ADDRESS
+
+1:
+		// makes the copy of zImage
+		ldmia	r1!, {r10}
+		stmia	r9!, {r10}
+		cmp	r1, r2
+		blo	1b
+
+		// copy the padded hash of zImage
+		.rept 8
+		ldmia	r1!, {r10}
+		stmia	r9!, {r10}
+		.endr
+
+		// restore the registers
+		POP {r1, r2, r4, r8, r9, r10}
+		// go back to where we came from
+		mov	pc, lr
 #endif
 
 /*
@@ -568,6 +680,12 @@ __armv3_mpu_cache_on:
 		mcr	p15, 0, r0, c7, c0, 0	@ invalidate whole cache v3
 		mov	pc, lr
 
+#ifdef CONFIG_CPU_DCACHE_WRITETHROUGH
+#define CB_BITS 0x08
+#else
+#define CB_BITS 0x0c
+#endif
+
 __setup_mmu:	sub	r3, r4, #16384		@ Page directory size
 		bic	r3, r3, #0xff		@ Align the pointer
 		bic	r3, r3, #0x3f00
@@ -576,20 +694,22 @@ __setup_mmu:	sub	r3, r4, #16384		@ Page directory size
  * bits for the RAM area only.
  */
 		mov	r0, r3
+#if defined(PLAT_PHYS_OFFSET) && defined(END_MEM)
+		ldr	r9, =PLAT_PHYS_OFFSET	@ start of RAM
+		ldr	r10, =END_MEM		@ end of RAM
+#else
 		mov	r9, r0, lsr #18
 		mov	r9, r9, lsl #18		@ start of RAM
 		add	r10, r9, #0x10000000	@ a reasonable RAM size
-		mov	r1, #0x12
-		orr	r1, r1, #3 << 10
+#endif
+		mov	r1, #0x12		@ XN|U + section mapping
+		orr	r1, r1, #3 << 10	@ AP=11
 		add	r2, r3, #16384
 1:		cmp	r1, r9			@ if virt > start of RAM
-#ifdef CONFIG_CPU_DCACHE_WRITETHROUGH
-		orrhs	r1, r1, #0x08		@ set cacheable
-#else
-		orrhs	r1, r1, #0x0c		@ set cacheable, bufferable
-#endif
-		cmp	r1, r10			@ if virt > end of RAM
-		bichs	r1, r1, #0x0c		@ clear cacheable, bufferable
+		cmphs	r10, r1			@   && end of RAM > virt
+		bic	r1, r1, #0x1c		@ clear XN|U + C + B
+		orrlo	r1, r1, #0x10		@ Set XN|U for non-RAM
+		orrhs	r1, r1, r6		@ set RAM section settings
 		str	r1, [r0], #4		@ 1:1 mapping
 		add	r1, r1, #1048576
 		teq	r0, r2
@@ -600,7 +720,7 @@ __setup_mmu:	sub	r3, r4, #16384		@ Page directory size
  * so there is no map overlap problem for up to 1 MB compressed kernel.
  * If the execution is in RAM then we would only be duplicating the above.
  */
-		mov	r1, #0x1e
+		orr	r1, r6, #0x04		@ ensure B is set for this
 		orr	r1, r1, #3 << 10
 		mov	r2, pc
 		mov	r2, r2, lsr #20
@@ -612,6 +732,15 @@ __setup_mmu:	sub	r3, r4, #16384		@ Page directory size
 		mov	pc, lr
 ENDPROC(__setup_mmu)
 
+@ Enable unaligned access on v6, to allow better code generation
+@ for the decompressor C code:
+__armv6_mmu_cache_on:
+		mrc	p15, 0, r0, c1, c0, 0	@ read SCTLR
+		bic	r0, r0, #2		@ A (no unaligned access fault)
+		orr	r0, r0, #1 << 22	@ U (v6 unaligned access model)
+		mcr	p15, 0, r0, c1, c0, 0	@ write SCTLR
+		b	__armv4_mmu_cache_on
+
 __arm926ejs_mmu_cache_on:
 #ifdef CONFIG_CPU_DCACHE_WRITETHROUGH
 		mov	r0, #4			@ put dcache in WT mode
@@ -621,6 +750,7 @@ __arm926ejs_mmu_cache_on:
 __armv4_mmu_cache_on:
 		mov	r12, lr
 #ifdef CONFIG_MMU
+		mov	r6, #CB_BITS | 0x12	@ U
 		bl	__setup_mmu
 		mov	r0, #0
 		mcr	p15, 0, r0, c7, c10, 4	@ drain write buffer
@@ -642,6 +772,7 @@ __armv7_mmu_cache_on:
 #ifdef CONFIG_MMU
 		mrc	p15, 0, r11, c0, c1, 4	@ read ID_MMFR0
 		tst	r11, #0xf		@ VMSA
+		movne	r6, #CB_BITS | 0x02	@ !XN
 		blne	__setup_mmu
 		mov	r0, #0
 		mcr	p15, 0, r0, c7, c10, 4	@ drain write buffer
@@ -652,12 +783,15 @@ __armv7_mmu_cache_on:
 		bic	r0, r0, #1 << 28	@ clear SCTLR.TRE
 		orr	r0, r0, #0x5000		@ I-cache enable, RR cache replacement
 		orr	r0, r0, #0x003c		@ write buffer
+		bic	r0, r0, #2		@ A (no unaligned access fault)
+		orr	r0, r0, #1 << 22	@ U (v6 unaligned access model)
+						@ (needed for ARM1176)
 #ifdef CONFIG_MMU
 #ifdef CONFIG_CPU_ENDIAN_BE8
 		orr	r0, r0, #1 << 25	@ big-endian page tables
 #endif
 		orrne	r0, r0, #1		@ MMU enabled
-		movne	r1, #-1
+		movne	r1, #0xfffffffd		@ domain 0 = client
 		mcrne	p15, 0, r3, c2, c0, 0	@ load page table pointer
 		mcrne	p15, 0, r1, c3, c0, 0	@ load domain access control
 #endif
@@ -670,6 +804,7 @@ __armv7_mmu_cache_on:
 
 __fa526_cache_on:
 		mov	r12, lr
+		mov	r6, #CB_BITS | 0x12	@ U
 		bl	__setup_mmu
 		mov	r0, #0
 		mcr	p15, 0, r0, c7, c7, 0	@ Invalidate whole cache
@@ -684,6 +819,7 @@ __fa526_cache_on:
 
 __arm6_mmu_cache_on:
 		mov	r12, lr
+		mov	r6, #CB_BITS | 0x12	@ U
 		bl	__setup_mmu
 		mov	r0, #0
 		mcr	p15, 0, r0, c7, c0, 0	@ invalidate whole cache v3
@@ -768,6 +904,8 @@ proc_types:
 @		b	__arm6_mmu_cache_off
 @		b	__armv3_mmu_cache_flush
 
+#if !defined(CONFIG_CPU_V7)
+		/* This collides with some V7 IDs, preventing correct detection */
 		.word	0x00000000		@ old ARM ID
 		.word	0x0000f000
 		mov	pc, lr
@@ -776,6 +914,7 @@ proc_types:
  THUMB(		nop				)
 		mov	pc, lr
  THUMB(		nop				)
+#endif
 
 		.word	0x41007000		@ ARM7/710
 		.word	0xfff8fe00
@@ -887,7 +1026,7 @@ proc_types:
 
 		.word	0x0007b000		@ ARMv6
 		.word	0x000ff000
-		W(b)	__armv4_mmu_cache_on
+		W(b)	__armv6_mmu_cache_on
 		W(b)	__armv4_mmu_cache_off
 		W(b)	__armv6_mmu_cache_flush
 

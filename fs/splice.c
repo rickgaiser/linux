@@ -850,13 +850,6 @@ EXPORT_SYMBOL(splice_from_pipe_feed);
  */
 int splice_from_pipe_next(struct pipe_inode_info *pipe, struct splice_desc *sd)
 {
-	/*
-	 * Check for signal early to make process killable when there are
-	 * always buffers available
-	 */
-	if (signal_pending(current))
-		return -ERESTARTSYS;
-
 	while (!pipe->nrbufs) {
 		if (!pipe->writers)
 			return 0;
@@ -935,7 +928,6 @@ ssize_t __splice_from_pipe(struct pipe_inode_info *pipe, struct splice_desc *sd,
 
 	splice_from_pipe_begin(sd);
 	do {
-		cond_resched();
 		ret = splice_from_pipe_next(pipe, sd);
 		if (ret > 0)
 			ret = splice_from_pipe_feed(pipe, sd, actor);
@@ -1021,8 +1013,10 @@ generic_file_splice_write(struct pipe_inode_info *pipe, struct file *out,
 		mutex_lock_nested(&inode->i_mutex, I_MUTEX_CHILD);
 		ret = file_remove_suid(out);
 		if (!ret) {
-			file_update_time(out);
-			ret = splice_from_pipe_feed(pipe, &sd, pipe_to_file);
+			ret = file_update_time(out);
+			if (!ret)
+				ret = splice_from_pipe_feed(pipe, &sd,
+							    pipe_to_file);
 		}
 		mutex_unlock(&inode->i_mutex);
 	} while (ret > 0);

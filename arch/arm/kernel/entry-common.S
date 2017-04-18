@@ -21,6 +21,9 @@
 
 #include "entry-header.S"
 
+#ifdef TIMA_EMUL_ENABLED
+#include <asm/entry-macro-tima.S>
+#endif
 
 	.align	5
 /*
@@ -417,7 +420,12 @@ ENTRY(vector_swi)
 #ifdef CONFIG_ALIGNMENT_TRAP
 	ldr	ip, __cr_alignment
 	ldr	ip, [ip]
+#ifndef TIMA_EMUL_ENABLED
 	mcr	p15, 0, ip, c1, c0		@ update control register
+#else
+	tima_macro_emul_crit_instn ip, 0x3f808221
+
+#endif
 #endif
 	enable_irq
 
@@ -444,12 +452,7 @@ ENTRY(vector_swi)
 
 #ifdef CONFIG_SECCOMP
 	tst	r10, #_TIF_SECCOMP
-	beq	1f
-	mov	r0, scno
-	bl	__secure_computing	
-	add	r0, sp, #S_R0 + S_OFF		@ pointer to regs
-	ldmia	r0, {r0 - r3}			@ have to reload r0 - r3
-1:
+	bne	__sys_trace
 #endif
 
 	tst	r10, #_TIF_SYSCALL_WORK		@ are we tracing syscalls?

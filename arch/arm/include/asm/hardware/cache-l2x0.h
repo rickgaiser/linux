@@ -66,8 +66,10 @@
 #define   L2X0_STNDBY_MODE_EN		(1 << 0)
 
 /* Registers shifts and masks */
+#define L2X0_CACHE_ID_REV_MASK		(0x3f)
 #define L2X0_CACHE_ID_PART_MASK		(0xf << 6)
 #define L2X0_CACHE_ID_PART_L210		(1 << 6)
+#define L2X0_CACHE_ID_PART_L220         (2 << 6)
 #define L2X0_CACHE_ID_PART_L310		(3 << 6)
 #define L2X0_CACHE_ID_RTL_MASK          0x3f
 #define L2X0_CACHE_ID_RTL_R0P0          0x0
@@ -89,7 +91,9 @@
 #define L2X0_AUX_CTRL_ASSOCIATIVITY_SHIFT	16
 #define L2X0_AUX_CTRL_WAY_SIZE_SHIFT		17
 #define L2X0_AUX_CTRL_WAY_SIZE_MASK		(0x7 << 17)
+#define L2X0_AUX_CTRL_EVNT_MON_BUS_EN_SHIFT	20
 #define L2X0_AUX_CTRL_SHARE_OVERRIDE_SHIFT	22
+#define L2X0_AUX_CTRL_L2_FORCE_NWA_SHIFT	23
 #define L2X0_AUX_CTRL_NS_LOCKDOWN_SHIFT		26
 #define L2X0_AUX_CTRL_NS_INT_CTRL_SHIFT		27
 #define L2X0_AUX_CTRL_DATA_PREFETCH_SHIFT	28
@@ -101,8 +105,18 @@
 #define L2X0_LATENCY_CTRL_WR_SHIFT	8
 
 #define L2X0_ADDR_FILTER_EN		1
+#define L2X0_INTR_MASK_ECNTR           1
+
+#define REV_PL310_R2P0				4
+
+#define L2X0_PREFETCH_CTRL_OFFSET_SHIFT		0
+#define L2X0_PREFETCH_CTRL_WRAP8_INC_SHIFT	23
+#define L2X0_PREFETCH_CTRL_WRAP8_SHIFT		30
 
 #ifndef __ASSEMBLY__
+extern void l2cc_suspend(void);
+extern void l2cc_resume(void);
+extern void l2x0_cache_sync(void);
 extern void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask);
 #if defined(CONFIG_CACHE_L2X0) && defined(CONFIG_OF)
 extern int l2x0_of_init(u32 aux_val, u32 aux_mask);
@@ -129,6 +143,49 @@ struct l2x0_regs {
 };
 
 extern struct l2x0_regs l2x0_saved_regs;
+
+#ifdef CONFIG_HW_PERF_EVENTS
+/* L220/PL310 Event control register values */
+#define L2X0_EVENT_CNT_ENABLE_MASK             1
+#define L2X0_EVENT_CNT_ENABLE                  1
+#define L2X0_EVENT_CNT_RESET(x)                (1 << (x+1))
+
+/* Bit-shifted event counter config values */
+enum l2x0_perf_types {
+	L2X0_EVENT_CNT_CFG_DISABLED             = 0x0,
+	L2X0_EVENT_CNT_CFG_CO                   = 0x1,
+	L2X0_EVENT_CNT_CFG_DRHIT                = 0x2,
+	L2X0_EVENT_CNT_CFG_DRREQ                = 0x3,
+	L2X0_EVENT_CNT_CFG_DWHIT                = 0x4,
+	L2X0_EVENT_CNT_CFG_DWREQ                = 0x5,
+	L2X0_EVENT_CNT_CFG_DWTREQ               = 0x6,
+	L2X0_EVENT_CNT_CFG_IRHIT                = 0x7,
+	L2X0_EVENT_CNT_CFG_IRREQ                = 0x8,
+	L2X0_EVENT_CNT_CFG_WA                   = 0x9,
+
+	/* PL310 only */
+	L2X0_EVENT_CNT_CFG_IPFALLOC             = 0xA,
+	L2X0_EVENT_CNT_CFG_EPFHIT               = 0xB,
+	L2X0_EVENT_CNT_CFG_EPFALLOC             = 0xC,
+	L2X0_EVENT_CNT_CFG_SRRCVD               = 0xD,
+	L2X0_EVENT_CNT_CFG_SRCONF               = 0xE,
+	L2X0_EVENT_CNT_CFG_EPFRCVD              = 0xF,
+};
+
+#define L220_EVENT_CNT_CFG_MAX                 L2X0_EVENT_CNT_CFG_WA
+#define PL310_EVENT_CNT_CFG_MAX                L2X0_EVENT_CNT_CFG_EPFRCVD
+
+#define L2X0_EVENT_CNT_CFG_SHIFT               2
+#define L2X0_EVENT_CNT_CFG_MASK                (0xF << 2)
+
+#define L2X0_EVENT_CNT_CFG_INTR_MASK           0x3
+#define L2X0_EVENT_CNT_CFG_INTR_DISABLED       0x0
+#define L2X0_EVENT_CNT_CFG_INTR_INCREMENT      0x1
+#define L2X0_EVENT_CNT_CFG_INTR_OVERFLOW       0x2
+
+#define L2X0_NUM_COUNTERS                      2
+
+#endif /* CONFIG_HW_PERF_EVENTS */
 
 #endif /* __ASSEMBLY__ */
 

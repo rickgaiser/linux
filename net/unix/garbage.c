@@ -185,7 +185,7 @@ static void scan_inflight(struct sock *x, void (*func)(struct unix_sock *),
 					 * have been added to the queues after
 					 * starting the garbage collection
 					 */
-					if (test_bit(UNIX_GC_CANDIDATE, &u->gc_flags)) {
+					if (u->gc_candidate) {
 						hit = true;
 						func(u);
 					}
@@ -254,7 +254,7 @@ static void inc_inflight_move_tail(struct unix_sock *u)
 	 * of the list, so that it's checked even if it was already
 	 * passed over
 	 */
-	if (test_bit(UNIX_GC_MAYBE_CYCLE, &u->gc_flags))
+	if (u->gc_maybe_cycle)
 		list_move_tail(&u->link, &gc_candidates);
 }
 
@@ -315,8 +315,8 @@ void unix_gc(void)
 		BUG_ON(total_refs < inflight_refs);
 		if (total_refs == inflight_refs) {
 			list_move_tail(&u->link, &gc_candidates);
-			__set_bit(UNIX_GC_CANDIDATE, &u->gc_flags);
-			__set_bit(UNIX_GC_MAYBE_CYCLE, &u->gc_flags);
+			u->gc_candidate = 1;
+			u->gc_maybe_cycle = 1;
 		}
 	}
 
@@ -344,7 +344,7 @@ void unix_gc(void)
 
 		if (atomic_long_read(&u->inflight) > 0) {
 			list_move_tail(&u->link, &not_cycle_list);
-			__clear_bit(UNIX_GC_MAYBE_CYCLE, &u->gc_flags);
+			u->gc_maybe_cycle = 0;
 			scan_children(&u->sk, inc_inflight_move_tail, NULL);
 		}
 	}
@@ -356,7 +356,7 @@ void unix_gc(void)
 	 */
 	while (!list_empty(&not_cycle_list)) {
 		u = list_entry(not_cycle_list.next, struct unix_sock, link);
-		__clear_bit(UNIX_GC_CANDIDATE, &u->gc_flags);
+		u->gc_candidate = 0;
 		list_move_tail(&u->link, &gc_inflight_list);
 	}
 

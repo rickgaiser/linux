@@ -45,6 +45,7 @@
 #include <linux/debugobjects.h>
 #include <linux/sched.h>
 #include <linux/timer.h>
+#include <linux/freezer.h>
 
 #include <asm/uaccess.h>
 
@@ -84,6 +85,8 @@ DEFINE_PER_CPU(struct hrtimer_cpu_base, hrtimer_bases) =
 		},
 	}
 };
+
+static DEFINE_PER_CPU(int, hrtimer_base_lock_init) = {-1};
 
 static const int hrtimer_clock_to_base_table[MAX_CLOCKS] = {
 	[CLOCK_REALTIME]	= HRTIMER_BASE_REALTIME,
@@ -848,6 +851,8 @@ u64 hrtimer_forward(struct hrtimer *timer, ktime_t now, ktime_t interval)
 	u64 orun = 1;
 	ktime_t delta;
 
+	WARN_ON(hrtimer_is_queued(timer));
+
 	delta = ktime_sub(now, hrtimer_get_expires(timer));
 
 	if (delta.tv64 < 0)
@@ -1555,7 +1560,7 @@ static int __sched do_nanosleep(struct hrtimer_sleeper *t, enum hrtimer_mode mod
 			t->task = NULL;
 
 		if (likely(t->task))
-			schedule();
+			freezable_schedule();
 
 		hrtimer_cancel(&t->timer);
 		mode = HRTIMER_MODE_ABS;
@@ -1671,7 +1676,14 @@ SYSCALL_DEFINE2(nanosleep, struct timespec __user *, rqtp,
 static void __cpuinit init_hrtimers_cpu(int cpu)
 {
 	struct hrtimer_cpu_base *cpu_base = &per_cpu(hrtimer_bases, cpu);
+	int *lock_init = &per_cpu(hrtimer_base_lock_init, cpu);
 	int i;
+
+	if ((*lock_init) != cpu) {
+		*lock_init = cpu;
+		raw_spin_lock_init(&cpu_base->lock);
+		pr_info("hrtimer base lock initialized for cpu%d\n", cpu);
+	}
 
 	for (i = 0; i < HRTIMER_MAX_CLOCK_BASES; i++) {
 		cpu_base->clock_base[i].cpu_base = cpu_base;

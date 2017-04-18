@@ -1587,8 +1587,7 @@ struct sctp_association {
 		 *             : order.  When DATA chunks are out of order,
 		 *             : SACK's are not delayed (see Section 6).
 		 */
-		__u8    sack_needed:1,     /* Do we need to sack the peer? */
-			zero_window_announced:1;
+		__u8    sack_needed;     /* Do we need to sack the peer? */
 		__u32	sack_cnt;
 
 		/* These are capabilities which our peer advertised.  */
