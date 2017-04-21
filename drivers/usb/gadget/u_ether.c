@@ -448,12 +448,34 @@ static void process_rx_w(struct work_struct *work)
 		if (status < 0
 				|| ETH_HLEN > skb->len
 				|| skb->len > ETH_FRAME_LEN) {
+#ifdef CONFIG_USB_NCM_SUPPORT_MTU_CHANGE
+		/*
+		  Need to revisit net->mtu  does not include header size incase of changed MTU
+		*/
+			if(!strcmp(dev->port_usb->func.name,"ncm")) {
+				if (status < 0
+					|| ETH_HLEN > skb->len
+					|| skb->len > (dev->net->mtu + ETH_HLEN)) {
+					printk(KERN_ERR "usb: %s  drop incase of NCM rx length %d\n",__func__,skb->len);
+				} else {
+					printk(KERN_ERR "usb: %s  Dont drop incase of NCM rx length %d\n",__func__,skb->len);
+					goto process_frame;
+				}
+			}
+#endif
 			dev->net->stats.rx_errors++;
 			dev->net->stats.rx_length_errors++;
+#ifndef CONFIG_USB_NCM_SUPPORT_MTU_CHANGE
 			DBG(dev, "rx length %d\n", skb->len);
+#else
+			printk(KERN_ERR "usb: %s Drop rx length %d\n",__func__,skb->len);
+#endif
 			dev_kfree_skb_any(skb);
 			continue;
 		}
+#ifdef CONFIG_USB_NCM_SUPPORT_MTU_CHANGE
+process_frame:
+#endif
 		skb->protocol = eth_type_trans(skb, dev->net);
 		dev->net->stats.rx_packets++;
 		dev->net->stats.rx_bytes += skb->len;
@@ -544,7 +566,16 @@ static void tx_complete(struct usb_ep *ep, struct usb_request *req)
 				retval = usb_ep_queue(in, new_req, GFP_ATOMIC);
 				switch (retval) {
 				default:
+#ifndef CONFIG_USB_NCM_SUPPORT_MTU_CHANGE
 					DBG(dev, "tx queue err %d\n", retval);
+#else
+					printk(KERN_ERR"usb:%s tx queue err %d\n",__func__, retval);
+#endif
+					new_req->length = 0;
+					spin_lock(&dev->req_lock);
+					list_add_tail(&new_req->list,
+							&dev->tx_reqs);
+					spin_unlock(&dev->req_lock);
 					break;
 				case 0:
 					spin_lock(&dev->req_lock);
@@ -554,7 +585,13 @@ static void tx_complete(struct usb_ep *ep, struct usb_request *req)
 				}
 			} else {
 				spin_lock(&dev->req_lock);
-				list_add(&new_req->list, &dev->tx_reqs);
+				/*
+				 * Put the idle request at the back of the
+				 * queue. The xmit function will put the
+				 * unfinished request at the beginning of the
+				 * queue.
+				 */
+				list_add_tail(&new_req->list, &dev->tx_reqs);
 				spin_unlock(&dev->req_lock);
 			}
 		} else {
@@ -574,7 +611,7 @@ static inline int is_promisc(u16 cdc_filter)
 	return cdc_filter & USB_CDC_PACKET_TYPE_PROMISCUOUS;
 }
 
-static void alloc_tx_buffer(struct eth_dev *dev)
+static int alloc_tx_buffer(struct eth_dev *dev)
 {
 	struct list_head	*act;
 	struct usb_request	*req;
@@ -591,7 +628,19 @@ static void alloc_tx_buffer(struct eth_dev *dev)
 		if (!req->buf)
 			req->buf = kmalloc(dev->tx_req_bufsize,
 						GFP_ATOMIC);
+			if (!req->buf)
+				goto free_buf;
 	}
+	return 0;
+
+free_buf:
+	/* tx_req_bufsize = 0 retries mem alloc on next eth_start_xmit */
+	dev->tx_req_bufsize = 0;
+	list_for_each(act, &dev->tx_reqs) {
+		req = container_of(act, struct usb_request, list);
+		kfree(req->buf);
+	}
+	return -ENOMEM;
 }
 
 static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
@@ -623,8 +672,11 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	}
 
 	/* Allocate memory for tx_reqs to support multi packet transfer */
-	if (multi_pkt_xfer && !dev->tx_req_bufsize)
-		alloc_tx_buffer(dev);
+	if (multi_pkt_xfer && !dev->tx_req_bufsize) {
+		retval = alloc_tx_buffer(dev);
+		if (retval < 0)
+			return -ENOMEM;
+	}
 
 	/* apply outgoing CDC or RNDIS filters */
 	if (!is_promisc(cdc_filter)) {
@@ -687,6 +739,13 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	spin_unlock_irqrestore(&dev->req_lock, flags);
 
 	if (multi_pkt_xfer) {
+		if (dev->tx_req_bufsize < req->length + skb->len) {
+			pr_err("%s: drop %lx, dev->tx_req_bufsize %d, \
+					req->length %d, skb->len %d\n", __func__,
+					(unsigned long)req->buf, dev->tx_req_bufsize,
+					req->length, skb->len);
+			goto drop;
+		}
 		memcpy(req->buf + req->length, skb->data, skb->len);
 		req->length = req->length + skb->len;
 		length = req->length;
@@ -760,6 +819,8 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	if (retval) {
 		if (!multi_pkt_xfer)
 			dev_kfree_skb_any(skb);
+		else
+			req->length = 0;
 drop:
 		dev->net->stats.tx_dropped++;
 		spin_lock_irqsave(&dev->req_lock, flags);
@@ -857,7 +918,9 @@ static int eth_stop(struct net_device *net)
 
 /*-------------------------------------------------------------------------*/
 
+#ifndef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 static u8 host_ethaddr[ETH_ALEN];
+#endif
 
 /* initial value, changed by "ifconfig usb0 hw ether xx:xx:xx:xx:xx:xx" */
 static char *dev_addr;
@@ -890,6 +953,7 @@ static int get_ether_addr(const char *str, u8 *dev_addr)
 	return 1;
 }
 
+#ifndef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 static int get_host_ether_addr(u8 *str, u8 *dev_addr)
 {
 	memcpy(dev_addr, str, ETH_ALEN);
@@ -900,6 +964,7 @@ static int get_host_ether_addr(u8 *str, u8 *dev_addr)
 	memcpy(str, dev_addr, ETH_ALEN);
 	return 1;
 }
+#endif
 
 static struct eth_dev *the_dev;
 
@@ -980,6 +1045,10 @@ int gether_setup_name(struct usb_gadget *g, u8 ethaddr[ETH_ALEN],
 		dev_warn(&g->dev,
 			"using random %s ethernet address\n", "self");
 
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	memcpy(dev->host_mac, ethaddr, ETH_ALEN);
+	printk(KERN_DEBUG "usb: set unique host mac\n");
+#else
 	if (get_host_ether_addr(host_ethaddr, dev->host_mac))
 		dev_warn(&g->dev, "using random %s ethernet address\n", "host");
 	else
@@ -987,7 +1056,7 @@ int gether_setup_name(struct usb_gadget *g, u8 ethaddr[ETH_ALEN],
 
 	if (ethaddr)
 		memcpy(ethaddr, dev->host_mac, ETH_ALEN);
-
+#endif
 	net->netdev_ops = &eth_netdev_ops;
 
 	SET_ETHTOOL_OPS(net, &ops);
@@ -1001,9 +1070,6 @@ int gether_setup_name(struct usb_gadget *g, u8 ethaddr[ETH_ALEN],
 		dev_dbg(&g->dev, "register_netdev failed, %d\n", status);
 		free_netdev(net);
 	} else {
-		INFO(dev, "MAC %pM\n", net->dev_addr);
-		INFO(dev, "HOST MAC %pM\n", dev->host_mac);
-
 		the_dev = dev;
 
 		/* two kinds of host-initiated state changes:

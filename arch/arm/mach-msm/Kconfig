@@ -50,13 +50,7 @@ config ARCH_MSM7X30
 	select MSM_REMOTE_SPINLOCK_DEKKERS
 	select ARCH_SPARSEMEM_ENABLE
 	select ARCH_HAS_HOLES_MEMORYMODEL
-	select MEMORY_HOTPLUG
-	select MEMORY_HOTREMOVE
-	select ARCH_ENABLE_MEMORY_HOTPLUG
-	select ARCH_ENABLE_MEMORY_HOTREMOVE
 	select MIGRATION
-	select ARCH_MEMORY_PROBE
-	select ARCH_MEMORY_REMOVE
 	select MSM_GPIOMUX
 	select RESERVE_FIRST_PAGE
 	select MSM_DALRPC
@@ -178,6 +172,10 @@ config ARCH_MSM8960
 	select MSM_KRAIT_WFE_FIXUP
 	select MSM_IOMMU_GPU_SYNC
 	select MSM_CPU_PWRCTL
+	select GENERIC_TIME_VSYSCALL
+	select USE_USER_ACCESSIBLE_TIMERS
+	select ARM_USE_USER_ACCESSIBLE_TIMERS
+	select MSM_USE_USER_ACCESSIBLE_TIMERS
 
 config ARCH_MSM8930
 	bool "MSM8930"
@@ -212,6 +210,10 @@ config ARCH_MSM8930
 	select MSM_KRAIT_WFE_FIXUP
 	select MSM_IOMMU_GPU_SYNC
 	select MSM_CPU_PWRCTL
+	select GENERIC_TIME_VSYSCALL
+	select USE_USER_ACCESSIBLE_TIMERS
+	select ARM_USE_USER_ACCESSIBLE_TIMERS
+	select MSM_USE_USER_ACCESSIBLE_TIMERS
 
 config ARCH_APQ8064
 	bool "APQ8064"
@@ -239,8 +241,13 @@ config ARCH_APQ8064
 	select ARCH_SUPPORTS_MSI
 	select ARM_HAS_SG_CHAIN
 	select MSM_KRAIT_WFE_FIXUP
+	select SPARSEMEM_ALLOC_MEM_MAP_TOGETHER if SPARSEMEM
 	select MSM_IOMMU_GPU_SYNC
 	select MSM_CPU_PWRCTL
+	select GENERIC_TIME_VSYSCALL
+	select USE_USER_ACCESSIBLE_TIMERS
+	select ARM_USE_USER_ACCESSIBLE_TIMERS
+	select MSM_USE_USER_ACCESSIBLE_TIMERS
 
 config ARCH_MSM8974
 	bool "MSM8974"
@@ -401,6 +408,15 @@ config  MSM_SMP
 	select HAVE_SMP
 	bool
 
+config MSM_SMD_PKT
+	bool "SMD Packet Driver"
+	depends on MSM_SMD
+	default n
+	help
+	  Provides a binary SMD non-muxed packet port interface.
+
+	  If in doubt, say yes.
+
 config  ARCH_MSM_SCORPIONMP
 	select ARCH_MSM_SCORPION
 	select MSM_SMP
@@ -414,7 +430,6 @@ config  ARCH_MSM_KRAITMP
 	select HAVE_ARCH_HAS_CURRENT_TIMER
 	select MSM_JTAG if CORESIGHT_ETM
 	bool
-	select HAVE_HW_BRKPT_RESERVED_RW_ACCESS
 
 config  ARCH_MSM_CORTEXMP
 	select MSM_SMP
@@ -425,7 +440,6 @@ config  MSM_KRAIT_WFE_FIXUP
 
 config  ARCH_MSM_CORTEX_A5
 	bool
-	select HAVE_HW_BRKPT_RESERVED_RW_ACCESS
 
 config ARCH_MSM7X27A
 	bool
@@ -487,6 +501,12 @@ config MSM_REMOTE_SPINLOCK_SFPB
 	bool
 config MSM_ADM3
 	bool
+
+config MACH_JACTIVE
+	default n
+	bool "APQ8064 Samsung JACTIVE"
+	help
+	  Support for the Samsung J ACTIVE device.
 
 menu "MSM Board Selection"
 
@@ -830,6 +850,200 @@ config MACH_MSM8930_FLUID
 	help
 	  Support for the Qualcomm MSM8930 FLUID device.
 
+config MACH_MSM8930_EVT
+	depends on ARCH_MSM8930
+	bool "MSM8930 QRD EVT"
+	help
+	  Support for the Qualcomm Reference Design 8930 EVT device.
+
+config MACH_M2
+	depends on ARCH_MSM8960
+	bool "MSM8960 M2"
+	help
+	  Support for the Samsung D2 device.
+
+config MACH_GOLDEN
+	depends on ARCH_MSM8930
+	bool "MSM8930 GOLDEN"
+	help
+	  Support for the Samsung Golden device.
+config MACH_GOLDEN_VZW
+	depends on MACH_GOLDEN
+	bool "MSM8930 GOLDEN VZW"
+	help
+	  Support for the Samsung Golden device.
+config MACH_GOLDEN_ATT
+	depends on MACH_GOLDEN
+	bool "MSM8930 GOLDEN ATT"
+	help
+	  Support for the Samsung Golden device.
+	  
+ config MACH_GOLDEN_BMC
+        depends on MACH_GOLDEN
+        bool "MSM8930 GOLDEN BMC"
+        help
+          Support for the Samsung Golden device.
+		  
+config MACH_MELIUS
+	depends on ARCH_MSM8930
+	bool "MSM8930 MELIUS"
+	help
+	  Support for the Samsung Melius device.
+
+config MACH_MELIUS_ATT
+        depends on MACH_MELIUS
+        bool "MSM8930 MELIUS ATT"
+        help
+          Support for the Samsung Melius device.
+
+config MACH_MELIUS_SPR
+	depends on MACH_MELIUS
+	bool "MSM8930 MELIUS SPR"
+	help
+	  Support for the Samsung Melius device.
+
+config MACH_MELIUS_MTR
+	depends on MACH_MELIUS
+	bool "MSM8930 MELIUS MTR"
+	help
+		Support for Samsung Melius device.
+
+config MACH_MELIUS_EUR_OPEN
+	depends on MACH_MELIUS
+	bool "MSM8930 MELIUS EUR OPEN"
+	help
+	  Support for the Samsung Melius device.
+
+config MACH_MELIUS_EUR_LTE
+	depends on MACH_MELIUS
+	bool "MSM8930 MELIUS EUR LTE"
+	help
+	  Support for the Samsung Melius device.
+
+config MACH_MELIUS_CAN
+	depends on MACH_MELIUS
+	bool "MSM8930 MELIUS CAN"
+	help
+	  Support for the Samsung Melius device.
+
+config MACH_MELIUS_USC
+	depends on MACH_MELIUS
+	bool "MSM8930 MELIUS USC"
+	help
+	  Support for the Samsung Melius device.
+config MACH_MELIUS_SKT
+	depends on MACH_MELIUS
+	bool "MSM8930 MELIUS SKT"
+	help
+	  Support for the Samsung Melius device.
+
+config MACH_MELIUS_KTT
+	depends on MACH_MELIUS
+	bool "MSM8930 MELIUS KTT"
+	help
+	  Support for the Samsung Melius device.
+
+config MACH_MELIUS_LGT
+	depends on MACH_MELIUS
+	bool "MSM8930 MELIUS LGT"
+	help
+	  Support for the Samsung Melius device.
+
+config MACH_SERRANO
+	depends on ARCH_MSM8930
+	bool "MSM8930 SERRANO"
+	help
+	  Support for the Samsung Serrano device.
+config MACH_SERRANO_EUR_LTE
+	depends on MACH_SERRANO
+	bool "MSM8930 SERRANO EUR LTE"
+	help
+	  Support for the Samsung Serrano device.
+config MACH_SERRANO_EUR_3G
+        depends on MACH_SERRANO
+        bool "MSM8930 SERRANO EUR 3G"
+        help
+          Support for the Samsung Serrano device.
+config MACH_LT02
+	depends on ARCH_MSM8930
+	bool "MSM8930 LT02"
+	help
+	  Support for the Samsung LT02(Tablet) device.
+
+config MACH_LT02_ATT
+	depends on MACH_LT02
+	bool "MSM8930 LT02 ATT"
+	help
+	  Support for the Samsung LT02(Tablet) device.
+
+config MACH_LT02_SPR
+	depends on MACH_LT02
+	bool "MSM8930 LT02 SPR"
+	help
+	  Support for the Samsung LT02(Tablet) device.
+	  
+config MACH_LT02_TMO
+	depends on MACH_LT02
+	bool "MSM8930 LT02 TMO"
+	help
+	  Support for the Samsung LT02(Tablet) device.
+	  
+config MACH_SERRANO_LRA
+	depends on MACH_SERRANO
+	bool "MSM8930 SERRANO LRA"
+	help
+	  Support for the Samsung Serrano device.
+config MACH_SERRANO_ATT
+	depends on MACH_SERRANO
+	bool "MSM8930 SERRANO ATT"
+	help
+	  Support for the Samsung Serrano ATT device.
+config MACH_SERRANO_BMC
+	depends on MACH_SERRANO
+	bool "MSM8930 SERRANO BMC"
+	help
+	  Support for the Samsung Serrano BMC device.
+config MACH_SERRANO_SPR
+	depends on MACH_SERRANO
+	bool "MSM8930 SERRANO SPR"
+	help
+	  Support for the Samsung Serrano device.
+config MACH_SERRANO_VZW
+	depends on MACH_SERRANO
+	bool "MSM8930 SERRANO VZW"
+	help
+	  Support for the Samsung Serrano device.
+
+config MACH_CANE
+        depends on ARCH_MSM8930
+        bool "MSM8930 CANE"
+        help
+          Support for the Samsung Cane device.
+
+config MACH_CANE_EUR_3G
+        depends on MACH_CANE
+        bool "MSM8930 CANE EUR 3G"
+        help
+          Support for the Samsung Cane device.
+
+config MACH_CANE_CHN_CU
+        depends on MACH_CANE
+        bool "MSM8930 CANE CHN CU 3G"
+        help
+          Support for the Samsung Cane device.
+
+config MACH_WILCOX_EUR_LTE
+        depends on MACH_CANE
+        bool "MSM8930 WILCOX EUR LTE"
+        help
+          Support for the Samsung Wilcox device.
+
+config MACH_SERRANO_USC
+	depends on MACH_SERRANO
+	bool "MSM8930 SERRANO EUR LTE"
+	help
+	  Support for the Samsung Serrano device.
+
 config MACH_MSM8627_CDP
 	depends on ARCH_MSM8930
 	bool "MSM8627 CDP"
@@ -911,9 +1125,208 @@ config MACH_FSM9XXX_SURF
 config MACH_MSM_DUMMY
 	bool "NONE (No device)"
 
+config MACH_COMANCHE
+        depends on ARCH_MSM8960
+        default n
+        bool "MSM8960 Samsung COMANCHE"
+        help
+           support for Samsung Comanche device
+
+config MACH_M2_ATT
+        depends on ARCH_MSM8960
+        default n
+        bool "MSM8960 Samsung M2_ATT"
+        help
+          Support for the Samsung M2 AT&T device.
+
+config MACH_M2_SPR
+        depends on ARCH_MSM8960
+        default n
+        bool "MSM8960 Samsung M2_SPR"
+        help
+          Support for the Samsung M2 SPR device.
+
+config MACH_M2_REFRESHSPR
+        depends on ARCH_MSM8960
+        default n
+        bool "MSM8960 Samsung M2_REFRESHSPR"
+        help
+          Support for the Samsung M2 refresh spr device.
+
+config MACH_M2_VZW
+        depends on ARCH_MSM8960
+        default n
+        bool "MSM8960 Samsung M2_VZW"
+        help
+          Support for the Samsung M2 Verizon device.
+
+config MACH_JF
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF"
+	help
+	  This is JF device of Samsung.
+	  It's based on Qualcomm APQ8064 chipset.
+
+config MACH_JF_VZW
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_VZW"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JF_SPR
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_SPR"
+	help
+	  Support for the Samsung JF device.
+
+config BOARD_JF_REFRESH
+	depends on MACH_JF_SPR
+	default n
+	bool "APQ8064 Samsung JF_REFRESH"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JF_ATT
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_ATT"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JF_TMO
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_TMO"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JF_USC
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_USC"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JF_CRI
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_CRI"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JF_EUR
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_EUR"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JFTDD_EUR
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JFTDD_EUR"
+	help
+	  Support for the Samsung JFTDD device.
+
+config MACH_JFTDD_CHN_CU
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JFTDD_CHN_CU"
+	help
+	  Support for the Samsung JFTDD device.
+
+config MACH_JFVE_EUR
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JFVE_EUR"
+	help
+	  Support for the Samsung JFVE device.
+
+config MACH_JFVE_EUR_3G
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JFVE_EUR 3G"
+	help
+	  Support for the Samsung JFVE 3G specific device.
+
+config MACH_JFVE_EUR_LTE
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JFVE_EUR LTE"
+	help
+	  Support for the Samsung JFVE LTE specific device.
+
+config MACH_JF_SKT
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_SKT"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JF_KTT
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_KTT"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JF_LGT
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_LGT"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JF_DCM
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_DCM"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JF_CAN
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_CAN"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JACTIVE_EUR
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JACTIVE_EUR"
+	help
+	  Support for the Samsung J ACTIVE EUR device.
+
+config MACH_JACTIVE_ATT
+	depends on ARCH_APQ8064
+	default n
+	select MACH_JACTIVE
+	bool "APQ8064 Samsung JACTIVE_ATT"
+	help
+	  Support for the Samsung J ACTIVE ATT device.
 endmenu
 
-source "arch/arm/mach-msm/lge/Kconfig"
+menu "Locale Selection"
+
+config TARGET_LOCALE_KOR
+	default n
+	bool "Locale Kor support"
+	help
+	  Enable LOCALE KOR.
+	  used to distinguish LOCALE-related differences.
+
+config TARGET_LOCALE_JPN
+	default n
+	bool "Locale JPN support"
+	help
+	  Enable LOCALE JPN.
+	  used to distinguish LOCALE-related differences.
+	  
+endmenu
 
 config MSM_STACKED_MEMORY
 	bool "Stacked Memory"
@@ -922,6 +1335,36 @@ config MSM_STACKED_MEMORY
 	  This option is used to indicate the presence of on-die stacked
 	  memory.  When present this memory bank is used for a high speed
 	  shared memory interface.  When not present regular RAM is used.
+
+config RTC_AUTO_PWRON
+        bool "RTC Auto Power on PM8xxx PMICs"
+        depends on ARCH_APQ8064
+        default n
+        help
+          Support for the auto power on alarm on the PM8XXX PMIC.
+          Say Y if you want to enable this feature.
+
+config RTC_AUTO_PWRON_PARAM
+        bool "RTC Auto Power on with param PM8xxx PMICs"
+        depends on RTC_AUTO_PWRON
+        default n
+        help
+          This option is used to prevent invalid RTC alarm power on.
+          Say Y if you want to enable this feature.
+
+config MACH_JF_CMCC
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_CMCC"
+	help
+	  Support for the Samsung JF device.
+
+config MACH_JF_CMCCCSFB
+	depends on ARCH_APQ8064
+	default n
+	bool "APQ8064 Samsung JF_CMCC_CSFB"
+	help
+	  Support for the Samsung JF device.
 
 config PHYS_OFFSET
 	hex
@@ -989,6 +1432,10 @@ config MSM_HAS_DEBUG_UART_HS
 	bool
 	help
 	  Say Y here if high speed MSM UART is present.
+
+config UART_RX_WAKEUP
+        bool "MSM8960 UART RX wakeup support"
+        default n
 
 config MSM_HAS_DEBUG_UART_HS_V14
 	bool
@@ -1300,20 +1747,6 @@ config MSM_PCIE
 	  Enables the PCIe functionality by configures PCIe core on
 	  MSM chipset and by enabling the ARM PCI framework extension.
 
-config MSM_RPC_SDIO_XPRT
-	depends on MSM_SDIO_AL
-	default y
-	bool "MSM SDIO XPRT Layer"
-	help
-	  SDIO Transport Layer for RPC Rouer
-
-config MSM_RPC_SDIO_DEBUG
-	depends on MSM_RPC_SDIO_XPRT
-	default y
-	bool "MSM SDIO XPRT debug support"
-	help
-	  Support for debugging SDIO XPRT
-
 config MSM_SMD_DEBUG
 	depends on MSM_SMD
 	default y
@@ -1321,21 +1754,6 @@ config MSM_SMD_DEBUG
 	help
 	  Support for debugging the SMD for communication
 	  between the ARM9 and ARM11
-
-config MSM_SDIO_AL
-	depends on ((ARCH_MSM7X30 || MACH_MSM8X60_FUSN_FFA || MACH_TYPE_MSM8X60_FUSION) && HAS_WAKELOCK)
-	default y
-	tristate "SDIO-Abstraction-Layer"
-	help
-	  Support MSM<->MDM Communication over SDIO bus.
-	  MDM SDIO-Client should have pipes support.
-
-config MSM_SDIO_DMUX
-	bool "SDIO Data Mux Driver"
-	depends on MSM_SDIO_AL
-	default n
-	help
-	  Support Muxed Data Channels over SDIO interface.
 
 config MSM_BAM_DMUX
 	bool "BAM Data Mux Driver"
@@ -1396,16 +1814,6 @@ config MSM_SMD_NMEA
 
 	  If in doubt, say yes.
 
-config MSM_SDIO_TTY
-	bool "SDIO TTY Driver"
-	depends on MSM_SDIO_AL
-	default n
-	help
-	  Provides a TTY driver SDIO TTY
-	  This driver can be used by user space
-	  applications for passing data through the
-	  SDIO interface.
-
 config MSM_HSIC_TTY
 	bool "HSIC TTY Driver"
 	default n
@@ -1433,22 +1841,6 @@ config MSM_SMD_QMI
 
 	  If in doubt, say yes.
 
-config MSM_SMD_PKT
-	bool "SMD Packet Driver"
-	depends on MSM_SMD
-	default y
-	help
-	  Provides a binary SMD non-muxed packet port interface.
-
-	  If in doubt, say yes.
-
-config MSM_SDIO_CMUX
-	bool "SDIO CMUX Driver"
-	depends on MSM_SDIO_AL
-	default n
-	help
-	  Provides a Muxed port interface over SDIO QMI
-
 config MSM_DSPS
 	bool "Sensors DSPS driver"
 	depends on (MSM_PIL && (ARCH_MSM8X60 || ARCH_MSM8960))
@@ -1460,13 +1852,6 @@ config MSM_DSPS
 	  themself.
 	  The number of clocks and their name may vary between targets.
 	  It also triggers the PIL to load the DSPS firmware.
-
-config MSM_SDIO_CTL
-	bool "SDIO CTL Driver"
-	depends on MSM_SDIO_CMUX
-	default n
-	help
-	  Provides a binary SDIO control port interface.
 
 config MSM_ONCRPCROUTER
 	depends on MSM_SMD
@@ -1491,6 +1876,26 @@ config MSM_IPC_ROUTER_SMD_XPRT
 	bool "MSM SMD XPRT Layer"
 	help
 	  SMD Transport Layer for IPC Router
+
+config MSM_IPC_ROUTER_HSIC_XPRT
+	depends on USB_QCOM_IPC_BRIDGE
+	depends on MSM_IPC_ROUTER
+	bool "MSM HSIC XPRT Layer"
+	help
+	  HSIC Transport Layer that enables off-chip communication of
+	  IPC Router. When the HSIC endpoint becomes available, this layer
+	  registers the transport with IPC Router and enable message
+	  exchange.
+
+config MSM_IPC_ROUTER_SECURITY
+	depends on MSM_IPC_ROUTER
+	bool "MSM IPC Router Security support"
+	help
+	  This feature of IPC Router will enforce security rules
+	  configured by a security script from the user-space. IPC Router
+	  once configured with the security rules will ensure that the
+	  sender of the message to a service belongs to the relevant
+	  Linux group as configured by the security script.
 
 config MSM_ONCRPCROUTER_DEBUG
 	depends on MSM_ONCRPCROUTER
@@ -1574,15 +1979,6 @@ config MSM_RMT_STORAGE_CLIENT_STATS
 	help
 	  Collects performance statistics and shows this information
 	  through a debugfs file rmt_storage_stats.
-
-config MSM_SDIO_SMEM
-        depends on MSM_SDIO_AL
-        default n
-        bool "SDIO SMEM for remote storage"
-        help
-          Copies data from remote MDM9K memory to local MSM8x60
-	  memory. Used by remote storage client to shadow
-	  MDM9K filesystem.
 
 config MSM_DALRPC
 	bool "DAL RPC support"
@@ -2098,6 +2494,14 @@ config MSM_DIRECT_SCLK_ACCESS
 	bool "Direct access to the SCLK timer"
 	default n
 
+config MSM_HSIC_GPIO_REV06
+	bool "distinguish rev03 and rev06"
+	default n
+
+config WIFI_NOMODEM
+	bool "distinguish lte and wifi"
+	default n
+
 config IOMMU_API
        bool
 
@@ -2256,6 +2660,27 @@ config BT_MSM_PINTEST
 	  Bluetooth MSM Pin Connectivity test module.
 	  This driver provides support for verifying the MSM to BT pin
 	  connectivity.
+
+config BT_BCM4335
+	bool "Enable BCM4335 driver"
+	default n
+	help
+	  Adds BCM4335 RFKILL driver for Broadcom BCM4335 chipset.
+	  default is n.
+
+config BT_BCM4334
+	bool "Enable BCM4334 driver"
+	default n
+	help
+	  Adds BCM4334 RFKILL driver for Broadcom BCM4334 chipset.
+	  default is n.
+
+config BT_BLUEDROID
+	bool "Bluetooth bluedroid"
+	default n
+	help
+	  This is for bluedroid stack
+	  default is n.
 
 config MSM_FAKE_BATTERY
 		depends on POWER_SUPPLY
@@ -2463,6 +2888,15 @@ config MSM_EBI_ERP
 
 	  For production builds, you should probably say 'N' here.
 
+config USER_RESET_DEBUG
+	bool "KOR reset reason debug feature in user version"
+	default n
+	help
+	  This option enables debugging log for B10 project.
+	  This option provides reset history log in user version.
+	  This option enable proc/reset_reason support
+	  It's only support KOR Model
+
 config MSM_CACHE_ERP
 	bool "Cache / CPU error reporting"
 	depends on ARCH_MSM_KRAIT
@@ -2483,6 +2917,21 @@ config MSM_L1_ERR_PANIC
 	  instability is suspected.
 
 	  For production builds, you should probably say 'N' here.
+
+config MSM_L1_RECOV_ERR_PANIC
+	bool "Panic on recoverable L1 cache errors"
+	depends on MSM_CACHE_ERP && MSM_L1_ERR_PANIC
+	help
+	  Certain CPU designs may be able to automatically recover from certain
+	  kinds of L1 cache errors, even though the L1 cache itself may not
+	  support error correction. These errors should not result in any kind
+	  of corruption, but their presence is nevertheless an indication of
+	  poor system health. To cause the kernel to panic whenever a
+	  recoverable L1 cache error is detected, say 'Y' here. This may be
+	  useful as a debugging technique if general system instability is
+	  suspected.
+
+	  For production builds, you should definitely say 'N' here.
 
 config MSM_L1_ERR_LOG
 	bool "Log CPU ERP events to system memory"
@@ -2541,6 +2990,24 @@ config MSM_L2_ERP_2BIT_PANIC
 
 	  For production builds, it may be acceptable to say 'N' here, since
 	  an uncorrectable error might not necessarily cause further problems.
+
+config SEC_SSR_DEBUG_LEVEL_CHK
+	bool "SSR DEBUG LEVEL check"
+	help
+	  To check the level of debug for SSR.
+
+config SEC_SSR_DUMP
+        bool "MSM 8960 ramdump during silent restart module"
+        help
+        This option enables SSR debug feature. SSR debug dump collection
+        feature is to be enabled only during debug level MID through respective
+        def_config files. This should be enabled only when Subsystem Restart
+        is enabled.
+
+config SEC_PERIPHERAL_SECURE_CHK
+	bool "PERIPHERAL SECURE check"
+	help
+	  To check the authentication of peripheral image.
 
 config MSM_DCVS
 	bool "Use MSM DCVS for CPU/GPU Frequency control"
@@ -2607,4 +3074,190 @@ config MSM_CPU_PWRCTL
 	  stand alone power collapse operation. Selecting this option
 	  ensures that they are always off.
 
+config MSM_USE_USER_ACCESSIBLE_TIMERS
+	bool "Enables mapping an MSM timer counter page to user space."
+	depends on ARM_USE_USER_ACCESSIBLE_TIMERS
+	help
+	  Enables MSM-specific user accessible timers via a shared
+	  memory page containing the cycle counter.
+
+config SEC_THERMISTOR
+	bool "Use external thermistor near AP for checking temprature"
+	default n
+	help
+	Use thermistor driver for checking temperature near AP chip.
+	  
+config EXT_MAINMIC_BIAS
+	depends on ARCH_MSM8930
+	default n
+	bool "EXTERNAL MAIN MICBIAS"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use External bias
+         for Main mic.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+
+config EXT_EARMIC_BIAS
+	depends on ARCH_MSM8930
+	default n
+	bool "EXTERNAL EAR MICBIAS"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use External bias
+         for Ear mic.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+
+config EXT_SUBMIC_BIAS
+	depends on ARCH_MSM8930
+	default n
+       	bool "EXTERNAL SUB MICBIAS"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use External bias
+         for Sub mic.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+
+config EXT_SPK_AMP
+       	depends on ARCH_MSM8930
+	default n
+       	bool "EXTERNAL SPK AMP"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use External amp for speaker.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+
+config 2MIC_QUP_I2C
+	depends on ARCH_MSM8930
+	default n
+       	bool "2MIC QUP I2C"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use External amp for speaker.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+
+config JACK_VDD_CTRL
+	depends on ARCH_MSM8930
+	default n
+       	bool "JACK VDD CONTROL"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use VDD.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+
+config 2MIC_QUP_I2C_GSBI11
+	depends on ARCH_MSM8930
+	default n
+       	bool "2MIC QUP GSBI11"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use 2MIC QUP GSBI11.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+
+config 2MIC_QUP_I2C_GSBI2
+	depends on ARCH_MSM8930
+	default n
+       	bool "2MIC QUP GSBI2"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use 2MIC QUP GSBI2.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+	 
+config EXT_ADC_IC
+       	depends on ARCH_MSM8930
+	default n
+       	bool "EXTERNAL SPK AMP"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use External amp for speaker.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+
+config WCD9304_CLK_9600
+	depends on ARCH_MSM8930
+	default n
+	bool "WCD9304 CODEC CLK 9.6Mhz"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use 9.6Mhz mclk for wcd 9304 codec.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+
+config RADIO_USE_MI2S
+	depends on ARCH_MSM8930
+	default n
+	bool "FM Radio Digital mode"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use MI2S and Si4705 digital mode.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+
+config SEC_MODEM_MELIUS_CTC
+	bool "Melius-CTC with msm8930"
+	depends on SEC_MODEM
+	select LINK_DEVICE_SPI
+
+config SEC_PRODUCT_8930
+	bool "MSM8930 Peripheral device support"
+	depends on ARCH_MSM8930
+	default n
+	---help---
+	Flag support for Samsung 8930 peripheral
+	device drivers
+
+config SEC_PRODUCT_8960
+	bool "MSM8960 Peripheral device support"
+	depends on ARCH_MSM8960
+	default n
+	---help---
+	Flag support for Samsung 8960 peripheral
+	device drivers
+
+config SWITCH_DUAL_MODEM
+	default n
+	bool "Switch UART/USB to AP/CP/CP2"
+
+config WCD9304_USE_MI2S_CLK_9600
+	depends on ARCH_MSM8930
+	default n
+	bool "WCD9304 CODEC USE MI2S CLK 9.6Mhz"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use 9.6Mhz mi2s mclk for wcd 9304 codec.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+
+config AUXPCM_INTERFACE
+	depends on ARCH_MSM8930
+	default n
+	bool "AUXPCM Interface"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want use auxpcm interface for external device.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+	 
+config PCM_ROUTE_VOICE_STUB
+	depends on ARCH_MSM8930
+	default n
+	bool "External AUXPCM device route to I2S or WCN(BT) using the VOICE_STUB Front End"
+	---help---
+         Support for the SAMSUNG MSM8930 audio.
+         Say Y here if you want to route between auxpcm and I2S/WCN using the VOICE_STUB Front End.
+	 To compile this option, choose M here:
+	 If unsure, say N here.
+
+config SEC_FACTORY
+	bool "Enable FACTORY Features"
+	default n
+	help
+	  Enable Features only For FACTORY BINARY.
 endif

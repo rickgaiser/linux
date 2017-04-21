@@ -9,8 +9,8 @@
  *
  *  Page table mapping constructs and function prototypes
  */
-#ifndef __ASM_MACH_MAP_H
-#define __ASM_MACH_MAP_H
+#ifndef __ASM_ARM_MACH_MAP_H
+#define __ASM_ARM_MACH_MAP_H
 
 #include <asm/io.h>
 
@@ -37,6 +37,7 @@ struct map_desc {
 #define MT_MEMORY_RW		16
 #define MT_MEMORY_RX		17
 #define MT_MEMORY_DMA_READY	18
+#define MT_DEVICE_USER_ACCESSIBLE	19
 
 #ifdef CONFIG_MMU
 extern void iotable_init(struct map_desc *, int);

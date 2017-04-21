@@ -18,10 +18,10 @@
 #define FCC_CC_COLS		5
 #define FCC_TEMP_COLS		8
 
-#define PC_CC_ROWS             29
+#define PC_CC_ROWS             30
 #define PC_CC_COLS             13
 
-#define PC_TEMP_ROWS		29
+#define PC_TEMP_ROWS		31
 #define PC_TEMP_COLS		8
 
 #define MAX_SINGLE_LUT_COLS	20
@@ -73,6 +73,7 @@ enum battery_type {
 	BATT_UNKNOWN = 0,
 	BATT_PALLADIUM,
 	BATT_DESAY,
+	BATT_SEC,
 };
 
 /**
@@ -88,6 +89,8 @@ enum battery_type {
  *			readings from bms are not available.
  * @delta_rbatt_mohm:	the resistance to be added towards lower soc to
  *			compensate for battery capacitance.
+ * @rbatt_capacitve_mohm: the resistance to be added to compensate for
+ *				battery capacitance
  */
 
 struct bms_battery_data {
@@ -97,14 +100,22 @@ struct bms_battery_data {
 	struct pc_temp_ocv_lut	*pc_temp_ocv_lut;
 	struct sf_lut		*pc_sf_lut;
 	struct sf_lut		*rbatt_sf_lut;
+#if  defined(CONFIG_MACH_SERRANO_KOR_LTE)
+	struct sf_lut		*rbatt_sf_lut_dummy;
+#endif
 	int			default_rbatt_mohm;
 	int			delta_rbatt_mohm;
+	int			rbatt_capacitive_mohm;
 };
 
 #if defined(CONFIG_PM8921_BMS) || \
 	defined(CONFIG_PM8921_BMS_MODULE)
 extern struct bms_battery_data  palladium_1500_data;
 extern struct bms_battery_data  desay_5200_data;
+extern struct bms_battery_data  Samsung_8930_Express2_2000mAh_data;
+extern struct bms_battery_data  Samsung_8930_Serrano_1900mAh_data;
+extern struct bms_battery_data	Samsung_8930_Cane_2000mAh_data;
+extern struct bms_battery_data	Samsung_8930_Wilcox_2100mAh_data;
 
 int interpolate_fcc(struct single_row_lut *fcc_temp_lut, int batt_temp);
 int interpolate_scalingfactor(struct sf_lut *sf_lut, int row_entry, int pc);

@@ -383,7 +383,6 @@ static u32 res_trk_sel_clk_rate(unsigned long hclk_rate)
 	mutex_lock(&resource_context.lock);
 	if (clk_set_rate(resource_context.vcodec_clk,
 		hclk_rate)) {
-		VCDRES_MSG_ERROR("vidc hclk set rate failed\n");
 		status = false;
 	} else
 		resource_context.vcodec_clk_rate = hclk_rate;
@@ -533,7 +532,8 @@ u32 res_trk_get_max_perf_level(u32 *pn_max_perf_lvl)
 			__func__);
 		return false;
 	}
-	*pn_max_perf_lvl = RESTRK_1080P_MAX_PERF_LEVEL;
+		*pn_max_perf_lvl = RESTRK_1080P_MAX_PERF_LEVEL;
+
 	return true;
 }
 
@@ -607,8 +607,7 @@ u32 res_trk_set_perf_level(u32 req_perf_lvl, u32 *pn_set_perf_lvl,
 			__func__);
 		return false;
 	}
-
-#endif
+ #endif
 	if (dev_ctxt->reqd_perf_lvl + dev_ctxt->curr_perf_lvl == 0)
 		req_perf_lvl = RESTRK_1080P_MAX_PERF_LEVEL;
 
@@ -625,7 +624,6 @@ u32 res_trk_set_perf_level(u32 req_perf_lvl, u32 *pn_set_perf_lvl,
 		vidc_freq = vidc_clk_table[4];
 		*pn_set_perf_lvl = RESTRK_1080P_TURBO_PERF_LEVEL;
 	}
-
 	if (!turbo_supported &&
 		 *pn_set_perf_lvl == RESTRK_1080P_TURBO_PERF_LEVEL) {
 		vidc_freq = vidc_clk_table[2];
@@ -633,14 +631,18 @@ u32 res_trk_set_perf_level(u32 req_perf_lvl, u32 *pn_set_perf_lvl,
 	}
 
 	resource_context.perf_level = *pn_set_perf_lvl;
+
 	VCDRES_MSG_MED("VIDC: vidc_freq = %u, req_perf_lvl = %u\n",
 		vidc_freq, req_perf_lvl);
+
 #ifdef USE_RES_TRACKER
     if (req_perf_lvl != RESTRK_1080P_MIN_PERF_LEVEL) {
 		VCDRES_MSG_MED("%s(): Setting vidc freq to %u\n",
 			__func__, vidc_freq);
 		if (!res_trk_sel_clk_rate(vidc_freq)) {
 			if (vidc_freq == vidc_clk_table[4]) {
+				VCDRES_MSG_MED("%s(): Setting vidc freq "\
+					"to %u\n", __func__, (u32)vidc_clk_table[3]);
 				if (res_trk_sel_clk_rate(vidc_clk_table[3]))
 					goto ret;
 			}
@@ -857,6 +859,11 @@ unsigned int res_trk_get_ion_flags(void)
 			else if (res_trk_is_cp_enabled())
 				flags |= ION_SECURE;
 		}
+		#if !defined(CONFIG_MSM_IOMMU) && defined(CONFIG_SEC_PRODUCT_8960)
+		 else {
+                 flags |= ION_FORCE_CONTIGUOUS;
+              }
+	    #endif
 	}
 	return flags;
 }
@@ -1080,6 +1087,7 @@ u32 get_res_trk_perf_level(enum vcd_perf_level perf_level)
 u32 res_trk_estimate_perf_level(u32 pn_perf_lvl)
 {
 	VCDRES_MSG_MED("%s(), req_perf_lvl = %d", __func__, pn_perf_lvl);
+
 	if ((pn_perf_lvl >= RESTRK_1080P_VGA_PERF_LEVEL) &&
 		(pn_perf_lvl < RESTRK_1080P_720P_PERF_LEVEL)) {
 		return RESTRK_1080P_720P_PERF_LEVEL;

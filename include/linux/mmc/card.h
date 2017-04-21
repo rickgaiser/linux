@@ -105,6 +105,22 @@ struct mmc_ext_csd {
 
 	unsigned int            feature_support;
 #define MMC_DISCARD_FEATURE	BIT(0)                  /* CMD38 feature */
+	/*
+	 * smart_info : It's for eMMC 5.0 or later device
+	 * [63:56] : DEVICE_LIFE_TIME_EST_TYPE_B [269]
+	 * [55:48] : DEVICE_LIFE_TIME_EST_TYPE_A [268]
+	 * [47:40] : PRE_EOL_INFO [267]
+	 * [39:32] : OPTIMAL_TRIM_UNIT_SIZE [264]
+	 * [31:16] : DEVICE_VERSION [263-262]
+	 * [15:08] : HC_ERASE_GRP_SIZE [224]
+	 * [07:00] : HC_WP_GRP_SIZE [221]
+	 */
+	unsigned long long	smart_info;
+	/*
+	 * fwdate : It's for eMMC 5.0 or later device
+	 * [63:00] : FIRMWARE_VERSION [261-254]
+	 */
+	unsigned long long	fwdate;
 };
 
 struct sd_scr {
@@ -208,6 +224,18 @@ struct mmc_wr_pack_stats {
 	bool print_in_read;
 };
 
+enum mmc_blk_status {
+	MMC_BLK_SUCCESS = 0,
+	MMC_BLK_PARTIAL,
+	MMC_BLK_CMD_ERR,
+	MMC_BLK_RETRY,
+	MMC_BLK_ABORT,
+	MMC_BLK_DATA_ERR,
+	MMC_BLK_ECC_ERR,
+	MMC_BLK_NOMEDIUM,
+	MMC_BLK_NEW_REQUEST,
+};
+
 /* The number of MMC physical partitions.  These consist of:
  * boot partitions (2), general purpose partitions (4) in MMC v4.4.
  */
@@ -242,7 +270,6 @@ struct mmc_part {
  * @size_percentage_to_queue_delayed_work: the changed
  *        percentage of sectors that should issue check for
  *        BKOPS need
- * @poll_for_completion:	Poll on BKOPS completion
  * @cancel_delayed_work: A flag to indicate if the delayed work
  *        should be cancelled
  * @sectors_changed:  number of  sectors written or
@@ -259,10 +286,6 @@ struct mmc_bkops_info {
  * is idle.
  */
 #define MMC_IDLE_BKOPS_TIME_MS 200
-	struct work_struct	poll_for_completion;
-/* Polling timeout and interval for waiting on non-blocking BKOPs completion */
-#define BKOPS_COMPLETION_POLLING_TIMEOUT_MS (4 * 60 * 1000) /* in ms */
-#define BKOPS_COMPLETION_POLLING_INTERVAL_MS 1000 /* in ms */
 	bool			cancel_delayed_work;
 	unsigned int		sectors_changed;
 /*
@@ -340,6 +363,10 @@ struct mmc_card {
 	struct sdio_func_tuple	*tuples;	/* unknown common tuples */
 
 	unsigned int		sd_bus_speed;	/* Bus Speed Mode set for the card */
+
+	struct device_attribute	bkops_attr;	/* for enable/disable bkops mode */
+	u8			bkops_enable;	/* bkops mode on/off */
+	spinlock_t		bkops_lock;	/* lock for bkops_enable filed */
 
 	struct dentry		*debugfs_root;
 	struct mmc_part	part[MMC_NUM_PHY_PARTITION]; /* physical partitions */
@@ -575,6 +602,10 @@ extern void mmc_unregister_driver(struct mmc_driver *);
 
 extern void mmc_fixup_device(struct mmc_card *card,
 			     const struct mmc_fixup *table);
+extern struct mmc_wr_pack_stats *mmc_blk_get_packed_statistics(
+			struct mmc_card *card);
+extern void mmc_blk_init_packed_statistics(struct mmc_card *card);
+
 extern struct mmc_wr_pack_stats *mmc_blk_get_packed_statistics(
 			struct mmc_card *card);
 extern void mmc_blk_init_packed_statistics(struct mmc_card *card);

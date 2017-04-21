@@ -57,7 +57,7 @@ struct ci13xxx_td {
 #define TD_CURR_OFFSET        (0x0FFFUL <<  0)
 #define TD_FRAME_NUM          (0x07FFUL <<  0)
 #define TD_RESERVED_MASK      (0x0FFFUL <<  0)
-} __attribute__ ((packed));
+} __attribute__ ((packed, aligned(4)));
 
 /* DMA layout of queue heads */
 struct ci13xxx_qh {
@@ -75,7 +75,7 @@ struct ci13xxx_qh {
 	/* 9 */
 	u32 RESERVED;
 	struct usb_ctrlrequest   setup;
-} __attribute__ ((packed));
+} __attribute__ ((packed, aligned(4)));
 
 /* cache of larger request's original attributes */
 struct ci13xxx_multi_req {
@@ -115,6 +115,8 @@ struct ci13xxx_ep {
 	spinlock_t                            *lock;
 	struct device                         *device;
 	struct dma_pool                       *td_pool;
+	struct ci13xxx_td                     *last_zptr;
+	dma_addr_t                            last_zdma;
 	unsigned long dTD_update_fail_count;
 	unsigned long			      prime_fail_count;
 	int				      prime_timer_count;
@@ -137,9 +139,9 @@ struct ci13xxx_udc_driver {
 #define CI13XXX_CONTROLLER_RESET_EVENT			0
 #define CI13XXX_CONTROLLER_CONNECT_EVENT		1
 #define CI13XXX_CONTROLLER_SUSPEND_EVENT		2
-#define CI13XXX_CONTROLLER_REMOTE_WAKEUP_EVENT		3
-#define CI13XXX_CONTROLLER_RESUME_EVENT		4
-#define CI13XXX_CONTROLLER_DISCONNECT_EVENT		5
+#define CI13XXX_CONTROLLER_REMOTE_WAKEUP_EVENT	3
+#define CI13XXX_CONTROLLER_RESUME_EVENT	        4
+#define CI13XXX_CONTROLLER_DISCONNECT_EVENT	    5
 	void	(*notify_event) (struct ci13xxx *udc, unsigned event);
 };
 
@@ -151,6 +153,7 @@ struct ci13xxx {
 	struct dma_pool           *qh_pool;   /* DMA pool for queue heads */
 	struct dma_pool           *td_pool;   /* DMA pool for transfer descs */
 	struct usb_request        *status;    /* ep0 status request */
+	void                      *status_buf;/* GET_STATUS buffer */
 
 	struct usb_gadget          gadget;     /* USB slave device */
 	struct ci13xxx_ep          ci13xxx_ep[ENDPT_MAX]; /* extended endpts */

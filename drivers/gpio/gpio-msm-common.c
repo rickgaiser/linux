@@ -343,8 +343,10 @@ static int msm_gpio_irq_set_type(struct irq_data *d, unsigned int flow_type)
 	mb();
 	spin_unlock_irqrestore(&tlmm_lock, irq_flags);
 
-	if (msm_gpio_irq_extn.irq_set_type)
-		msm_gpio_irq_extn.irq_set_type(d, flow_type);
+	if ((flow_type & IRQ_TYPE_EDGE_BOTH) != IRQ_TYPE_EDGE_BOTH) {
+		if (msm_gpio_irq_extn.irq_set_type)
+			msm_gpio_irq_extn.irq_set_type(d, flow_type);
+	}
 
 	return 0;
 }
@@ -436,7 +438,7 @@ void msm_gpio_show_resume_irq(void)
 		if (intstat) {
 			irq = msm_gpio_to_irq(&msm_gpio.gpio_chip, i);
 			pr_warning("%s: %d triggered\n",
-				__func__, irq);
+				__func__, irq-288);
 		}
 	}
 	spin_unlock_irqrestore(&tlmm_lock, irq_flags);

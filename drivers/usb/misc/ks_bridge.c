@@ -29,6 +29,7 @@
 #include <linux/miscdevice.h>
 #include <linux/list.h>
 #include <linux/wait.h>
+#include <linux/poll.h>
 
 #define DRIVER_DESC	"USB host ks bridge driver"
 #define DRIVER_VERSION	"1.0"
@@ -376,6 +377,26 @@ static int ksb_fs_open(struct inode *ip, struct file *fp)
 
 	return 0;
 }
+static unsigned int ksb_fs_poll(struct file *file, poll_table *wait)
+{
+	struct ks_bridge	*ksb = file->private_data;
+	unsigned long		flags;
+	int			ret = 0;
+
+	if (!test_bit(USB_DEV_CONNECTED, &ksb->flags))
+		return POLLERR;
+
+	poll_wait(file, &ksb->ks_wait_q, wait);
+	if (!test_bit(USB_DEV_CONNECTED, &ksb->flags))
+		return POLLERR;
+
+	spin_lock_irqsave(&ksb->lock, flags);
+	if (!list_empty(&ksb->to_ks_list))
+		ret = POLLIN | POLLRDNORM;
+	spin_unlock_irqrestore(&ksb->lock, flags);
+
+	return ret;
+}
 
 static int ksb_fs_release(struct inode *ip, struct file *fp)
 {
@@ -396,6 +417,7 @@ static const struct file_operations ksb_fops = {
 	.write = ksb_fs_write,
 	.open = ksb_fs_open,
 	.release = ksb_fs_release,
+	.poll = ksb_fs_poll,
 };
 
 static struct miscdevice ksb_fboot_dev[] = {
@@ -437,8 +459,12 @@ static const struct usb_device_id ksb_usb_ids[] = {
 	.driver_info = (unsigned long)&ksb_efs_hsic_dev, },
 	{ USB_DEVICE(0x5c6, 0x904C),
 	.driver_info = (unsigned long)&ksb_efs_hsic_dev, },
+	{ USB_DEVICE(0x5c6, 0x9075),
+	.driver_info = (unsigned long)&ksb_efs_hsic_dev, },
 	{ USB_DEVICE(0x5c6, 0x9079),
 	.driver_info = (unsigned long)&ksb_efs_usb_dev, },
+	{ USB_DEVICE(0x5c6, 0x908A),
+	.driver_info = (unsigned long)&ksb_efs_hsic_dev, },
 
 	{} /* terminating entry */
 };
@@ -498,7 +524,7 @@ static void ksb_rx_cb(struct urb *urb)
 			urb->actual_length);
 
 	/*non zero len of data received while unlinking urb*/
-	if (urb->status == -ENOENT && (urb->actual_length > 0)) {
+	if ((urb->status == -ENOENT || urb->status == -EPROTO) && urb->actual_length > 0) {
 		/*
 		 * If we wakeup the reader process now, it may
 		 * queue the URB before its reject flag gets
@@ -632,6 +658,8 @@ ksb_usb_probe(struct usb_interface *ifc, const struct usb_device_id *id)
 		break;
 	case 0x9048:
 	case 0x904C:
+	case 0x9075:
+	case 0x908A:
 		if (ifc_num != 2)
 			return -ENODEV;
 		ksb = __ksb[EFS_HSIC_BRIDGE_INDEX];

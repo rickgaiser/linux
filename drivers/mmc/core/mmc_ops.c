@@ -21,6 +21,8 @@
 #include "core.h"
 #include "mmc_ops.h"
 
+#define MMC_OPS_TIMEOUT_MS	(10 * 60 * 1000) /* 10 minute timeout */
+
 static int _mmc_select_card(struct mmc_host *host, struct mmc_card *card)
 {
 	int err;
@@ -376,16 +378,17 @@ int mmc_spi_set_crc(struct mmc_host *host, int use_crc)
  *	@timeout_ms: timeout (ms) for operation performed by register write,
  *                   timeout of zero implies maximum possible timeout
  *	@use_busy_signal: use the busy signal as response type
- *	@bkops_busy: set this to indicate that we are starting blocking bkops
+ *	@ignore_timeout: set this flag only for commands which can be HPIed
  *
  *	Modifies the EXT_CSD register for selected card.
  */
 int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 		 unsigned int timeout_ms, bool use_busy_signal,
-		 bool bkops_busy)
+		 bool ignore_timeout)
 {
 	int err;
 	struct mmc_command cmd = {0};
+	unsigned long timeout;
 	u32 status;
 
 	BUG_ON(!card);
@@ -404,7 +407,7 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 
 
 	cmd.cmd_timeout_ms = timeout_ms;
-	cmd.bkops_busy = bkops_busy;
+	cmd.ignore_timeout = ignore_timeout;
 
 	err = mmc_wait_for_cmd(card->host, &cmd, MMC_CMD_RETRIES);
 	if (err)
@@ -415,6 +418,7 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 		return 0;
 
 	/* Must check status to be sure of no errors */
+	timeout = jiffies + msecs_to_jiffies(MMC_OPS_TIMEOUT_MS);
 	do {
 		err = mmc_send_status(card, &status);
 		if (err)
@@ -423,6 +427,13 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 			break;
 		if (mmc_host_is_spi(card->host))
 			break;
+
+		/* Timeout if the device never leaves the program state. */
+		if (time_after(jiffies, timeout)) {
+			pr_err("%s: Card stuck in programming state! %s\n",
+				mmc_hostname(card->host), __func__);
+			return -ETIMEDOUT;
+		}
 	} while (R1_CURRENT_STATE(status) == R1_STATE_PRG);
 
 	if (mmc_host_is_spi(card->host)) {
@@ -446,6 +457,13 @@ int mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 	return __mmc_switch(card, set, index, value, timeout_ms, true, false);
 }
 EXPORT_SYMBOL_GPL(mmc_switch);
+
+int mmc_switch_ignore_timeout(struct mmc_card *card, u8 set, u8 index, u8 value,
+		unsigned int timeout_ms)
+{
+	return __mmc_switch(card, set, index, value, timeout_ms, true, true);
+}
+EXPORT_SYMBOL(mmc_switch_ignore_timeout);
 
 int mmc_send_status(struct mmc_card *card, u32 *status)
 {

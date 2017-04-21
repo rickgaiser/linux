@@ -23,7 +23,6 @@
 #include <linux/mm.h>
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
-#include <linux/vmalloc.h>
 #include <linux/memory_alloc.h>
 #include <linux/seq_file.h>
 #include <linux/fmem.h>
@@ -330,7 +329,7 @@ ion_phys_addr_t ion_cp_allocate(struct ion_heap *heap,
 	if (!force_contig && !secure_allocation &&
 	     cp_heap->disallow_non_secure_allocation) {
 		mutex_unlock(&cp_heap->lock);
-		pr_debug("%s: non-secure allocation disallowed from this heap\n",
+		pr_info("%s: non-secure allocation disallowed from this heap\n",
 			__func__);
 		return ION_CP_ALLOCATE_FAIL;
 	}
@@ -366,7 +365,7 @@ ion_phys_addr_t ion_cp_allocate(struct ion_heap *heap,
 		cp_heap->allocated_bytes -= size;
 		if ((cp_heap->total_size -
 		     cp_heap->allocated_bytes) >= size)
-			pr_debug("%s: heap %s has enough memory (%lx) but"
+			pr_info("%s: heap %s has enough memory (%lx) but"
 				" the allocation of size %lx still failed."
 				" Memory is probably fragmented.\n",
 				__func__, heap->name,
@@ -583,6 +582,11 @@ void *ion_cp_heap_map_kernel(struct ion_heap *heap, struct ion_buffer *buffer)
 			int i;
 			pgprot_t pgprot;
 
+			if (!pages) {
+				mutex_unlock(&cp_heap->lock);
+				return ERR_PTR(-ENOMEM);
+			}
+
 			if (ION_IS_CACHED(buffer->flags))
 				pgprot = PAGE_KERNEL;
 			else
@@ -690,25 +694,77 @@ int ion_cp_cache_ops(struct ion_heap *heap, struct ion_buffer *buffer,
 			void *vaddr, unsigned int offset, unsigned int length,
 			unsigned int cmd)
 {
-	void (*outer_cache_op)(phys_addr_t, phys_addr_t);
+	void (*outer_cache_op)(phys_addr_t, phys_addr_t) = NULL;
 	struct ion_cp_heap *cp_heap =
-	     container_of(heap, struct  ion_cp_heap, heap);
+		container_of(heap, struct  ion_cp_heap, heap);
+	unsigned int size_to_vmap, total_size;
+	int i, j;
+	void *ptr = NULL;
+	ion_phys_addr_t buff_phys = buffer->priv_phys;
 
-	switch (cmd) {
-	case ION_IOC_CLEAN_CACHES:
-		dmac_clean_range(vaddr, vaddr + length);
-		outer_cache_op = outer_clean_range;
-		break;
-	case ION_IOC_INV_CACHES:
-		dmac_inv_range(vaddr, vaddr + length);
-		outer_cache_op = outer_inv_range;
-		break;
-	case ION_IOC_CLEAN_INV_CACHES:
-		dmac_flush_range(vaddr, vaddr + length);
-		outer_cache_op = outer_flush_range;
-		break;
-	default:
-		return -EINVAL;
+	if (!vaddr) {
+		/*
+		 * Split the vmalloc space into smaller regions in
+		 * order to clean and/or invalidate the cache.
+		 */
+		size_to_vmap = (VMALLOC_END - VMALLOC_START)/8;
+		total_size = buffer->size;
+		for (i = 0; i < total_size; i += size_to_vmap) {
+			size_to_vmap = min(size_to_vmap, total_size - i);
+			for (j = 0; j < 10 && size_to_vmap; ++j) {
+				ptr = ioremap(buff_phys, size_to_vmap);
+				if (ptr) {
+					switch (cmd) {
+					case ION_IOC_CLEAN_CACHES:
+						dmac_clean_range(ptr,
+							ptr + size_to_vmap);
+						outer_cache_op =
+							outer_clean_range;
+						break;
+					case ION_IOC_INV_CACHES:
+						dmac_inv_range(ptr,
+							ptr + size_to_vmap);
+						outer_cache_op =
+							outer_inv_range;
+						break;
+					case ION_IOC_CLEAN_INV_CACHES:
+						dmac_flush_range(ptr,
+							ptr + size_to_vmap);
+						outer_cache_op =
+							outer_flush_range;
+						break;
+					default:
+						return -EINVAL;
+					}
+					buff_phys += size_to_vmap;
+					break;
+				} else {
+					size_to_vmap >>= 1;
+				}
+			}
+			if (!ptr) {
+				pr_err("Couldn't io-remap the memory\n");
+				return -EINVAL;
+			}
+			iounmap(ptr);
+		}
+	} else {
+		switch (cmd) {
+		case ION_IOC_CLEAN_CACHES:
+			dmac_clean_range(vaddr, vaddr + length);
+			outer_cache_op = outer_clean_range;
+			break;
+		case ION_IOC_INV_CACHES:
+			dmac_inv_range(vaddr, vaddr + length);
+			outer_cache_op = outer_inv_range;
+			break;
+		case ION_IOC_CLEAN_INV_CACHES:
+			dmac_flush_range(vaddr, vaddr + length);
+			outer_cache_op = outer_flush_range;
+			break;
+		default:
+			return -EINVAL;
+		}
 	}
 
 	if (cp_heap->has_outer_cache) {

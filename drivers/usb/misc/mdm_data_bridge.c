@@ -1012,7 +1012,7 @@ bridge_probe(struct usb_interface *iface, const struct usb_device_id *id)
 	return 0;
 
 error:
-	platform_device_put(__dev[ch_id]->pdev);
+	platform_device_unregister(__dev[ch_id]->pdev);
 	free_rx_urbs(__dev[ch_id]);
 	usb_set_intfdata(iface, NULL);
 out:
@@ -1072,11 +1072,23 @@ static const struct usb_device_id bridge_ids[] = {
 	{ USB_DEVICE_INTERFACE_NUMBER(0x5c6, 0x904c, 5),
 	.driver_info = (unsigned long)rmnet_hsic_bridge_names,
 	},
+	{ USB_DEVICE_INTERFACE_NUMBER(0x5c6, 0x9075, 3),
+	.driver_info = (unsigned long)serial_hsic_bridge_names,
+	},
+	{ USB_DEVICE_INTERFACE_NUMBER(0x5c6, 0x9075, 5),
+	.driver_info = (unsigned long)rmnet_hsic_bridge_names,
+	},
 	{ USB_DEVICE_INTERFACE_NUMBER(0x5c6, 0x9079, 3),
 	.driver_info = (unsigned long)serial_hsusb_bridge_names,
 	},
 	{ USB_DEVICE_INTERFACE_NUMBER(0x5c6, 0x9079, 4),
 	.driver_info = (unsigned long)rmnet_hsusb_bridge_names,
+	},
+	{ USB_DEVICE_INTERFACE_NUMBER(0x5c6, 0x908A, 3),
+	.driver_info = (unsigned long)serial_hsic_bridge_names,
+	},
+	{ USB_DEVICE_INTERFACE_NUMBER(0x5c6, 0x908A, 5),
+	.driver_info = (unsigned long)rmnet_hsic_bridge_names,
 	},
 
 	{ } /* Terminating entry */

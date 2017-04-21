@@ -134,8 +134,6 @@ source "drivers/usb/host/Kconfig"
 
 source "drivers/usb/musb/Kconfig"
 
-source "drivers/usb/renesas_usbhs/Kconfig"
-
 source "drivers/usb/class/Kconfig"
 
 source "drivers/usb/storage/Kconfig"
@@ -183,5 +181,7 @@ source "drivers/usb/atm/Kconfig"
 source "drivers/usb/gadget/Kconfig"
 
 source "drivers/usb/otg/Kconfig"
+
+source "drivers/usb/notify/Kconfig"
 
 endif # USB_SUPPORT

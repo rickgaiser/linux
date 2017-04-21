@@ -42,6 +42,7 @@ struct ion_iommu_heap {
  */
 struct ion_iommu_priv_data {
 	struct page **pages;
+	unsigned int pages_uses_vmalloc;
 	int nrpages;
 	unsigned long size;
 };
@@ -76,10 +77,14 @@ static struct page_info *alloc_largest_available(unsigned long size,
 		if (max_order < orders[i])
 			continue;
 
-		gfp = GFP_KERNEL | __GFP_HIGHMEM | __GFP_COMP;
-		if (orders[i])
-			gfp |= __GFP_NOWARN;
+		gfp = __GFP_HIGHMEM;
 
+		if (orders[i]) {
+			gfp |= __GFP_COMP | __GFP_NORETRY |
+			       __GFP_NO_KSWAPD | __GFP_NOWARN;
+		} else {
+			gfp |= GFP_KERNEL;
+		}
 		page = alloc_pages(gfp, orders[i]);
 		if (!page)
 			continue;
@@ -108,8 +113,9 @@ static int ion_iommu_heap_allocate(struct ion_heap *heap,
 		int j;
 		void *ptr = NULL;
 		unsigned int npages_to_vmap, total_pages, num_large_pages = 0;
-		long size_remaining = PAGE_ALIGN(size);
+		unsigned long size_remaining = PAGE_ALIGN(size);
 		unsigned int max_order = orders[0];
+		unsigned int page_tbl_size;
 
 		data = kmalloc(sizeof(*data), GFP_KERNEL);
 		if (!data)
@@ -131,8 +137,24 @@ static int ion_iommu_heap_allocate(struct ion_heap *heap,
 
 		data->size = PFN_ALIGN(size);
 		data->nrpages = data->size >> PAGE_SHIFT;
-		data->pages = kzalloc(sizeof(struct page *)*data->nrpages,
-				GFP_KERNEL);
+		data->pages_uses_vmalloc = 0;
+		page_tbl_size = sizeof(struct page *) * data->nrpages;
+
+		if (page_tbl_size > SZ_8K) {
+			/*
+			 * Do fallback to ensure we have a balance between
+			 * performance and availability.
+			 */
+			data->pages = kmalloc(page_tbl_size,
+					      __GFP_COMP | __GFP_NORETRY |
+					      __GFP_NO_KSWAPD | __GFP_NOWARN);
+			if (!data->pages) {
+				data->pages = vmalloc(page_tbl_size);
+				data->pages_uses_vmalloc = 1;
+			}
+		} else {
+			data->pages = kmalloc(page_tbl_size, GFP_KERNEL);
+		}
 		if (!data->pages) {
 			ret = -ENOMEM;
 			goto err_free_data;
@@ -214,7 +236,10 @@ err2:
 	kfree(buffer->sg_table);
 	buffer->sg_table = 0;
 err1:
-	kfree(data->pages);
+	if (data->pages_uses_vmalloc)
+		vfree(data->pages);
+	else
+		kfree(data->pages);
 err_free_data:
 	kfree(data);
 
@@ -245,7 +270,10 @@ static void ion_iommu_heap_free(struct ion_buffer *buffer)
 	sg_free_table(table);
 	kfree(table);
 	table = 0;
-	kfree(data->pages);
+	if (data->pages_uses_vmalloc)
+		vfree(data->pages);
+	else
+		kfree(data->pages);
 	kfree(data);
 }
 
@@ -330,6 +358,14 @@ int ion_iommu_heap_map_iommu(struct ion_buffer *buffer,
 	data->mapped_size = iova_length;
 	extra = iova_length - buffer->size;
 
+	/* Use the biggest alignment to allow bigger IOMMU mappings.
+	 * Use the first entry since the first entry will always be the
+	 * biggest entry. To take advantage of bigger mapping sizes both the
+	 * VA and PA addresses have to be aligned to the biggest size.
+	 */
+	if (buffer->sg_table->sgl->length > align)
+		align = buffer->sg_table->sgl->length;
+
 	ret = msm_allocate_iova_address(domain_num, partition_num,
 						data->mapped_size, align,
 						&data->iova_addr);
@@ -408,15 +444,30 @@ static int ion_iommu_cache_ops(struct ion_heap *heap, struct ion_buffer *buffer,
 
 	switch (cmd) {
 	case ION_IOC_CLEAN_CACHES:
-		dmac_clean_range(vaddr, vaddr + length);
+		if (!vaddr)
+			dma_sync_sg_for_device(NULL, buffer->sg_table->sgl,
+				buffer->sg_table->nents, DMA_TO_DEVICE);
+		else
+			dmac_clean_range(vaddr, vaddr + length);
 		outer_cache_op = outer_clean_range;
 		break;
 	case ION_IOC_INV_CACHES:
-		dmac_inv_range(vaddr, vaddr + length);
+		if (!vaddr)
+			dma_sync_sg_for_cpu(NULL, buffer->sg_table->sgl,
+				buffer->sg_table->nents, DMA_FROM_DEVICE);
+		else
+			dmac_inv_range(vaddr, vaddr + length);
 		outer_cache_op = outer_inv_range;
 		break;
 	case ION_IOC_CLEAN_INV_CACHES:
-		dmac_flush_range(vaddr, vaddr + length);
+		if (!vaddr) {
+			dma_sync_sg_for_device(NULL, buffer->sg_table->sgl,
+				buffer->sg_table->nents, DMA_TO_DEVICE);
+			dma_sync_sg_for_cpu(NULL, buffer->sg_table->sgl,
+				buffer->sg_table->nents, DMA_FROM_DEVICE);
+		} else {
+			dmac_flush_range(vaddr, vaddr + length);
+		}
 		outer_cache_op = outer_flush_range;
 		break;
 	default:

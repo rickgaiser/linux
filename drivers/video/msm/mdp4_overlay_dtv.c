@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -71,21 +71,19 @@ static struct vsycn_ctrl {
 	int update_ndx;
 	int dmae_intr_cnt;
 	atomic_t suspend;
-	atomic_t vsync_resume;
 	int dmae_wait_cnt;
-	int wait_vsync_cnt;
 	int blt_change;
 	int sysfs_created;
 	struct mutex update_lock;
 	struct completion ov_comp;
 	struct completion dmae_comp;
-	struct completion vsync_comp;
 	spinlock_t spin_lock;
 	struct msm_fb_data_type *mfd;
 	struct mdp4_overlay_pipe *base_pipe;
 	struct vsync_update vlist[2];
 	int vsync_irq_enabled;
 	ktime_t vsync_time;
+	wait_queue_head_t wait_queue;
 } vsync_ctrl_db[MAX_CONTROLLER];
 
 static void vsync_irq_enable(int intr, int term)
@@ -112,6 +110,27 @@ static void vsync_irq_disable(int intr, int term)
 	mdp_disable_irq_nosync(term);
 	spin_unlock_irqrestore(&mdp_spin_lock, flag);
 	pr_debug("%s: IRQ-dis done, term=%x\n", __func__, term);
+}
+
+void mdp4_dtv_free_base_pipe(struct msm_fb_data_type *mfd)
+{
+	struct vsycn_ctrl *vctrl;
+	struct mdp4_overlay_pipe *pipe;
+
+	vctrl = &vsync_ctrl_db[0];
+	pipe = vctrl->base_pipe;
+
+	if (pipe == NULL)
+		return ;
+
+	if (hdmi_prim_display) {
+		/* adb stop */
+		if (pipe->pipe_type == OVERLAY_TYPE_BF)
+			mdp4_overlay_borderfill_stage_down(pipe);
+
+		/* pipe == rgb2 */
+		vctrl->base_pipe = NULL;
+	}
 }
 
 void mdp4_overlay_dtv_start(void)
@@ -204,16 +223,15 @@ int mdp4_dtv_pipe_commit(int cndx, int wait)
 		return 0;
 	}
 	mixer = pipe->mixer_num;
-	mdp4_overlay_iommu_unmap_freelist(mixer);
 
-	mdp_update_pm(vctrl->mfd, vctrl->vsync_time);
+        mdp_update_pm(vctrl->mfd, vctrl->vsync_time);
 
-	/*
-	 * allow stage_commit without pipes queued
-	 * (vp->update_cnt == 0) to unstage pipes after
-	 * overlay_unset
-	 */
-
+/*
+* allow stage_commit without pipes queued
+* (vp->update_cnt == 0) to unstage pipes after
+* overlay_unset
+*/
+	xlog(__func__, wait, vp->update_cnt, 0, 0, 0);
 	vctrl->update_ndx++;
 	vctrl->update_ndx &= 0x01;
 	vp->update_cnt = 0;	/* reset */
@@ -228,6 +246,31 @@ int mdp4_dtv_pipe_commit(int cndx, int wait)
 				/* pipe not unset */
 				mdp4_overlay_vsync_commit(pipe);
 			}
+		}
+	}
+	mdp4_mixer_stage_commit(mixer);
+
+	 /* start timing generator & mmu if they are not started yet */
+	mdp4_overlay_dtv_start();
+
+	/*
+	 * there has possibility that pipe commit come very close to next vsync
+	 * this may cause two consecutive pie_commits happen within same vsync
+	 * period which casue iommu page fault when previous iommu buffer
+	 * freed. Set ION_IOMMU_UNMAP_DELAYED flag at ion_map_iommu() to
+	 * add delay unmap iommu buffer to fix this problem.
+	 * Also ion_unmap_iommu() may take as long as 9 ms to free an ion buffer.
+	 * therefore mdp4_overlay_iommu_unmap_freelist(mixer) should be called
+	 * ater stage_commit() to ensure pipe_commit (up to stage_commit)
+	 * is completed within vsync period.
+	 */
+
+	/* free previous committed iommu back to pool */
+	mdp4_overlay_iommu_unmap_freelist(mixer);
+
+	pipe = vp->plist;
+	for (i = 0; i < OVERLAY_PIPE_MAX; i++, pipe++) {
+		if (pipe->pipe_used) {
 			/* free previous iommu to freelist
 			* which will be freed at next
 			* pipe_commit
@@ -236,11 +279,6 @@ int mdp4_dtv_pipe_commit(int cndx, int wait)
 			pipe->pipe_used = 0; /* clear */
 		}
 	}
-	mdp4_mixer_stage_commit(mixer);
-
-	 /* start timing generator & mmu if they are not started yet */
-	mdp4_overlay_dtv_start();
-
 	pipe = vctrl->base_pipe;
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
 	if (pipe->ov_blt_addr) {
@@ -262,7 +300,7 @@ int mdp4_dtv_pipe_commit(int cndx, int wait)
 
 	if (wait)
 		mdp4_dtv_wait4dmae(0);
-
+	xlog(__func__, 0x9999, 0, 0, 0, 0);
 	return cnt;
 }
 
@@ -277,19 +315,20 @@ static void mdp4_dtv_vsync_irq_ctrl(int cndx, int enable)
 	if (enable) {
 		if (vsync_irq_cnt == 0)
 			vsync_irq_enable(INTR_EXTERNAL_VSYNC,
-						MDP_EXTER_VSYNC_TERM);
+			MDP_EXTER_VSYNC_TERM);
 		vsync_irq_cnt++;
-	} else {
+		} else {
 		if (vsync_irq_cnt) {
 			vsync_irq_cnt--;
 			if (vsync_irq_cnt == 0)
 				vsync_irq_disable(INTR_EXTERNAL_VSYNC,
-						MDP_EXTER_VSYNC_TERM);
+				MDP_EXTER_VSYNC_TERM);
 		}
 	}
 	pr_debug("%s: enable=%d cnt=%d\n", __func__, enable, vsync_irq_cnt);
 	mutex_unlock(&vctrl->update_lock);
 }
+
 
 void mdp4_dtv_vsync_ctrl(struct fb_info *info, int enable)
 {
@@ -299,7 +338,7 @@ void mdp4_dtv_vsync_ctrl(struct fb_info *info, int enable)
 	vctrl = &vsync_ctrl_db[cndx];
 
 	if (!external_common_state->hpd_state)
-		complete_all(&vctrl->vsync_comp);
+		wake_up_interruptible_all(&vctrl->wait_queue);
 
 	if (vctrl->vsync_irq_enabled == enable)
 		return;
@@ -310,15 +349,13 @@ void mdp4_dtv_vsync_ctrl(struct fb_info *info, int enable)
 
 	mdp4_dtv_vsync_irq_ctrl(cndx, enable);
 
-	if (vctrl->vsync_irq_enabled &&  atomic_read(&vctrl->suspend) == 0)
-		atomic_set(&vctrl->vsync_resume, 1);
 }
 
 void mdp4_dtv_wait4vsync(int cndx)
 {
 	struct vsycn_ctrl *vctrl;
 	struct mdp4_overlay_pipe *pipe;
-	unsigned long flags;
+	int ret;
 
 	if (cndx >= MAX_CONTROLLER) {
 		pr_err("%s: out or range: cndx=%d\n", __func__, cndx);
@@ -330,17 +367,14 @@ void mdp4_dtv_wait4vsync(int cndx)
 
 	if (atomic_read(&vctrl->suspend) > 0)
 		return;
-
+	
 	mdp4_dtv_vsync_irq_ctrl(cndx, 1);
 
-	spin_lock_irqsave(&vctrl->spin_lock, flags);
+	ret = wait_event_interruptible_timeout(vctrl->wait_queue, 1,
+			msecs_to_jiffies(VSYNC_PERIOD * 8));
+	if (ret <= 0)
+		pr_err("%s timeout ret=%d", __func__, ret);
 
-	if (vctrl->wait_vsync_cnt == 0)
-		INIT_COMPLETION(vctrl->vsync_comp);
-	vctrl->wait_vsync_cnt++;
-	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
-
-	wait_for_completion(&vctrl->vsync_comp);
 	mdp4_dtv_vsync_irq_ctrl(cndx, 0);
 	mdp4_stat.wait4vsync1++;
 }
@@ -368,35 +402,21 @@ ssize_t mdp4_dtv_show_event(struct device *dev,
 	int cndx;
 	struct vsycn_ctrl *vctrl;
 	ssize_t ret = 0;
-	unsigned long flags;
 	u64 vsync_tick;
+	ktime_t timestamp;
 
 	cndx = 0;
 	vctrl = &vsync_ctrl_db[0];
+	timestamp = vctrl->vsync_time;
 
-	if (atomic_read(&vctrl->suspend) > 0 ||
-		!external_common_state->hpd_state ||
-		atomic_read(&vctrl->vsync_resume) == 0)
-		return 0;
+	ret = wait_event_interruptible(vctrl->wait_queue,
+			!ktime_equal(timestamp, vctrl->vsync_time) &&
+			vctrl->vsync_irq_enabled);
+	if (ret == -ERESTARTSYS)
+		return ret;
 
-	spin_lock_irqsave(&vctrl->spin_lock, flags);
-	if (vctrl->wait_vsync_cnt == 0)
-		INIT_COMPLETION(vctrl->vsync_comp);
-	vctrl->wait_vsync_cnt++;
-	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
-
-	ret = wait_for_completion_interruptible_timeout(&vctrl->vsync_comp,
-		msecs_to_jiffies(VSYNC_PERIOD * 4));
-	if (ret <= 0) {
-		vctrl->wait_vsync_cnt = 0;
-		vctrl->vsync_time = ktime_get();
-	}
-
-	spin_lock_irqsave(&vctrl->spin_lock, flags);
 	vsync_tick = ktime_to_ns(vctrl->vsync_time);
-	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
-
-	ret = snprintf(buf, PAGE_SIZE, "VSYNC=%llu", vsync_tick);
+	ret = scnprintf(buf, PAGE_SIZE, "VSYNC=%llu", vsync_tick);
 	buf[strlen(buf) + 1] = '\0';
 	return ret;
 }
@@ -418,12 +438,11 @@ void mdp4_dtv_vsync_init(int cndx)
 	vctrl->inited = 1;
 	vctrl->update_ndx = 0;
 	mutex_init(&vctrl->update_lock);
-	init_completion(&vctrl->vsync_comp);
 	init_completion(&vctrl->ov_comp);
 	init_completion(&vctrl->dmae_comp);
 	atomic_set(&vctrl->suspend, 1);
-	atomic_set(&vctrl->vsync_resume, 1);
 	spin_lock_init(&vctrl->spin_lock);
+	init_waitqueue_head(&vctrl->wait_queue);
 }
 
 static int mdp4_dtv_start(struct msm_fb_data_type *mfd)
@@ -632,12 +651,9 @@ static void mdp4_dtv_tg_off(struct vsycn_ctrl *vctrl)
 	unsigned long flags;
 
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
-	INIT_COMPLETION(vctrl->vsync_comp);
-	vctrl->wait_vsync_cnt++;
 	MDP_OUTP(MDP_BASE + DTV_BASE, 0); /* turn off timing generator */
 	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
-
-	mdp4_dtv_wait4vsync(0);
+	msleep(20);
 }
 
 int mdp4_dtv_off(struct platform_device *pdev)
@@ -649,6 +665,7 @@ int mdp4_dtv_off(struct platform_device *pdev)
 	struct vsycn_ctrl *vctrl;
 	struct mdp4_overlay_pipe *pipe;
 	struct vsync_update *vp;
+	int mixer = 0;
 
 	mfd = (struct msm_fb_data_type *)platform_get_drvdata(pdev);
 
@@ -658,14 +675,13 @@ int mdp4_dtv_off(struct platform_device *pdev)
 
 	mdp4_dtv_wait4vsync(cndx);
 
-	atomic_set(&vctrl->vsync_resume, 0);
-
-	complete_all(&vctrl->vsync_comp);
+	wake_up_interruptible_all(&vctrl->wait_queue);
 
 	pipe = vctrl->base_pipe;
 	if (pipe != NULL) {
+		mixer = pipe->mixer_num;
 		/* sanity check, free pipes besides base layer */
-		mdp4_overlay_unset_mixer(pipe->mixer_num);
+		mdp4_overlay_unset_mixer(mixer);
 		if (hdmi_prim_display && mfd->ref_cnt == 0) {
 			/* adb stop */
 			if (pipe->pipe_type == OVERLAY_TYPE_BF)
@@ -675,7 +691,7 @@ int mdp4_dtv_off(struct platform_device *pdev)
 			vctrl->base_pipe = NULL;
 		} else {
 			mdp4_mixer_stage_down(pipe, 1);
-			mdp4_overlay_pipe_free(pipe);
+			mdp4_overlay_pipe_free(pipe, 1);
 			vctrl->base_pipe = NULL;
 		}
 	}
@@ -699,6 +715,14 @@ int mdp4_dtv_off(struct platform_device *pdev)
 
 	ret = panel_next_off(pdev);
 	mdp_footswitch_ctrl(FALSE);
+
+	/*
+	 * clean up ion freelist
+	 * there need two stage to empty ion free list
+	 * therefore need call unmap freelist twice
+	 */
+	mdp4_overlay_iommu_unmap_freelist(mixer);
+	mdp4_overlay_iommu_unmap_freelist(mixer);
 
 	/* Mdp clock disable */
 	mdp_clk_ctrl(0);
@@ -821,8 +845,8 @@ static void mdp4_overlay_dtv_alloc_pipe(struct msm_fb_data_type *mfd,
 
 	mdp4_overlay_mdp_pipe_req(pipe, mfd);
 	mdp4_calc_blt_mdp_bw(mfd, pipe);
-	mdp4_overlay_mdp_perf_req(mfd);
-	mdp4_overlay_mdp_perf_upd(mfd, 1);
+//	mdp4_overlay_mdp_perf_req(mfd, pipe);//need_check
+//	mdp4_overlay_mdp_perf_upd(mfd, 1);
 
 	ret = mdp4_overlay_format2pipe(pipe);
 	if (ret < 0)
@@ -904,11 +928,7 @@ void mdp4_external_vsync_dtv(void)
 
 	spin_lock(&vctrl->spin_lock);
 	vctrl->vsync_time = ktime_get();
-
-	if (vctrl->wait_vsync_cnt) {
-		complete_all(&vctrl->vsync_comp);
-		vctrl->wait_vsync_cnt = 0;
-	}
+	wake_up_interruptible_all(&vctrl->wait_queue);
 	spin_unlock(&vctrl->spin_lock);
 }
 
@@ -1124,7 +1144,7 @@ void mdp4_dtv_overlay(struct msm_fb_data_type *mfd)
 	}
 
 	mdp4_overlay_mdp_perf_upd(mfd, 1);
-	mdp4_dtv_pipe_commit(0, 0);
+	mdp4_dtv_pipe_commit(0, 1);
 	mdp4_overlay_mdp_perf_upd(mfd, 0);
 	mutex_unlock(&mfd->dma->ov_mutex);
 }

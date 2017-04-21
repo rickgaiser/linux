@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -326,10 +326,7 @@ void mipi_dsi_phy_rdy_poll(void)
 }
 
 #define PREF_DIV_RATIO 27
-#define VCO_MINIMUM 600
 struct dsiphy_pll_divider_config pll_divider_config;
-u32 vco_level_100;
-u32 vco_min_allowed;
 
 int mipi_dsi_phy_pll_config(u32 clk_rate)
 {
@@ -370,36 +367,95 @@ int mipi_dsi_phy_pll_config(u32 clk_rate)
 
 	return 0;
 }
-
-void mipi_dsi_configure_fb_divider(u32 fps_level)
+#if 0
+void mipi_dsi_configure_dividers(int fps)
 {
-	u32 fb_div_req, fb_div_req_by_2;
-	u32 vco_required;
+	struct dsiphy_pll_divider_config *dividers;
+	u32 tmp;
+     
+	dividers = &pll_divider_config;
+   
+	if(fps == 60) {
+		tmp = MIPI_INP(MIPI_DSI_BASE + 0x20C);
+		tmp &= ~0x3f;
+		tmp |= (dividers->ref_divider_ratio- 1) & 0x3f;
+		MIPI_OUTP(MIPI_DSI_BASE + 0x20C, tmp);
 
-	vco_required = vco_level_100 * fps_level/100;
-	if (vco_required < vco_min_allowed) {
-		printk(KERN_WARNING "Can not change fps. Min level allowed is \
-	%d \n", (vco_min_allowed * 100 / vco_level_100) + 1);
-		return;
+		tmp = MIPI_INP(MIPI_DSI_BASE + 0x22C);
+		tmp &= ~0x10;
+		MIPI_OUTP(MIPI_DSI_BASE + 0x22C, tmp);
+			
+		wmb();
+	} else if(fps == 45) {
+		tmp = MIPI_INP(MIPI_DSI_BASE + 0x20C);
+		tmp &= ~0x3f;
+		tmp |= ((dividers->ref_divider_ratio+1)- 1) & 0x3f;
+		MIPI_OUTP(MIPI_DSI_BASE + 0x20C, tmp);
+
+		tmp = MIPI_INP(MIPI_DSI_BASE + 0x22C);
+		tmp &= ~0x10;
+		MIPI_OUTP(MIPI_DSI_BASE + 0x22C, tmp);
+					
+		 wmb();
+	} else if(fps == 30) {
+		tmp = MIPI_INP(MIPI_DSI_BASE + 0x22C);
+		tmp |= 0x10;
+		MIPI_OUTP(MIPI_DSI_BASE + 0x22C, tmp);
+
+
+		tmp = MIPI_INP(MIPI_DSI_BASE + 0x20C);
+		tmp &= ~0x3f;
+		tmp |= ((dividers->ref_divider_ratio*2)- 1) & 0x3f;
+		MIPI_OUTP(MIPI_DSI_BASE + 0x20C, tmp);
+
+		wmb();
+	} else {
+		pr_info("Invalid fps value\n");
 	}
-
-	fb_div_req = vco_required * PREF_DIV_RATIO / 27;
-	fb_div_req_by_2 = (fb_div_req / 2) - 1;
-
-	pll_divider_config.fb_divider = fb_div_req;
-
-	/* DSIPHY_PLL_CTRL_1 */
-	MIPI_OUTP(MIPI_DSI_BASE + 0x204, fb_div_req_by_2 & 0xff);
-	wmb();
 }
+#endif
+static int current_fps = 60; 
+void mipi_dsi_configure_dividers(int fps) 
+{
+	u32 fb_divider, rate, vco;
+	u32 div_ratio = 0;
+	struct dsiphy_pll_divider_config *dividers;
+
+	dividers = &pll_divider_config;
+	
+	if(fps >= 42 && fps <= 60)
+	{
+		rate = dividers->clk_rate / 1000000; /* In Mhz */
+		
+		if (rate < 125) {
+			vco = rate * 8;
+			div_ratio = 8;
+		} else if (rate < 250) {
+			vco = rate * 4;
+			div_ratio = 4;
+		} else if (rate < 600) {
+			vco = rate * 2;
+			div_ratio = 2;
+		} else {
+			vco = rate * 1;
+			div_ratio = 1;
+		}
+
+		fb_divider = ((vco * fps * PREF_DIV_RATIO) / (27 * current_fps));
+		fb_divider = (fb_divider/2) - 1;
+		MIPI_OUTP(MIPI_DSI_BASE + 0x204, fb_divider & 0xff);
+		wmb();
+	}
+	else
+	{
+		printk("Invalid fps value\n");
+	}
+} 
 
 int mipi_dsi_clk_div_config(uint8 bpp, uint8 lanes,
 			    uint32 *expected_dsi_pclk)
 {
 	u32 fb_divider, rate, vco;
-	u32 fb_div_min, fb_div_by_2_min,
-			 fb_div_by_2;
-	u32 vco_level_75;
 	u32 div_ratio = 0;
 	struct dsi_clk_mnd_table const *mnd_entry = mnd_table;
 	if (pll_divider_config.clk_rate == 0)
@@ -441,17 +497,6 @@ int mipi_dsi_clk_div_config(uint8 bpp, uint8 lanes,
 			pll_divider_config.bit_clk_divider * 8;
 	pll_divider_config.dsi_clk_divider =
 			(mnd_entry->dsiclk_div) * div_ratio;
-
-	vco_level_100 = vco;
-	fb_div_by_2 = (fb_divider / 2) - 1;
-	fb_div_by_2_min = (fb_div_by_2 / 256) * 256;
-	fb_div_min = (fb_div_by_2_min + 1) * 2;
-	vco_min_allowed = (fb_div_min * 27 / PREF_DIV_RATIO);
-	vco_level_75 = vco_level_100 * 75 / 100;
-	if (vco_min_allowed < VCO_MINIMUM)
-		vco_min_allowed = VCO_MINIMUM;
-	if (vco_min_allowed < vco_level_75)
-		vco_min_allowed = vco_level_75;
 
 	if (mnd_entry->dsiclk_d == 0) {
 		dsicore_clk.mnd_mode = 0;
@@ -648,6 +693,8 @@ void mipi_dsi_prepare_clocks(void)
 	clk_prepare(amp_pclk);
 	clk_prepare(dsi_m_pclk);
 	clk_prepare(dsi_s_pclk);
+	clk_set_rate(dsi_byte_div_clk, 1);
+	clk_set_rate(dsi_esc_clk, 1);
 	clk_prepare(dsi_byte_div_clk);
 	clk_prepare(dsi_esc_clk);
 }
@@ -818,7 +865,7 @@ void hdmi_msm_powerdown_phy(void)
 	HDMI_OUTP_ND(HDMI_PHY_REG_2, 0x7F); /*0b01111111*/
 }
 
-void hdmi_frame_ctrl_cfg(const struct hdmi_disp_mode_timing_type *timing)
+void hdmi_frame_ctrl_cfg(const struct msm_hdmi_mode_timing_info *timing)
 {
 	/*  0x02C8 HDMI_FRAME_CTRL
 	 *  31 INTERLACED_EN   Interlaced or progressive enable bit

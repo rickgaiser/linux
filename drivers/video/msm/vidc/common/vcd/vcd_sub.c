@@ -1684,7 +1684,7 @@ u32 vcd_process_cmd_sess_start(struct vcd_clnt_ctxt *cctxt)
 void vcd_send_frame_done_in_eos(struct vcd_clnt_ctxt *cctxt,
 	 struct vcd_frame_data *input_frame, u32 valid_opbuf)
 {
-	VCD_MSG_LOW("vcd_send_frame_done_in_eos:");
+	VCD_MSG_HIGH("vcd_send_frame_done_in_eos:");
 
 	if (!input_frame->virtual && !valid_opbuf) {
 		VCD_MSG_MED("Sending NULL output with EOS");
@@ -1726,6 +1726,7 @@ void vcd_send_frame_done_in_eos_for_dec(
 	u32 rc;
 	struct ddl_frame_data_tag ddl_frm;
 
+	VCD_MSG_LOW("%s: ", __func__);
 	prop_hdr.prop_id = DDL_I_DPB_RETRIEVE;
 	prop_hdr.sz = sizeof(struct ddl_frame_data_tag);
 	memset(&ddl_frm, 0, sizeof(ddl_frm));
@@ -1804,36 +1805,79 @@ void vcd_send_frame_done_in_eos_for_enc(
 	}
 }
 
+struct vcd_transc *vcd_get_first_in_use_trans_for_clnt(
+	struct vcd_clnt_ctxt *cctxt)
+{
+	u32 i;
+	struct vcd_dev_ctxt *dev_ctxt;
+	VCD_MSG_HIGH("%s: ", __func__);
+	dev_ctxt = cctxt->dev_ctxt;
+	if (!dev_ctxt->trans_tbl) {
+		VCD_MSG_ERROR("%s: Null trans_tbl", __func__);
+		return NULL;
+	}
+	i = 0;
+	while (i < dev_ctxt->trans_tbl_size) {
+		if ((cctxt == dev_ctxt->trans_tbl[i].cctxt) &&
+			(dev_ctxt->trans_tbl[i].in_use)) {
+			VCD_MSG_MED("%s: found transc = 0x%p",
+				__func__, &dev_ctxt->trans_tbl[i]);
+			break;
+		}
+		i++;
+	}
+	if (i == dev_ctxt->trans_tbl_size) {
+		VCD_MSG_ERROR("%s: in_use transction not found",
+			__func__);
+		return NULL;
+	} else
+		return &dev_ctxt->trans_tbl[i];
+}
+
 u32 vcd_handle_recvd_eos(
 	struct vcd_clnt_ctxt *cctxt,
 	 struct vcd_frame_data *input_frame, u32 *pb_eos_handled)
 {
 	u32 rc;
-
+	struct vcd_transc *transc;
 	VCD_MSG_LOW("vcd_handle_recvd_eos:");
 
 	*pb_eos_handled = false;
 
 	if (input_frame->virtual &&
-			input_frame->data_len)
+			input_frame->data_len) {
+		VCD_MSG_LOW("%s: data available with EOS buffer", __func__);
 		return VCD_S_SUCCESS;
+	}
 
 	input_frame->data_len = 0;
 	rc = vcd_sched_mark_client_eof(cctxt->sched_clnt_hdl);
-	if (VCD_FAILED(rc) && rc != VCD_ERR_QEMPTY)
+	if (VCD_FAILED(rc) && rc != VCD_ERR_QEMPTY) {
+		VCD_MSG_LOW("%s: rc = %u", __func__, rc);
 		return rc;
+	}
 
-	if (rc == VCD_S_SUCCESS)
+	if (rc == VCD_S_SUCCESS) {
 		*pb_eos_handled = true;
-	else if (cctxt->decoding && !input_frame->virtual)
+		VCD_MSG_LOW("%s: EOS handled", __func__);
+	} else if (cctxt->decoding && !input_frame->virtual) {
 		cctxt->sched_clnt_hdl->tkns++;
-	else if (!cctxt->decoding) {
-		vcd_send_frame_done_in_eos(cctxt, input_frame, false);
-		if (cctxt->status.mask & VCD_EOS_WAIT_OP_BUF) {
-			vcd_do_client_state_transition(cctxt,
-				VCD_CLIENT_STATE_EOS,
-				CLIENT_STATE_EVENT_NUMBER
-				(encode_frame));
+		VCD_MSG_LOW("%s: decoding & virtual addr is NULL", __func__);
+	} else if (!cctxt->decoding && !cctxt->status.frame_delayed) {
+		if (!cctxt->status.frame_submitted) {
+			vcd_send_frame_done_in_eos(cctxt, input_frame, false);
+			if (cctxt->status.mask & VCD_EOS_WAIT_OP_BUF)
+				vcd_do_client_state_transition(cctxt,
+					VCD_CLIENT_STATE_EOS,
+					CLIENT_STATE_EVENT_NUMBER
+					(encode_frame));
+		} else {
+			transc = vcd_get_first_in_use_trans_for_clnt(cctxt);
+			if (transc) {
+				transc->flags |= VCD_FRAME_FLAG_EOS;
+				VCD_MSG_HIGH("%s: Add EOS flag to transc",
+				       __func__);
+			}
 		}
 		*pb_eos_handled = true;
 	}
@@ -1841,6 +1885,8 @@ u32 vcd_handle_recvd_eos(
 	if (*pb_eos_handled &&
 		input_frame->virtual &&
 		!input_frame->data_len) {
+		VCD_MSG_LOW("%s: sending INPUT_DONE as eos was handled",
+			__func__);
 		cctxt->callback(VCD_EVT_RESP_INPUT_DONE,
 				  VCD_S_SUCCESS,
 				  input_frame,
@@ -2322,8 +2368,16 @@ u32 vcd_handle_frame_done(
 
 	if (cctxt->decoding)
 		op_frm->vcd_frm.frame = transc->frame;
-	else
+	else {
 		transc->frame = op_frm->vcd_frm.frame;
+		if ((transc->flags & VCD_FRAME_FLAG_EOS) &&
+			!(op_frm->vcd_frm.flags & VCD_FRAME_FLAG_EOS)) {
+			op_frm->vcd_frm.flags |= VCD_FRAME_FLAG_EOS;
+			VCD_MSG_HIGH("%s: add EOS flag to the output "\
+				"from transc(0x%x)",
+				__func__, (u32)transc);
+		}
+	}
 	transc->frame_done = true;
 
 	if (transc->input_done && transc->frame_done) {
@@ -2445,6 +2499,7 @@ u32 vcd_handle_first_fill_output_buffer_for_enc(
 	struct vcd_sequence_hdr seq_hdr;
 	struct vcd_property_sps_pps_for_idr_enable idr_enable;
 	struct vcd_property_codec codec;
+	u8 *kernel_vaddr = NULL;
 	*handled = true;
 	prop_hdr.prop_id = DDL_I_SEQHDR_PRESENT;
 	prop_hdr.sz = sizeof(seqhdr_present);
@@ -2472,7 +2527,26 @@ u32 vcd_handle_first_fill_output_buffer_for_enc(
 			if (!cctxt->secure) {
 				prop_hdr.prop_id = VCD_I_SEQ_HEADER;
 				prop_hdr.sz = sizeof(struct vcd_sequence_hdr);
-				seq_hdr.sequence_header = frm_entry->virtual;
+				if (vcd_get_ion_status()) {
+					kernel_vaddr = (u8 *)ion_map_kernel(
+						cctxt->vcd_ion_client,
+						frm_entry->buff_ion_handle);
+					if (IS_ERR_OR_NULL(kernel_vaddr)) {
+						VCD_MSG_ERROR("%s: 0x%x = "\
+						"ion_map_kernel(0x%x, 0x%x) fail",
+						__func__,
+						(u32)kernel_vaddr,
+						(u32)cctxt->vcd_ion_client,
+						(u32)frm_entry->
+						buff_ion_handle);
+						return VCD_ERR_FAIL;
+					}
+				} else {
+					VCD_MSG_ERROR("%s: ION status is NULL",
+						__func__);
+					return VCD_ERR_FAIL;
+				}
+				seq_hdr.sequence_header = kernel_vaddr;
 				seq_hdr.sequence_header_len =
 					frm_entry->alloc_len;
 				rc = ddl_get_property(cctxt->ddl_handle,
@@ -2483,6 +2557,8 @@ u32 vcd_handle_first_fill_output_buffer_for_enc(
 					frm_entry->time_stamp = 0;
 					frm_entry->flags |=
 						VCD_FRAME_FLAG_CODECCONFIG;
+					VCD_MSG_LOW("%s: header len = %u",
+						__func__, frm_entry->data_len);
 				} else
 					VCD_MSG_ERROR("rc = 0x%x. Failed:"
 							"ddl_get_property: VCD_I_SEQ_HEADER",
@@ -2524,6 +2600,16 @@ u32 vcd_handle_first_fill_output_buffer_for_enc(
 		VCD_MSG_ERROR(
 			"rc = 0x%x. Failed: ddl_get_property:VCD_I_CODEC",
 			rc);
+	if (kernel_vaddr) {
+		if (!IS_ERR_OR_NULL(frm_entry->buff_ion_handle)) {
+			ion_map_kernel(cctxt->vcd_ion_client,
+				frm_entry->buff_ion_handle);
+		} else {
+			VCD_MSG_ERROR("%s: Invalid ion_handle (0x%x)",
+				__func__, (u32)frm_entry->buff_ion_handle);
+			rc = VCD_ERR_FAIL;
+		}
+	}
 	return rc;
 }
 
@@ -3077,6 +3163,7 @@ u32 vcd_req_perf_level(
 		return -EINVAL;
 	}
 	res_trk_perf_level = get_res_trk_perf_level(perf_level->level);
+
 	if (res_trk_perf_level < 0) {
 		rc = -ENOTSUPP;
 		goto perf_level_not_supp;
@@ -3493,6 +3580,17 @@ u32 vcd_set_num_slices(struct vcd_clnt_ctxt *cctxt)
 					__func__, cctxt->num_slices);
 	} else {
 		cctxt->num_slices = 1;
+	}
+	return rc;
+}
+
+u32 vcd_handle_ltr_use_failed(struct vcd_clnt_ctxt *cctxt,
+	void *payload, size_t sz, u32 status)
+{
+	u32 rc = VCD_S_SUCCESS;
+	if (payload && cctxt) {
+		cctxt->callback(VCD_EVT_IND_INFO_LTRUSE_FAILED,
+			status, payload, sz, cctxt, cctxt->client_data);
 	}
 	return rc;
 }

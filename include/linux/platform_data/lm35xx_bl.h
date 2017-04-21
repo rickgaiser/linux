@@ -16,7 +16,7 @@
 #define __LM35XX_BL_H
 
 #ifdef CONFIG_BACKLIGHT_LM3530
-void lm3530_lcd_backlight_set_level( int level);
+void lm3530_lcd_backlight_set_level(int level);
 void lm3530_lcd_backlight_pwm_disable(void);
 int lm3530_lcd_backlight_on_status(void);
 #endif

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -41,6 +41,32 @@ enum pm8xxx_leds {
 	PM8XXX_ID_MAX,
 };
 
+#ifdef CONFIG_SEC_PRODUCT_8960
+enum pm8xxx_led_pats {
+	PM8XXX_LED_PAT1_RED = 0,
+	PM8XXX_LED_PAT1_GREEN,
+	PM8XXX_LED_PAT2_RED,
+	PM8XXX_LED_PAT2_GREEN,
+	PM8XXX_LED_PAT3_RED,
+	PM8XXX_LED_PAT3_GREEN,
+	PM8XXX_LED_PAT3_BLUE,
+	PM8XXX_LED_PAT4_RED,
+	PM8XXX_LED_PAT4_GREEN,
+	PM8XXX_LED_PAT5_RED,
+	PM8XXX_LED_PAT5_GREEN,
+	PM8XXX_LED_PAT5_BLUE,
+	PM8XXX_LED_PAT6_GREEN,
+	PM8XXX_LED_PAT6_BLUE,
+	PM8XXX_LED_PAT7_RED,
+	PM8XXX_LED_PAT7_GREEN,
+	PM8XXX_LED_PAT7_BLUE,
+	PM8XXX_LED_PAT8_RED,
+	PM8XXX_LED_PAT8_GREEN,
+	PM8XXX_LED_PAT8_BLUE,
+	PM8XXX_LED_KB_LED,
+};
+#endif
+
 /**
  * pm8xxx_led_modes - Operating modes of LEDs
  */
@@ -72,7 +98,7 @@ enum wled_ovp_threshold {
 	WLED_OVP_35V,
 	WLED_OVP_32V,
 	WLED_OVP_29V,
-	WLED_OVP_37V,
+	WLED_OVP_27V,
 };
 
 /**
@@ -93,6 +119,7 @@ struct wled_config_data {
 	u8	boost_curr_lim;
 	u8	cp_select;
 	u8	ctrl_delay_us;
+	u16	comp_res_val;
 	bool	dig_mod_gen_en;
 	bool	cs_out_en;
 	bool	op_fdbck;
@@ -136,5 +163,12 @@ struct pm8xxx_led_platform_data {
 	struct	pm8xxx_led_config	*configs;
 	u32				num_configs;
 	int				use_pwm;
+#ifdef CONFIG_SEC_PRODUCT_8960
+	void (*led_power_on)(int);	
+#endif
 };
+
+#ifdef CONFIG_SEC_PRODUCT_8960
+extern struct class *sec_class;
+#endif
 #endif /* __LEDS_PM8XXX_H__ */

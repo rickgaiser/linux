@@ -80,7 +80,9 @@
 #ifdef CONFIG_PARAVIRT
 #include <asm/paravirt.h>
 #endif
-
+#if defined(CONFIG_SEC_DEBUG)
+#include <mach/sec_debug.h>
+#endif
 #include "sched.h"
 #include "../workqueue_sched.h"
 
@@ -401,16 +403,9 @@ static enum hrtimer_restart hrtick(struct hrtimer *timer)
 static void __hrtick_start(void *arg)
 {
 	struct rq *rq = arg;
-	struct hrtimer *timer = &rq->hrtick_timer;
-	ktime_t soft, hard;
-	unsigned long delta;
-
-	soft = hrtimer_get_softexpires(timer);
-	hard = hrtimer_get_expires(timer);
-	delta = ktime_to_ns(ktime_sub(hard, soft));
 
 	raw_spin_lock(&rq->lock);
-	__hrtimer_start_range_ns(timer, soft, delta, HRTIMER_MODE_ABS, 0);
+	hrtimer_restart(&rq->hrtick_timer);
 	rq->hrtick_csd_pending = 0;
 	raw_spin_unlock(&rq->lock);
 }
@@ -428,8 +423,7 @@ void hrtick_start(struct rq *rq, u64 delay)
 	hrtimer_set_expires(timer, time);
 
 	if (rq == this_rq()) {
-		__hrtimer_start_range_ns(timer, ns_to_ktime(delay), 0,
-						 HRTIMER_MODE_REL_PINNED, 0);
+		hrtimer_restart(timer);
 	} else if (!rq->hrtick_csd_pending) {
 		__smp_call_function_single(cpu_of(rq), &rq->hrtick_csd, 0);
 		rq->hrtick_csd_pending = 1;
@@ -2169,6 +2163,13 @@ unsigned long this_cpu_load(void)
 	return this->cpu_load[0];
 }
 
+#ifdef CONFIG_RUNTIME_COMPCACHE
+unsigned long this_cpu_loadx(int i)
+{
+	struct rq *this = this_rq();
+	return this->cpu_load[i];
+}
+#endif /* CONFIG_RUNTIME_COMPCACHE */
 
 /* Variables and functions for calc_load */
 static atomic_long_t calc_load_tasks;
@@ -3249,6 +3250,9 @@ need_resched:
 		 */
 		cpu = smp_processor_id();
 		rq = cpu_rq(cpu);
+#if defined(CONFIG_SEC_DEBUG)
+		sec_debug_task_sched_log(cpu, rq->curr);
+#endif
 	} else
 		raw_spin_unlock_irq(&rq->lock);
 
@@ -5187,8 +5191,15 @@ static void migrate_tasks(unsigned int dead_cpu)
 	 */
 	rq->stop = NULL;
 
-	/* Ensure any throttled groups are reachable by pick_next_task */
-	unthrottle_offline_cfs_rqs(rq);
+	/* if there is one or more rt threads on the rq and if throttled,
+	 * we will deadlock in below loop. rt sched hrtimer have to run to
+	 * unthrottle the rt rq but irq is disabled in this context. Thus,
+	 * pick_next_task will not pick the rt task even if it is on the
+	 * runqueue. rq->nr_running never gets down to 1 and we will
+	 * loop forever here.
+	 * So we forcefully unthrottle the rt rq.
+	 */
+	unthrottle_rt_rq(rq);
 
 	for ( ; ; ) {
 		/*
@@ -5877,6 +5888,7 @@ cpu_attach_domain(struct sched_domain *sd, struct root_domain *rd, int cpu)
 {
 	struct rq *rq = cpu_rq(cpu);
 	struct sched_domain *tmp;
+	unsigned long next_balance = rq->next_balance;
 
 	/* Remove the sched domains which do not contribute to scheduling. */
 	for (tmp = sd; tmp; ) {
@@ -5900,6 +5912,17 @@ cpu_attach_domain(struct sched_domain *sd, struct root_domain *rd, int cpu)
 		if (sd)
 			sd->child = NULL;
 	}
+
+	for (tmp = sd; tmp; ) {
+		unsigned long interval;
+
+		interval = msecs_to_jiffies(tmp->balance_interval);
+		if (time_after(next_balance, tmp->last_balance + interval))
+			next_balance = tmp->last_balance + interval;
+
+		tmp = tmp->parent;
+	}
+	rq->next_balance = next_balance;
 
 	sched_domain_debug(sd, cpu);
 
@@ -6909,6 +6932,7 @@ int in_sched_functions(unsigned long addr)
 
 #ifdef CONFIG_CGROUP_SCHED
 struct task_group root_task_group;
+LIST_HEAD(task_groups);
 #endif
 
 DECLARE_PER_CPU(cpumask_var_t, load_balance_tmpmask);
@@ -6917,6 +6941,9 @@ void __init sched_init(void)
 {
 	int i, j;
 	unsigned long alloc_size = 0, ptr;
+
+    sec_gaf_supply_rqinfo(offsetof(struct rq, curr),
+                          offsetof(struct cfs_rq, rq));
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	alloc_size += 2 * nr_cpu_ids * sizeof(void **);

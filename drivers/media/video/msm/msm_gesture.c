@@ -76,6 +76,10 @@ static int msm_gesture_proc_ctrl_cmd(struct msm_gesture_ctrl *p_gesture_ctrl,
 	uint32_t value_len;
 
 	tmp_cmd = (struct msm_ctrl_cmd *)ctrl->value;
+	if (!access_ok(VERIFY_READ, tmp_cmd, sizeof(struct msm_ctrl_cmd))){
+                pr_err("%s: Invalid user data!\n", __func__);
+                return -EINVAL;
+	}
 	uptr_cmd = (void __user *)ctrl->value;
 	uptr_value = (void __user *)tmp_cmd->value;
 	value_len = tmp_cmd->length;
@@ -353,9 +357,7 @@ static int msm_gesture_init_ctrl(struct v4l2_subdev *sd,
 	v4l2_ctrl_new_custom(&p_gesture_ctrl->ctrl_handler,
 		&msm_gesture_ctrl_filter, p_gesture_ctrl);
 	if (p_gesture_ctrl->ctrl_handler.error) {
-#ifdef CONFIG_MSM_CAMERA_DEBUG
 		int err = p_gesture_ctrl->ctrl_handler.error;
-#endif
 		D("%s: error adding control %d", __func__, err);
 		p_gesture_ctrl->ctrl_handler.error = 0;
 	}

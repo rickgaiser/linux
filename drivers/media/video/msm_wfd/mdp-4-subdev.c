@@ -132,11 +132,12 @@ int mdp_q_buffer(struct v4l2_subdev *sd, void *arg)
 	fbdata.id = 0;
 	fbdata.flags = 0;
 	fbdata.priv = (uint32_t)binfo->cookie;
-
+/*
 	WFD_MSG_DBG("queue buffer to mdp with offset = %u, fd = %u, "\
 			"priv = %p, iova = %p\n",
 			fbdata.offset, fbdata.memory_id,
 			(void *)fbdata.priv, (void *)fbdata.iova);
+*/
 	rc = msm_fb_writeback_queue_buffer(inst->mdp, &fbdata);
 
 	if (rc)
@@ -202,9 +203,12 @@ int mdp_mmap(struct v4l2_subdev *sd, void *arg)
 	if (inst->uses_iommu_split_domain) {
 		if (inst->secure)
 			use_iommu = false;
-		else
+		else {
+			use_iommu = true;
 			domain = DISPLAY_WRITE_DOMAIN;
+		}
 	} else {
+		use_iommu = true;
 		domain = DISPLAY_READ_DOMAIN;
 	}
 
@@ -227,7 +231,7 @@ int mdp_munmap(struct v4l2_subdev *sd, void *arg)
 {
 	struct mem_region_map *mmap = arg;
 	struct mem_region *mregion;
-	bool use_iommu = false;
+	bool use_iommu = true;
 	int domain = -1;
 	struct mdp_instance *inst = NULL;
 
@@ -242,9 +246,12 @@ int mdp_munmap(struct v4l2_subdev *sd, void *arg)
 	if (inst->uses_iommu_split_domain) {
 		if (inst->secure)
 			use_iommu = false;
-		else
+		else {
+			use_iommu = true;
 			domain = DISPLAY_WRITE_DOMAIN;
+		}
 	} else {
+		use_iommu = true;
 		domain = DISPLAY_READ_DOMAIN;
 	}
 

@@ -40,6 +40,7 @@ struct adm_ctl {
 	atomic_t copp_stat[AFE_MAX_PORTS];
 	wait_queue_head_t wait;
 	int  ec_ref_rx;
+	int  prev_index;
 };
 
 static struct acdb_cal_block mem_addr_audproc[MAX_AUDPROC_TYPES];
@@ -47,6 +48,28 @@ static struct acdb_cal_block mem_addr_audvol[MAX_AUDPROC_TYPES];
 
 static struct adm_ctl			this_adm;
 
+#ifdef APR_HEAD_GENERATE
+static void q6adm_add_hdr_async(struct apr_hdr *hdr,
+			uint32_t pkt_size, uint32_t cmd_flg)
+{
+	int port_id = SLIMBUS_0_RX;
+	int index = 0;
+
+	hdr->hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD, \
+				APR_HDR_LEN(sizeof(struct apr_hdr)),\
+				APR_PKT_VER);
+	hdr->src_svc = APR_SVC_ADM;
+	hdr->src_domain = APR_DOMAIN_APPS;
+	hdr->dest_svc = APR_SVC_ADM;
+	hdr->dest_domain = APR_DOMAIN_ADSP;
+	index = afe_get_port_index(port_id);
+	hdr->src_port = port_id;
+	hdr->dest_port =atomic_read(&this_adm.copp_id[index]);	
+	hdr->token = port_id;
+	hdr->pkt_size  = pkt_size;
+	return;
+}
+#endif 
 
 int srs_trumedia_open(int port_id, int srs_tech_id, void *srs_params)
 {
@@ -69,6 +92,11 @@ int srs_trumedia_open(int port_id, int srs_tech_id, void *srs_params)
 		sz = sizeof(struct asm_pp_params_command) +
 			sizeof(struct srs_trumedia_params_GLOBAL);
 		open = kzalloc(sz, GFP_KERNEL);
+		if (!open) {
+			pr_err("%s, adm params memory alloc failed\n",
+				__func__);
+			return -ENOMEM;
+		}
 		open->payload_size = sizeof(struct srs_trumedia_params_GLOBAL) +
 					sizeof(struct asm_pp_param_data_hdr);
 		open->params.param_id = SRS_TRUMEDIA_PARAMS;
@@ -92,6 +120,11 @@ int srs_trumedia_open(int port_id, int srs_tech_id, void *srs_params)
 		sz = sizeof(struct asm_pp_params_command) +
 			sizeof(struct srs_trumedia_params_WOWHD);
 		open = kzalloc(sz, GFP_KERNEL);
+		 if (!open) {
+			pr_err("%s, adm params memory alloc failed\n",
+				__func__);
+			return -ENOMEM;
+		}
 		open->payload_size = sizeof(struct srs_trumedia_params_WOWHD) +
 					sizeof(struct asm_pp_param_data_hdr);
 		open->params.param_id = SRS_TRUMEDIA_PARAMS_WOWHD;
@@ -116,6 +149,11 @@ int srs_trumedia_open(int port_id, int srs_tech_id, void *srs_params)
 		sz = sizeof(struct asm_pp_params_command) +
 			sizeof(struct srs_trumedia_params_CSHP);
 		open = kzalloc(sz, GFP_KERNEL);
+		 if (!open) {
+			pr_err("%s, adm params memory alloc failed\n",
+			__func__);
+			return -ENOMEM;
+		}
 		open->payload_size = sizeof(struct srs_trumedia_params_CSHP) +
 					sizeof(struct asm_pp_param_data_hdr);
 		open->params.param_id = SRS_TRUMEDIA_PARAMS_CSHP;
@@ -139,6 +177,11 @@ int srs_trumedia_open(int port_id, int srs_tech_id, void *srs_params)
 		sz = sizeof(struct asm_pp_params_command) +
 			sizeof(struct srs_trumedia_params_HPF);
 		open = kzalloc(sz, GFP_KERNEL);
+		 if (!open) {
+			pr_err("%s, adm params memory alloc failed\n",
+				 __func__);
+			return -ENOMEM;
+		}
 		open->payload_size = sizeof(struct srs_trumedia_params_HPF) +
 					sizeof(struct asm_pp_param_data_hdr);
 		open->params.param_id = SRS_TRUMEDIA_PARAMS_HPF;
@@ -157,6 +200,11 @@ int srs_trumedia_open(int port_id, int srs_tech_id, void *srs_params)
 		sz = sizeof(struct asm_pp_params_command) +
 			sizeof(struct srs_trumedia_params_PEQ);
 		open = kzalloc(sz, GFP_KERNEL);
+		 if (!open) {
+			pr_err("%s, adm params memory alloc failed\n",
+				__func__);
+			return -ENOMEM;
+		}
 		open->payload_size = sizeof(struct srs_trumedia_params_PEQ) +
 					sizeof(struct asm_pp_param_data_hdr);
 		open->params.param_id = SRS_TRUMEDIA_PARAMS_PEQ;
@@ -177,6 +225,11 @@ int srs_trumedia_open(int port_id, int srs_tech_id, void *srs_params)
 		sz = sizeof(struct asm_pp_params_command) +
 			sizeof(struct srs_trumedia_params_HL);
 		open = kzalloc(sz, GFP_KERNEL);
+		 if (!open) {
+			pr_err("%s, adm params memory alloc failed\n",
+				__func__);
+			return -ENOMEM;
+		}
 		open->payload_size = sizeof(struct srs_trumedia_params_HL) +
 					sizeof(struct asm_pp_param_data_hdr);
 		open->params.param_id = SRS_TRUMEDIA_PARAMS_HL;
@@ -245,7 +298,7 @@ static int32_t adm_callback(struct apr_client_data *data, void *priv)
 	payload = data->payload;
 
 	if (data->opcode == RESET_EVENTS) {
-		pr_debug("adm_callback: Reset event is received: %d %d apr[%p]\n",
+		pr_info("adm_callback: Reset event is received: %d %d apr[%p]\n",
 				data->reset_event, data->reset_proc,
 				this_adm.apr);
 		if (this_adm.apr) {
@@ -307,6 +360,9 @@ static int32_t adm_callback(struct apr_client_data *data, void *priv)
 			default:
 				pr_err("%s: Unknown Cmd: 0x%x\n", __func__,
 								payload[0]);
+            	pr_err("%s:err code = 0x%x %x %x size = %d\n", __func__,
+                        data->opcode, payload[0], payload[1],
+		                       data->payload_size);
 				break;
 			}
 			return 0;
@@ -339,6 +395,9 @@ static int32_t adm_callback(struct apr_client_data *data, void *priv)
 		default:
 			pr_err("%s: Unknown cmd:0x%x\n", __func__,
 							data->opcode);
+           	pr_err("%s:err code = 0x%x %x %x size = %d\n", __func__,
+                    data->opcode, payload[0], payload[1],
+	                       data->payload_size);
 			break;
 		}
 	}
@@ -389,7 +448,7 @@ static int send_adm_cal_block(int port_id, struct acdb_cal_block *aud_cal)
 			__func__, port_id, aud_cal->cal_paddr);
 		result = -EINVAL;
 		goto done;
-	}
+	} 
 	/* Wait for the callback */
 	result = wait_event_timeout(this_adm.wait,
 		atomic_read(&this_adm.copp_stat[index]),
@@ -411,6 +470,8 @@ static void send_adm_cal(int port_id, int path)
 	int			result = 0;
 	s32			acdb_path;
 	struct acdb_cal_block	aud_cal;
+	int flag = 0;
+	int index = afe_get_port_index(port_id);
 
 	pr_debug("%s\n", __func__);
 
@@ -439,13 +500,16 @@ static void send_adm_cal(int port_id, int path)
 		else
 			mem_addr_audproc[acdb_path] = aud_cal;
 	}
-
-	if (!send_adm_cal_block(port_id, &aud_cal))
-		pr_debug("%s: Audproc cal sent for port id: %d, path %d\n",
-			__func__, port_id, acdb_path);
-	else
-		pr_debug("%s: Audproc cal not sent for port id: %d, path %d\n",
-			__func__, port_id, acdb_path);
+	if (this_adm.prev_index != index) {
+		if (!send_adm_cal_block(port_id, &aud_cal))
+			pr_debug("%s: Audproc cal sent for port id: %d, path %d\n",
+				__func__, port_id, acdb_path);
+		else
+			pr_debug("%s: Audproc cal not sent for port id: %d, path %d\n",
+				__func__, port_id, acdb_path);
+		this_adm.prev_index = index;
+		flag = 1;
+	}
 
 	pr_debug("%s: Sending audvol cal\n", __func__);
 	get_audvol_cal(acdb_path, &aud_cal);
@@ -468,13 +532,15 @@ static void send_adm_cal(int port_id, int path)
 		else
 			mem_addr_audvol[acdb_path] = aud_cal;
 	}
+	if ((this_adm.prev_index == index) && (flag == 1)) {
+		if (!send_adm_cal_block(port_id, &aud_cal))
+			pr_debug("%s: Audvol cal sent for port id: %d, path %d\n",
+				__func__, port_id, acdb_path);
+		else
+			pr_debug("%s: Audvol cal not sent for port id: %d, path %d\n",
+				__func__, port_id, acdb_path);
+	}
 
-	if (!send_adm_cal_block(port_id, &aud_cal))
-		pr_debug("%s: Audvol cal sent for port id: %d, path %d\n",
-			__func__, port_id, acdb_path);
-	else
-		pr_debug("%s: Audvol cal not sent for port id: %d, path %d\n",
-			__func__, port_id, acdb_path);
 }
 
 int adm_connect_afe_port(int mode, int session_id, int port_id)
@@ -667,7 +733,20 @@ int adm_open(int port_id, int path, int rate, int channel_mode, int topology)
 		open.endpoint_id1 = port_id;
 
 		if (this_adm.ec_ref_rx == 0) {
+#if defined(CONFIG_MACH_SERRANO) || defined(CONFIG_MACH_GOLDEN) \
+	|| defined(CONFIG_MACH_MELIUS_ATT) || defined(CONFIG_MACH_MELIUS_TMO) \
+	|| defined(CONFIG_MACH_MELIUS_VZW) || defined(CONFIG_MACH_MELIUS_SPR) \
+	|| defined(CONFIG_MACH_MELIUS_USC) || defined(CONFIG_MACH_MELIUS_EUR_OPEN) \
+	|| defined(CONFIG_MACH_MELIUS_EUR_LTE) || defined(CONFIG_MACH_MELIUS_SKT) \
+	|| defined(CONFIG_MACH_MELIUS_KTT) || defined(CONFIG_MACH_MELIUS_LGT) \
+	|| defined(CONFIG_MACH_MELIUS_MTR) \
+	|| defined(CONFIG_MACH_LT02) || defined(CONFIG_MACH_MELIUS_CHN_CTC) \
+	|| defined(CONFIG_MACH_LT02_CHN_CTC) \
+	|| defined(CONFIG_MACH_CANE)
+			open.endpoint_id2 = this_adm.ec_ref_rx;
+#else
 			open.endpoint_id2 = 0xFFFF;
+#endif
 		} else if (this_adm.ec_ref_rx && (path != 1)) {
 				open.endpoint_id2 = this_adm.ec_ref_rx;
 				this_adm.ec_ref_rx = 0;
@@ -683,12 +762,16 @@ int adm_open(int port_id, int path, int rate, int channel_mode, int topology)
 			if ((open.topology_id ==
 				VPM_TX_SM_ECNS_COPP_TOPOLOGY) ||
 			    (open.topology_id ==
-				VPM_TX_DM_FLUENCE_COPP_TOPOLOGY))
+				VPM_TX_DM_FLUENCE_COPP_TOPOLOGY) ||
+				  (open.topology_id ==
+				VPM_TX_SM_LVVE_COPP_TOPOLOGY) ||
+				  (open.topology_id ==
+				VPM_TX_DM_LVVE_COPP_TOPOLOGY))
 				rate = 16000;
 		}
 
-		if (open.topology_id  == 0)
-			open.topology_id = topology;
+        if ((open.topology_id  == 0) || (port_id == VOICE_RECORD_RX) || (port_id == VOICE_RECORD_TX))
+          open.topology_id = topology;
 
 		open.channel_config = channel_mode & 0x00FF;
 		open.rate  = rate;
@@ -838,12 +921,16 @@ int adm_multi_ch_copp_open(int port_id, int path, int rate, int channel_mode,
 			if ((open.topology_id ==
 				VPM_TX_SM_ECNS_COPP_TOPOLOGY) ||
 			    (open.topology_id ==
-				VPM_TX_DM_FLUENCE_COPP_TOPOLOGY))
+				VPM_TX_DM_FLUENCE_COPP_TOPOLOGY) ||
+				  (open.topology_id ==
+				VPM_TX_SM_LVVE_COPP_TOPOLOGY) ||
+				  (open.topology_id ==
+				VPM_TX_DM_LVVE_COPP_TOPOLOGY))
 				rate = 16000;
 		}
 
-		if (open.topology_id  == 0)
-			open.topology_id = topology;
+        if ((open.topology_id  == 0) || (port_id == VOICE_RECORD_RX) || (port_id == VOICE_RECORD_TX))
+          open.topology_id = topology;
 
 		open.channel_config = channel_mode & 0x00FF;
 		open.rate  = rate;
@@ -975,10 +1062,17 @@ int adm_matrix_map(int session_id, int path, int num_copps,
 	for (i = 0; i < num_copps; i++)
 		send_adm_cal(port_id[i], path);
 
-	for (i = 0; i < num_copps; i++)
-		rtac_add_adm_device(port_id[i],	atomic_read(&this_adm.copp_id
-			[afe_get_port_index(port_id[i])]),
-			path, session_id);
+	for (i = 0; i < num_copps; i++) {
+		int tmp;
+		tmp = afe_get_port_index(port_id[i]);
+		if (tmp >= 0 && tmp < AFE_MAX_PORTS)
+			rtac_add_adm_device(port_id[i],
+				atomic_read(&this_adm.copp_id[tmp]),
+				path, session_id);
+		else
+			pr_debug("%s: Invalid port index %d",
+				__func__, tmp);
+	}
 	return 0;
 
 fail_cmd:
@@ -1185,7 +1279,7 @@ int adm_close(int port_id)
 
 		atomic_set(&this_adm.copp_id[index], RESET_COPP_ID);
 		atomic_set(&this_adm.copp_stat[index], 0);
-
+		this_adm.prev_index = 0xffff;
 
 		pr_debug("%s:coppid %d portid=%d index=%d coppcnt=%d\n",
 				__func__,
@@ -1222,7 +1316,7 @@ static int __init adm_init(void)
 	int i = 0;
 	init_waitqueue_head(&this_adm.wait);
 	this_adm.apr = NULL;
-
+	this_adm.prev_index = 0xffff;
 	for (i = 0; i < AFE_MAX_PORTS; i++) {
 		atomic_set(&this_adm.copp_id[i], RESET_COPP_ID);
 		atomic_set(&this_adm.copp_cnt[i], 0);

@@ -58,8 +58,11 @@ obj-$(CONFIG_TPS65023)		+= tps65023.o
 
 obj-$(CONFIG_TIMPANI_CODEC)	+= timpani-codec.o
 
+ifdef CONFIG_TIMPANI_CODEC
 obj-$(CONFIG_TIMPANI_CODEC) += msm-adie-codec.o
+else ifdef CONFIG_MARIMBA_CODEC
 obj-$(CONFIG_MARIMBA_CODEC) += msm-adie-codec.o
+endif
 
 obj-$(CONFIG_TWL6030_PWM)	+= twl6030-pwm.o
 obj-$(CONFIG_TWL6040_CORE)	+= twl6040-core.o twl6040-irq.o
@@ -78,6 +81,7 @@ obj-$(CONFIG_MCP_UCB1200_TS)	+= ucb1x00-ts.o
 obj-$(CONFIG_WCD9310_CODEC)       += wcd9xxx-core.o wcd9xxx-irq.o wcd9xxx-slimslave.o
 obj-$(CONFIG_WCD9304_CODEC)       += wcd9xxx-core.o wcd9xxx-irq.o wcd9xxx-slimslave.o
 obj-$(CONFIG_WCD9320_CODEC)       += wcd9xxx-core.o wcd9xxx-irq.o wcd9xxx-slimslave.o
+obj-$(CONFIG_WCD9306_CODEC)       += wcd9xxx-core.o wcd9xxx-irq.o wcd9xxx-slimslave.o
 
 
 ifeq ($(CONFIG_SA1100_ASSABET),y)
@@ -95,6 +99,7 @@ max8925-objs			:= max8925-core.o max8925-i2c.o
 obj-$(CONFIG_MFD_MAX8925)	+= max8925.o
 obj-$(CONFIG_MFD_MAX8997)	+= max8997.o max8997-irq.o
 obj-$(CONFIG_MFD_MAX8998)	+= max8998.o max8998-irq.o
+obj-$(CONFIG_MFD_MAX77693)      += max77693.o max77693-irq.o
 
 pcf50633-objs			:= pcf50633-core.o pcf50633-irq.o
 obj-$(CONFIG_MFD_PCF50633)	+= pcf50633.o
@@ -123,10 +128,6 @@ obj-$(CONFIG_MFD_VX855)		+= vx855.o
 obj-$(CONFIG_MFD_WL1273_CORE)	+= wl1273-core.o
 obj-$(CONFIG_MFD_CS5535)	+= cs5535-mfd.o
 obj-$(CONFIG_MFD_OMAP_USB_HOST)	+= omap-usb-host.o
-obj-$(CONFIG_MFD_PM8921_CORE) 	+= pm8921-core.o
-obj-$(CONFIG_MFD_PM8821_CORE) 	+= pm8821-core.o
-obj-$(CONFIG_MFD_PM8018_CORE) 	+= pm8018-core.o
-obj-$(CONFIG_MFD_PM8XXX_IRQ) 	+= pm8xxx-irq.o
 obj-$(CONFIG_TPS65911_COMPARATOR)	+= tps65911-comparator.o
 obj-$(CONFIG_MFD_TPS65090)	+= tps65090.o
 obj-$(CONFIG_MFD_AAT2870_CORE)	+= aat2870-core.o
@@ -135,7 +136,11 @@ obj-$(CONFIG_MFD_RC5T583)	+= rc5t583.o rc5t583-irq.o
 obj-$(CONFIG_MFD_S5M_CORE)	+= s5m-core.o s5m-irq.o
 obj-$(CONFIG_PMIC8058)		+= pmic8058.o
 obj-$(CONFIG_PMIC8901)		+= pmic8901.o
+obj-$(CONFIG_MFD_PM8921_CORE) 	+= pm8921-core.o
+obj-$(CONFIG_MFD_PM8821_CORE) 	+= pm8821-core.o
+obj-$(CONFIG_MFD_PM8018_CORE) 	+= pm8018-core.o
 obj-$(CONFIG_MFD_PM8038_CORE) 	+= pm8038-core.o
+obj-$(CONFIG_MFD_PM8XXX_IRQ) 	+= pm8xxx-irq.o
 obj-$(CONFIG_MFD_PM8821_IRQ) 	+= pm8821-irq.o
 obj-$(CONFIG_MFD_PM8XXX_DEBUG) 	+= pm8xxx-debug.o
 obj-$(CONFIG_MFD_PM8XXX_PWM) 	+= pm8xxx-pwm.o

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -46,6 +46,7 @@
 
 #include "msm_fb_panel.h"
 #include "mdp.h"
+#include "sec_debug_mdp.h"
 
 #define MSM_FB_DEFAULT_PAGE_SIZE 2
 #define MFD_KEY  0x11161126
@@ -194,6 +195,8 @@ struct msm_fb_data_type {
 	u32 mdp_rev;
 	u32 writeback_state;
 	bool writeback_active_cnt;
+	bool writeback_initialized;
+	boolean backlight_ctrl_ongoing;
 	int cont_splash_done;
 	void *cpu_pm_hdl;
 	u32 acq_fen_cnt;
@@ -213,10 +216,12 @@ struct msm_fb_data_type {
 	void *msm_fb_backup;
 	boolean panel_driver_on;
 	int vsync_sysfs_created;
-	void *copy_splash_buf;
+	int resume_state;
+	void *copy_splash_buf;			
 	unsigned char *copy_splash_phys;
 	uint32 sec_mapped;
 	uint32 sec_active;
+	uint32 max_map_size;
 };
 struct msm_fb_backup_type {
 	struct fb_info info;
@@ -254,6 +259,8 @@ int msm_fb_check_frame_rate(struct msm_fb_data_type *mfd,
 #ifdef CONFIG_FB_MSM_LOGO
 #define INIT_IMAGE_FILE "/initlogo.rle"
 int load_565rle_image(char *filename, bool bf_supported);
+extern int draw_rgb888_screen(void);
 #endif
+extern int poweroff_charging;
 
 #endif /* MSM_FB_H */

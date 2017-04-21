@@ -26,12 +26,17 @@
 #include <mach/msm_rtb.h>
 #include <mach/msm_cache_dump.h>
 
+#ifdef CONFIG_RADIO_USE_MI2S
+#include <sound/msm-dai-q6.h>
+#endif
+
 #include "devices.h"
 #include "rpm_log.h"
 #include "rpm_stats.h"
 #include "rpm_rbcpr_stats.h"
 #include "footswitch.h"
 #include "acpuclock-krait.h"
+#include "pm.h"
 
 #ifdef CONFIG_MSM_MPM
 #include <mach/mpm.h>
@@ -39,6 +44,20 @@
 #define MSM8930_RPM_MASTER_STATS_BASE	0x10B100
 #define MSM8930_PC_CNTR_PHYS	(MSM8930_IMEM_PHYS + 0x664)
 #define MSM8930_PC_CNTR_SIZE		0x40
+
+static struct msm_pm_sleep_status_data msm_pm_slp_sts_data = {
+	.base_addr = MSM_ACC0_BASE + 0x08,
+	.cpu_offset = MSM_ACC1_BASE - MSM_ACC0_BASE,
+	.mask = 1UL << 13,
+};
+
+struct platform_device msm8930_cpu_slp_status = {
+	.name		= "cpu_slp_status",
+	.id		= -1,
+	.dev = {
+		.platform_data = &msm_pm_slp_sts_data,
+	},
+};
 
 static struct resource msm8930_resources_pccntr[] = {
 	{
@@ -527,15 +546,30 @@ struct platform_device msm8930_rpm_device = {
 	.id     = -1,
 };
 
+#ifdef CONFIG_RADIO_USE_MI2S
+struct msm_mi2s_pdata mi2s_data = {
+	.rx_sd_lines = MSM_MI2S_SD1 ,   /* sd0 */
+	.tx_sd_lines = MSM_MI2S_SD0 ,   /* sd0 */
+};
+
+struct platform_device msm_cpudai_mi2s = {
+	.name	= "msm-dai-q6-mi2s",
+	.id	= -1,
+	.dev = {
+		.platform_data = &mi2s_data,
+	},
+};
+#endif
+
 static struct msm_rpm_log_platform_data msm_rpm_log_pdata = {
-	.phys_addr_base = 0x0010C000,
+	.phys_addr_base = 0x10B6A0,
 	.reg_offsets = {
 		[MSM_RPM_LOG_PAGE_INDICES] = 0x00000080,
 		[MSM_RPM_LOG_PAGE_BUFFER]  = 0x000000A0,
 	},
 	.phys_size = SZ_8K,
-	.log_len = 4096,		  /* log's buffer length in bytes */
-	.log_len_mask = (4096 >> 2) - 1,  /* length mask in units of u32 */
+	.log_len = 8192,		  /* log's buffer length in bytes */
+	.log_len_mask = (8192 >> 2) - 1,  /* length mask in units of u32 */
 };
 
 struct platform_device msm8930_rpm_log_device = {
@@ -940,17 +974,20 @@ static struct msm_bus_vectors vidc_vdec_720p_vectors[] = {
 		.ib  = 7000000,
 	},
 };
+/*This value is modified because internally we use
+ * lower value. But OEM has increased it. This is correct value
+ * for oem*/
 static struct msm_bus_vectors vidc_venc_1080p_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_HD_CODEC_PORT0,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 372244480,
+		.ab  = 400000000,
 		.ib  = 2560000000U,
 	},
 	{
 		.src = MSM_BUS_MASTER_HD_CODEC_PORT1,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 501219328,
+		.ab  = 550000000,
 		.ib  = 2560000000U,
 	},
 	{
@@ -1091,6 +1128,119 @@ static struct msm_bus_scale_pdata vidc_bus_client_data = {
 };
 #endif
 
+#if !defined(CONFIG_SENSOR_LT02_CTC)
+#if defined(CONFIG_MACH_KS02)
+
+#define MSM_GSBI11_PHYS	0x12440000
+#define MSM_GSBI11_QUP_PHYS	(MSM_GSBI11_PHYS + 0x20000)
+#define MSM8930_GSBI11_QUP_IRQ GSBI11_QUP_IRQ
+
+static struct resource resources_qup_spi_gsbi11[] = {
+	{
+		.name = "spi_base",
+		.start = MSM_GSBI11_QUP_PHYS,
+		.end = MSM_GSBI11_QUP_PHYS + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.name = "gsbi_base",
+		.start = MSM_GSBI11_PHYS,
+		.end = MSM_GSBI11_PHYS + 4 - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.name = "spi_irq_in",
+		.start = MSM8930_GSBI11_QUP_IRQ,
+		.end = MSM8930_GSBI11_QUP_IRQ,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.name = "spi_clk",
+		.start = 41,
+		.end = 41,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.name = "spi_cs",
+		.start = 40,
+		.end = 40,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.name = "spi_miso",
+		.start = 39,
+		.end = 39,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.name = "spi_mosi",
+		.start = 38,
+		.end = 38,
+		.flags = IORESOURCE_IO,
+	},
+};
+struct platform_device msm8930_device_qup_spi_gsbi11 = {
+	.name = "spi_qsd",
+	.id = 1,
+	.num_resources = ARRAY_SIZE(resources_qup_spi_gsbi11),
+	.resource = resources_qup_spi_gsbi11,
+};
+#else
+#define MSM_GSBI1_PHYS		0x16000000
+#define MSM_GSBI1_QUP_PHYS	(MSM_GSBI1_PHYS + 0x80000)
+
+static struct resource resources_qup_spi_gsbi1[] = {
+	{
+		.name = "spi_base",
+		.start = MSM_GSBI1_QUP_PHYS,
+		.end = MSM_GSBI1_QUP_PHYS + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.name = "gsbi_base",
+		.start = MSM_GSBI1_PHYS,
+		.end = MSM_GSBI1_PHYS + 4 - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.name = "spi_irq_in",
+		.start = MSM8930_GSBI1_QUP_IRQ,
+		.end = MSM8930_GSBI1_QUP_IRQ,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.name = "spi_clk",
+		.start = 9,
+		.end = 9,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.name = "spi_cs",
+		.start = 8,
+		.end = 8,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.name = "spi_miso",
+		.start = 7,
+		.end = 7,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.name = "spi_mosi",
+		.start = 6,
+		.end = 6,
+		.flags = IORESOURCE_IO,
+	},
+};
+struct platform_device msm8930_device_qup_spi_gsbi1 = {
+	.name = "spi_qsd",
+	.id = 1,
+	.num_resources = ARRAY_SIZE(resources_qup_spi_gsbi1),
+	.resource = resources_qup_spi_gsbi1,
+};
+#endif
+#endif//CONFIG_SENSOR_LT02_CTC
 #define MSM_VIDC_BASE_PHYS 0x04400000
 #define MSM_VIDC_BASE_SIZE 0x00100000
 

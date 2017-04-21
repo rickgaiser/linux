@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,6 +20,7 @@
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
 #include <linux/slimbus/slimbus.h>
+#include <linux/input.h>
 #include <sound/core.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
@@ -29,10 +30,16 @@
 #include <mach/socinfo.h>
 #include "msm-pcm-routing.h"
 #include "../codecs/wcd9310.h"
+#include <mach/apq8064-gpio.h>
 
 #ifdef CONFIG_SND_SOC_TPA2028D
 #include <sound/tpa2028d.h>
 #endif
+
+#ifdef CONFIG_SEC_FPGA
+#include <linux/barcode_emul.h>
+#endif
+
 /* 8064 machine driver */
 #define PM8921_GPIO_BASE		NR_GPIO_IRQS
 #define PM8921_GPIO_PM_TO_SYS(pm_gpio)  (pm_gpio - 1 + PM8921_GPIO_BASE)
@@ -43,8 +50,9 @@
 #define MSM_SLIM_0_RX_MAX_CHANNELS		2
 #define MSM_SLIM_0_TX_MAX_CHANNELS		4
 
-#define BTSCO_RATE_8KHZ 8000
-#define BTSCO_RATE_16KHZ 16000
+#define SAMPLE_RATE_8KHZ 8000
+#define SAMPLE_RATE_16KHZ 16000
+#define SAMPLE_RATE_48KHZ 48000
 
 #define BOTTOM_SPK_AMP_POS	0x1
 #define BOTTOM_SPK_AMP_NEG	0x2
@@ -65,10 +73,14 @@
 
 #define JACK_DETECT_GPIO 38
 
+#define BTSCO_NBS 0
+#define BTSCO_WBS 1
+
 /* Shared channel numbers for Slimbus ports that connect APQ to MDM. */
 enum {
 	SLIM_1_RX_1 = 145, /* BT-SCO and USB TX */
 	SLIM_1_TX_1 = 146, /* BT-SCO and USB RX */
+	SLIM_1_TX_2 = 147, /* USB RX */
 	SLIM_3_RX_1 = 151, /* External echo-cancellation ref */
 	SLIM_3_RX_2 = 152, /* External echo-cancellation ref */
 	SLIM_3_TX_1 = 153, /* HDMI RX */
@@ -92,15 +104,19 @@ static int msm_slim_0_rx_ch = 1;
 static int msm_slim_0_tx_ch = 1;
 static int msm_slim_3_rx_ch = 1;
 
-static int msm_btsco_rate = BTSCO_RATE_8KHZ;
+static int msm_slim_1_rate = SAMPLE_RATE_8KHZ;
 static int msm_btsco_ch = 1;
-static int msm_hdmi_rx_ch = 2;
+static int msm_slim_1_rx_ch = 1;
+static int msm_slim_1_tx_ch = 1;
 
+static int msm_hdmi_rx_ch = 2;
 static int hdmi_rate_variable;
 static int rec_mode = INCALL_REC_MONO;
 
 static struct clk *codec_clk;
 static int clk_users;
+
+static int main_mic_delay = 0;
 
 static struct snd_soc_jack hs_jack;
 static struct snd_soc_jack button_jack;
@@ -166,7 +182,7 @@ static void msm_enable_ext_spk_amp_gpio(u32 spk_amp_gpio)
 			pr_err("%s: Failed to configure Bottom Spk Ampl"
 				" gpio %u\n", __func__, bottom_spk_pamp_gpio);
 		else {
-			pr_debug("%s: enable Bottom spkr amp gpio\n", __func__);
+			pr_info("%s: enable Bottom spkr amp gpio\n", __func__);
 			gpio_direction_output(bottom_spk_pamp_gpio, 1);
 		}
 
@@ -183,7 +199,7 @@ static void msm_enable_ext_spk_amp_gpio(u32 spk_amp_gpio)
 			pr_err("%s: Failed to configure Top Spk Ampl"
 				" gpio %u\n", __func__, top_spk_pamp_gpio);
 		else {
-			pr_debug("%s: enable Top spkr amp gpio\n", __func__);
+			pr_info("%s: enable Top spkr amp gpio\n", __func__);
 			gpio_direction_output(top_spk_pamp_gpio, 1);
 		}
 	} else {
@@ -200,7 +216,7 @@ static void msm_ext_spk_power_amp_on(u32 spk)
 		if ((msm_ext_bottom_spk_pamp & BOTTOM_SPK_AMP_POS) &&
 			(msm_ext_bottom_spk_pamp & BOTTOM_SPK_AMP_NEG)) {
 
-			pr_debug("%s() External Bottom Speaker Ampl already "
+			pr_info("%s() External Bottom Speaker Ampl already "
 				"turned on. spk = 0x%08x\n", __func__, spk);
 			return;
 		}
@@ -211,21 +227,21 @@ static void msm_ext_spk_power_amp_on(u32 spk)
 			(msm_ext_bottom_spk_pamp & BOTTOM_SPK_AMP_NEG)) {
 
 			msm_enable_ext_spk_amp_gpio(bottom_spk_pamp_gpio);
-			pr_debug("%s: slepping 4 ms after turning on external "
+			pr_info("%s: slepping 4 ms after turning on external "
 				" Bottom Speaker Ampl\n", __func__);
 			usleep_range(4000, 4000);
 		}
 
 	} else if (spk & (TOP_SPK_AMP_POS | TOP_SPK_AMP_NEG | TOP_SPK_AMP)) {
 
-		pr_debug("%s():top_spk_amp_state = 0x%x spk_event = 0x%x\n",
+		pr_info("%s():top_spk_amp_state = 0x%x spk_event = 0x%x\n",
 			__func__, msm_ext_top_spk_pamp, spk);
 
 		if (((msm_ext_top_spk_pamp & TOP_SPK_AMP_POS) &&
 			(msm_ext_top_spk_pamp & TOP_SPK_AMP_NEG)) ||
 				(msm_ext_top_spk_pamp & TOP_SPK_AMP)) {
 
-			pr_debug("%s() External Top Speaker Ampl already"
+			pr_info("%s() External Top Speaker Ampl already"
 				"turned on. spk = 0x%08x\n", __func__, spk);
 			return;
 		}
@@ -240,7 +256,7 @@ static void msm_ext_spk_power_amp_on(u32 spk)
 			set_amp_gain(SPK_ON);
 #else
 			msm_enable_ext_spk_amp_gpio(top_spk_pamp_gpio);
-			pr_debug("%s: sleeping 4 ms after turning on "
+			pr_info("%s: sleeping 4 ms after turning on "
 				" external Top Speaker Ampl\n", __func__);
 			usleep_range(4000, 4000);
 #endif
@@ -264,14 +280,14 @@ static void msm_ext_spk_power_amp_off(u32 spk)
 		gpio_free(bottom_spk_pamp_gpio);
 		msm_ext_bottom_spk_pamp = 0;
 
-		pr_debug("%s: sleeping 4 ms after turning off external Bottom"
+		pr_info("%s: sleeping 4 ms after turning off external Bottom"
 			" Speaker Ampl\n", __func__);
 
 		usleep_range(4000, 4000);
 
 	} else if (spk & (TOP_SPK_AMP_POS | TOP_SPK_AMP_NEG | TOP_SPK_AMP)) {
 
-		pr_debug("%s: top_spk_amp_state = 0x%x spk_event = 0x%x\n",
+		pr_info("%s: top_spk_amp_state = 0x%x spk_event = 0x%x\n",
 				__func__, msm_ext_top_spk_pamp, spk);
 
 		if (!msm_ext_top_spk_pamp)
@@ -296,7 +312,7 @@ static void msm_ext_spk_power_amp_off(u32 spk)
 		gpio_free(top_spk_pamp_gpio);
 		msm_ext_top_spk_pamp = 0;
 
-		pr_debug("%s: sleeping 4 ms after ext Top Spek Ampl is off\n",
+		pr_info("%s: sleeping 4 ms after ext Top Spek Ampl is off\n",
 				__func__);
 
 		usleep_range(4000, 4000);
@@ -313,7 +329,7 @@ static void msm_ext_control(struct snd_soc_codec *codec)
 {
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
-	pr_debug("%s: msm_spk_control = %d", __func__, msm_spk_control);
+	pr_info("%s: msm_spk_control = %d", __func__, msm_spk_control);
 	if (msm_spk_control == MSM8064_SPK_ON) {
 		snd_soc_dapm_enable_pin(dapm, "Ext Spk Bottom Pos");
 		snd_soc_dapm_enable_pin(dapm, "Ext Spk Bottom Neg");
@@ -358,7 +374,7 @@ static int msm_set_spk(struct snd_kcontrol *kcontrol,
 static int msm_spkramp_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *k, int event)
 {
-	pr_debug("%s() %x\n", __func__, SND_SOC_DAPM_EVENT_ON(event));
+	pr_info("%s() %x\n", __func__, SND_SOC_DAPM_EVENT_ON(event));
 
 	if (SND_SOC_DAPM_EVENT_ON(event)) {
 		if (!strncmp(w->name, "Ext Spk Bottom Pos", 18))
@@ -394,6 +410,40 @@ static int msm_spkramp_event(struct snd_soc_dapm_widget *w,
 			return -EINVAL;
 		}
 	}
+	return 0;
+}
+
+static int lineout_switch_event(struct snd_soc_dapm_widget *w,
+	struct snd_kcontrol *k, int event)
+{
+	pr_debug("%s: %s Lineout Switch gpio\n", __func__,
+		SND_SOC_DAPM_EVENT_ON(event) ? "Enable" : "Disable");
+#ifdef CONFIG_SEC_FPGA
+	ice_gpiox_set(FPGA_GPIO_VPS_SOUND_EN,SND_SOC_DAPM_EVENT_ON(event));
+#endif
+	return 0;
+}
+static int msm_mainmic_bias_event(struct snd_soc_dapm_widget *w,
+	struct snd_kcontrol *k, int event)
+{
+	pr_debug("%s:GPIO BIAS UP!!!Event %d && SND_SOC_DAPM:%d\n",
+		__func__, (event), SND_SOC_DAPM_EVENT_ON(event));
+#if defined(CONFIG_MACH_JF_DCM)
+	ice_gpiox_set(FPGA_GPIO_MICBIAS_EN, SND_SOC_DAPM_EVENT_ON(event));
+#else
+#if (!defined(CONFIG_MACH_MELIUS) && !defined(CONFIG_MACH_M2_ATT))
+	gpio_set_value_cansleep(
+	PM8921_GPIO_PM_TO_SYS(PMIC_MAIN_MICBIAS_EN),
+	SND_SOC_DAPM_EVENT_ON(event));
+#endif
+#endif
+        if(main_mic_delay) {
+			if(main_mic_delay != 100)
+				main_mic_delay *= 50;
+			msleep(main_mic_delay);
+			pr_info("%s: main_mic_delay = %d\n", __func__, main_mic_delay);
+			main_mic_delay = 0;
+        }
 	return 0;
 }
 
@@ -495,6 +545,7 @@ static const struct snd_soc_dapm_widget apq8064_dapm_widgets[] = {
 	SND_SOC_DAPM_SPK("Ext Spk Top Pos", msm_spkramp_event),
 	SND_SOC_DAPM_SPK("Ext Spk Top Neg", msm_spkramp_event),
 	SND_SOC_DAPM_SPK("Ext Spk Top", msm_spkramp_event),
+	SND_SOC_DAPM_SPK("LINEOUT Switch", lineout_switch_event),
 
 	/************ Analog MICs ************/
 	/**
@@ -503,6 +554,9 @@ static const struct snd_soc_dapm_widget apq8064_dapm_widgets[] = {
 	 */
 	SND_SOC_DAPM_MIC("Analog mic7", NULL),
 
+	SND_SOC_DAPM_MIC("Main Mic", msm_mainmic_bias_event),
+	SND_SOC_DAPM_MIC("Sub Mic", NULL),
+	SND_SOC_DAPM_MIC("Third Mic", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("ANCRight Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("ANCLeft Headset Mic", NULL),
@@ -532,12 +586,10 @@ static const struct snd_soc_dapm_route apq8064_common_audio_map[] = {
 #ifdef CONFIG_SND_SOC_TPA2028D
 	{"Ext Spk Top", NULL, "LINEOUT1"},
 #else
-	{"Ext Spk Bottom Pos", NULL, "LINEOUT1"},
-	{"Ext Spk Bottom Neg", NULL, "LINEOUT3"},
-
 	{"Ext Spk Top Pos", NULL, "LINEOUT2"},
 	{"Ext Spk Top Neg", NULL, "LINEOUT4"},
-	{"Ext Spk Top", NULL, "LINEOUT5"},
+	/* Dock path */
+	{"LINEOUT Switch", NULL, "LINEOUT5"},
 #endif
 	/************   Analog MIC Paths  ************/
 #ifdef CONFIG_SND_SOC_DUAL_AMIC
@@ -548,17 +600,32 @@ static const struct snd_soc_dapm_route apq8064_common_audio_map[] = {
 	{"AMIC3", NULL, "MIC BIAS3 External"},
 	{"MIC BIAS3 External", NULL, "Handset SubMic"},
 #endif
+	/* Sub Mic */
+	{"AMIC4", NULL, "MIC BIAS3 External"},
+	{"MIC BIAS3 External", NULL, "Sub Mic"},
+
+	/* Third Mic */
+	{"AMIC5", NULL, "MIC BIAS4 External"},
+	{"MIC BIAS4 External", NULL, "Third Mic"},
+
 	/* Headset Mic */
 	{"AMIC2", NULL, "MIC BIAS2 External"},
 	{"MIC BIAS2 External", NULL, "Headset Mic"},
 
+	/* Main Mic */
+	{"AMIC3", NULL, "Main Mic Bias" },
+	{"Main Mic Bias", NULL, "Main Mic"},
+
 #ifndef CONFIG_SND_SOC_DUAL_AMIC
 	/* Headset ANC microphones */
+	/* Samsung fix - unused settings */
+	/*
 	{"AMIC3", NULL, "MIC BIAS3 Internal1"},
 	{"MIC BIAS3 Internal1", NULL, "ANCRight Headset Mic"},
 
 	{"AMIC4", NULL, "MIC BIAS1 Internal2"},
 	{"MIC BIAS1 Internal2", NULL, "ANCLeft Headset Mic"},
+	*/
 #endif
 };
 
@@ -690,11 +757,14 @@ static const struct soc_enum msm_enum[] = {
 	SOC_ENUM_SINGLE_EXT(2, hdmi_rate),
 };
 
-static const char *btsco_rate_text[] = {"8000", "16000"};
-static const struct soc_enum msm_btsco_enum[] = {
-		SOC_ENUM_SINGLE_EXT(2, btsco_rate_text),
+static const char * const slim1_rate_text[] = {"8000", "16000", "48000"};
+static const struct soc_enum msm_slim_1_rate_enum[] = {
+	SOC_ENUM_SINGLE_EXT(3, slim1_rate_text),
 };
-
+static const char * const slim1_tx_ch_text[] = {"One", "Two"};
+static const struct soc_enum msm_slim_1_tx_ch_enum[] = {
+	SOC_ENUM_SINGLE_EXT(2, slim1_tx_ch_text),
+};
 static int msm_slim_0_rx_ch_get(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
@@ -710,7 +780,7 @@ static int msm_slim_0_rx_ch_put(struct snd_kcontrol *kcontrol,
 	msm_slim_0_rx_ch = ucontrol->value.integer.value[0] + 1;
 
 	pr_debug("%s: msm_slim_0_rx_ch = %d\n", __func__,
-			msm_slim_0_rx_ch);
+		 msm_slim_0_rx_ch);
 	return 1;
 }
 
@@ -733,6 +803,27 @@ static int msm_slim_0_tx_ch_put(struct snd_kcontrol *kcontrol,
 	return 1;
 }
 
+static int msm_slim_1_tx_ch_get(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s: msm_slim_1_tx_ch  = %d\n", __func__,
+		 msm_slim_1_tx_ch);
+
+	ucontrol->value.integer.value[0] = msm_slim_1_tx_ch - 1;
+	return 0;
+}
+
+static int msm_slim_1_tx_ch_put(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	msm_slim_1_tx_ch = ucontrol->value.integer.value[0] + 1;
+
+	pr_debug("%s: msm_slim_1_tx_ch = %d\n", __func__,
+		 msm_slim_1_tx_ch);
+
+	return 1;
+}
+
 static int msm_slim_3_rx_ch_get(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
@@ -752,31 +843,37 @@ static int msm_slim_3_rx_ch_put(struct snd_kcontrol *kcontrol,
 	return 1;
 }
 
-static int msm_btsco_rate_get(struct snd_kcontrol *kcontrol,
+static int msm_slim_1_rate_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	pr_debug("%s: msm_btsco_rate  = %d", __func__,
-					msm_btsco_rate);
-	ucontrol->value.integer.value[0] = msm_btsco_rate;
+	pr_debug("%s: msm_slim_1_rate  = %d", __func__,
+		 msm_slim_1_rate);
+
+	ucontrol->value.integer.value[0] = msm_slim_1_rate;
 	return 0;
 }
 
-static int msm_btsco_rate_put(struct snd_kcontrol *kcontrol,
+static int msm_slim_1_rate_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
 	switch (ucontrol->value.integer.value[0]) {
+	case BTSCO_NBS:
 	case 8000:
-		msm_btsco_rate = BTSCO_RATE_8KHZ;
+		msm_slim_1_rate = SAMPLE_RATE_8KHZ;
 		break;
+	case BTSCO_WBS:
 	case 16000:
-		msm_btsco_rate = BTSCO_RATE_16KHZ;
+		msm_slim_1_rate = SAMPLE_RATE_16KHZ;
+		break;
+	case 48000:
+		msm_slim_1_rate = SAMPLE_RATE_48KHZ;
 		break;
 	default:
-		msm_btsco_rate = BTSCO_RATE_8KHZ;
+		msm_slim_1_rate = SAMPLE_RATE_8KHZ;
 		break;
 	}
-	pr_debug("%s: msm_btsco_rate = %d\n", __func__,
-					msm_btsco_rate);
+	pr_info("%s: msm_slim_1_rate = %d\n", __func__,
+		 msm_slim_1_rate);
 	return 0;
 }
 
@@ -831,6 +928,25 @@ static int msm_hdmi_rate_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int main_mic_delay_get(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s: main_mic_delay = %d\n", __func__,
+			main_mic_delay);
+	ucontrol->value.integer.value[0] = main_mic_delay;
+	return 0;
+}
+
+static int main_mic_delay_put(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	main_mic_delay = ucontrol->value.integer.value[0];
+
+	pr_debug("%s: main_mic_delay = %d\n", __func__,
+			main_mic_delay);
+	return 1;
+}
+
 static const struct snd_kcontrol_new tabla_msm_controls[] = {
 	SOC_ENUM_EXT("Speaker Function", msm_enum[0], msm_get_spk,
 		msm_set_spk),
@@ -838,8 +954,10 @@ static const struct snd_kcontrol_new tabla_msm_controls[] = {
 		msm_slim_0_rx_ch_get, msm_slim_0_rx_ch_put),
 	SOC_ENUM_EXT("SLIM_0_TX Channels", msm_enum[2],
 		msm_slim_0_tx_ch_get, msm_slim_0_tx_ch_put),
-	SOC_ENUM_EXT("Internal BTSCO SampleRate", msm_btsco_enum[0],
-		msm_btsco_rate_get, msm_btsco_rate_put),
+	SOC_ENUM_EXT("SLIM_1_TX Channels", msm_slim_1_tx_ch_enum[0],
+		      msm_slim_1_tx_ch_get, msm_slim_1_tx_ch_put),
+	SOC_ENUM_EXT("SLIM_1 SampleRate", msm_slim_1_rate_enum[0],
+		      msm_slim_1_rate_get, msm_slim_1_rate_put),
 	SOC_SINGLE_EXT("Incall Rec Mode", SND_SOC_NOPM, 0, 1, 0,
 			msm_incall_rec_mode_get, msm_incall_rec_mode_put),
 	SOC_ENUM_EXT("SLIM_3_RX Channels", msm_enum[1],
@@ -849,6 +967,8 @@ static const struct snd_kcontrol_new tabla_msm_controls[] = {
 	SOC_ENUM_EXT("HDMI RX Rate", msm_enum[4],
 					msm_hdmi_rate_get,
 					msm_hdmi_rate_put),
+	SOC_SINGLE_EXT("Main Mic Delay",SND_SOC_NOPM, 0, 100, 0,
+					main_mic_delay_get, main_mic_delay_put),
 };
 
 static void *def_tabla_mbhc_cal(void)
@@ -966,7 +1086,11 @@ static int msm_hw_params(struct snd_pcm_substream *substream,
 		}
 	} else {
 
+#ifdef CONFIG_SND_SOC_ES325
+		if (codec_dai->id  == 2 || codec_dai->id == 12)
+#else
 		if (codec_dai->id  == 2)
+#endif
 			num_tx_ch =  msm_slim_0_tx_ch;
 		else if (codec_dai->id == 5) {
 			/* DAI 5 is used for external EC reference from codec.
@@ -1090,7 +1214,7 @@ static int msm_slimbus_1_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int ret = 0;
-	unsigned int rx_ch = SLIM_1_RX_1, tx_ch = SLIM_1_TX_1;
+	unsigned int rx_ch = SLIM_1_RX_1, tx_ch[2] = {SLIM_1_TX_1, SLIM_1_TX_2};
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		pr_debug("%s: APQ BT/USB TX -> SLIMBUS_1_RX -> MDM TX shared ch %d\n",
@@ -1104,10 +1228,11 @@ static int msm_slimbus_1_hw_params(struct snd_pcm_substream *substream,
 			goto end;
 		}
 	} else {
-		pr_debug("%s: MDM RX -> SLIMBUS_1_TX -> APQ BT/USB Rx shared ch %d\n",
-			__func__, tx_ch);
+		pr_debug("%s: MDM RX ->SLIMBUS_1_TX ->APQ BT/USB Rx shared ch %d %d\n",
+			  __func__, tx_ch[0], tx_ch[1]);
 
-		ret = snd_soc_dai_set_channel_map(cpu_dai, 1, &tx_ch, 0, 0);
+		ret = snd_soc_dai_set_channel_map(cpu_dai, msm_slim_1_tx_ch,
+						  tx_ch, 0, 0);
 		if (ret < 0) {
 			pr_err("%s: Erorr %d setting SLIM_1 TX channel map\n",
 				__func__, ret);
@@ -1203,7 +1328,7 @@ static int msm_slimbus_4_hw_params(struct snd_pcm_substream *substream,
 
 static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 {
-	int err;
+	int err, ret;
 #ifndef CONFIG_SWITCH_FSA8008
 	uint32_t revision;
 #endif
@@ -1260,6 +1385,14 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 		return err;
 	}
 
+	ret = snd_jack_set_key(button_jack.jack,
+			       SND_JACK_BTN_0,
+			       KEY_MEDIA);
+	if (ret) {
+		pr_err("%s: Failed to set code for btn-0\n", __func__);
+		return ret;
+	}
+
 	codec_clk = clk_get(cpu_dai->dev, "osr_clk");
 
 #ifndef CONFIG_SWITCH_FSA8008
@@ -1289,6 +1422,7 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 		apq8064_hs_detect_use_gpio = 1;
 	}
 
+	/* Deactivate the MBHC codes
 	if (apq8064_hs_detect_use_gpio == 1) {
 		pr_debug("%s: Using MBHC mechanical switch\n", __func__);
 		mbhc_cfg.gpio = JACK_DETECT_GPIO;
@@ -1308,7 +1442,7 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	mbhc_cfg.read_fw_bin = apq8064_hs_detect_use_firmware;
 
 	err = tabla_hs_detect(codec, &mbhc_cfg);
-
+	*/
 	return err;
 #else
 	return 0;
@@ -1401,6 +1535,24 @@ static int msm_slim_4_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	return 0;
 }
 
+static int msm_slim_4_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+			struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+			SNDRV_PCM_HW_PARAM_RATE);
+
+	struct snd_interval *channels = hw_param_interval(params,
+			SNDRV_PCM_HW_PARAM_CHANNELS);
+
+	rate->min = rate->max = 48000;
+	channels->min = channels->max = 1;
+
+	pr_debug("%s channels->min %u channels->max %u ()\n", __func__,
+			channels->min, channels->max);
+	return 0;
+}
+
+
 static int msm_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 			struct snd_pcm_hw_params *params)
 {
@@ -1423,14 +1575,16 @@ static int msm_hdmi_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	struct snd_interval *channels = hw_param_interval(params,
 					SNDRV_PCM_HW_PARAM_CHANNELS);
 
-	pr_debug("%s channels->min %u channels->max %u ()\n", __func__,
+	pr_info("%s channels->min %u channels->max %u ()\n", __func__,
 			channels->min, channels->max);
 
-	if (!hdmi_rate_variable)
-		rate->min = rate->max = 48000;
-	channels->min = channels->max = msm_hdmi_rx_ch;
 	if (channels->max < 2)
 		channels->min = channels->max = 2;
+	if (!hdmi_rate_variable)
+		rate->min = rate->max = 48000;
+
+	if (channels->min != channels->max)
+		channels->min = channels->max;
 
 	return 0;
 }
@@ -1440,16 +1594,49 @@ static int msm_btsco_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 					struct snd_pcm_hw_params *params)
 {
 	struct snd_interval *rate = hw_param_interval(params,
+						      SNDRV_PCM_HW_PARAM_RATE);
+
+	struct snd_interval *channels = hw_param_interval(params,
+					SNDRV_PCM_HW_PARAM_CHANNELS);
+
+	rate->min = rate->max = msm_slim_1_rate;
+	channels->min = channels->max = msm_btsco_ch;
+
+	return 0;
+}
+static int msm_slim_1_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+					    struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+						      SNDRV_PCM_HW_PARAM_RATE);
+
+	struct snd_interval *channels = hw_param_interval(params,
+					SNDRV_PCM_HW_PARAM_CHANNELS);
+
+	rate->min = rate->max = msm_slim_1_rate;
+	channels->min = channels->max = msm_slim_1_rx_ch;
+
+	return 0;
+}
+
+static int msm_slim_1_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+					    struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
 					SNDRV_PCM_HW_PARAM_RATE);
 
 	struct snd_interval *channels = hw_param_interval(params,
 					SNDRV_PCM_HW_PARAM_CHANNELS);
 
-	rate->min = rate->max = msm_btsco_rate;
-	channels->min = channels->max = msm_btsco_ch;
+	rate->min = rate->max = msm_slim_1_rate;
+	channels->min = channels->max = msm_slim_1_tx_ch;
+
+	pr_info("%s: rate = %u channels = %u ()\n", __func__,
+			rate->min, channels->min);
 
 	return 0;
 }
+
 static int msm_auxpcm_be_params_fixup(struct snd_soc_pcm_runtime *rtd,
 					struct snd_pcm_hw_params *params)
 {
@@ -1460,8 +1647,11 @@ static int msm_auxpcm_be_params_fixup(struct snd_soc_pcm_runtime *rtd,
 					SNDRV_PCM_HW_PARAM_CHANNELS);
 
 	/* PCM only supports mono output with 8khz sample rate */
-	rate->min = rate->max = 8000;
+	rate->min = rate->max = msm_slim_1_rate;
 	channels->min = channels->max = 1;
+
+	pr_info("%s: rate = %u channels = %u ()\n", __func__,
+			rate->min, channels->min);
 
 	return 0;
 }
@@ -1481,7 +1671,7 @@ static int msm_aux_pcm_get_gpios(void)
 {
 	int ret = 0;
 
-	pr_debug("%s\n", __func__);
+	pr_info("%s\n", __func__);
 
 #ifdef CONFIG_SND_SOC_MSM_QDSP6_HDMI_AUDIO
 	ret = gpio_request(GPIO_AUX_PCM_DOUT, "AUX PCM DOUT");
@@ -1511,6 +1701,15 @@ static int msm_aux_pcm_get_gpios(void)
 		goto fail_clk;
 	}
 #endif
+	gpio_tlmm_config(GPIO_CFG(GPIO_AUX_PCM_DOUT, 1, GPIO_CFG_OUTPUT,
+				GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+	gpio_tlmm_config(GPIO_CFG(GPIO_AUX_PCM_DIN, 1, GPIO_CFG_INPUT,
+				GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+	gpio_tlmm_config(GPIO_CFG(GPIO_AUX_PCM_SYNC, 1, GPIO_CFG_OUTPUT,
+				GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+	gpio_tlmm_config(GPIO_CFG(GPIO_AUX_PCM_CLK, 1, GPIO_CFG_OUTPUT,
+				GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+
 	return 0;
 
 #ifdef CONFIG_SND_SOC_MSM_QDSP6_HDMI_AUDIO
@@ -1527,6 +1726,17 @@ fail_dout:
 
 static int msm_aux_pcm_free_gpios(void)
 {
+	pr_info("%s\n", __func__);
+
+	gpio_tlmm_config(GPIO_CFG(GPIO_AUX_PCM_DOUT, 0, GPIO_CFG_INPUT,
+				GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
+	gpio_tlmm_config(GPIO_CFG(GPIO_AUX_PCM_DIN, 0, GPIO_CFG_INPUT,
+				GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
+	gpio_tlmm_config(GPIO_CFG(GPIO_AUX_PCM_SYNC, 0, GPIO_CFG_INPUT,
+				GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
+	gpio_tlmm_config(GPIO_CFG(GPIO_AUX_PCM_CLK, 0, GPIO_CFG_INPUT,
+				GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
+
 	gpio_free(GPIO_AUX_PCM_DIN);
 	gpio_free(GPIO_AUX_PCM_DOUT);
 	gpio_free(GPIO_AUX_PCM_SYNC);
@@ -1549,7 +1759,7 @@ static int msm_auxpcm_startup(struct snd_pcm_substream *substream)
 {
 	int ret = 0;
 
-	pr_debug("%s(): substream = %s, auxpcm_rsc_ref counter = %d\n",
+	pr_info("%s(): substream = %s, auxpcm_rsc_ref counter = %d\n",
 		__func__, substream->name, atomic_read(&auxpcm_rsc_ref));
 	if (atomic_inc_return(&auxpcm_rsc_ref) == 1)
 		ret = msm_aux_pcm_get_gpios();
@@ -1576,7 +1786,7 @@ static int msm_slimbus_1_startup(struct snd_pcm_substream *substream)
 static void msm_auxpcm_shutdown(struct snd_pcm_substream *substream)
 {
 
-	pr_debug("%s(): substream = %s, auxpcm_rsc_ref counter = %d\n",
+	pr_info("%s(): substream = %s, auxpcm_rsc_ref counter = %d\n",
 		__func__, substream->name, atomic_read(&auxpcm_rsc_ref));
 	if (atomic_dec_return(&auxpcm_rsc_ref) == 0)
 		msm_aux_pcm_free_gpios();
@@ -1810,20 +2020,18 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.codec_name = "snd-soc-dummy",
 	},
 	{
-		.name = "VoLTE",
-		.stream_name = "VoLTE",
-		.cpu_dai_name   = "VoLTE",
-		.platform_name  = "msm-pcm-voice",
+		.name = "VoLTE Stub",
+		.stream_name = "VoLTE Stub",
+		.cpu_dai_name   = "VOLTE_STUB",
+		.platform_name  = "msm-pcm-hostless",
 		.dynamic = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-				SND_SOC_DPCM_TRIGGER_POST},
+			    SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ignore_suspend = 1,
-		/* this dainlink has playback support */
 		.ignore_pmdown_time = 1,
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
-		.be_id = MSM_FRONTEND_DAI_VOLTE,
 	},
 	{
 		.name = "MSM8960 LowLatency",
@@ -1839,6 +2047,21 @@ static struct snd_soc_dai_link msm_dai[] = {
 		/* this dainlink has playback support */
 		.ignore_pmdown_time = 1,
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA5,
+	},
+	{
+		.name = "Voice2 Stub",
+		.stream_name = "Voice2 Stub",
+		.cpu_dai_name = "VOICE2_STUB",
+		.platform_name = "msm-pcm-hostless",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		/* this dainlink has playback support */
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
 	},
 	/* Backend DAI Links */
 	{
@@ -2013,7 +2236,7 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.codec_dai_name = "msm-stub-rx",
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_1_RX,
-		.be_hw_params_fixup = msm_btsco_be_hw_params_fixup,
+		.be_hw_params_fixup = msm_slim_1_rx_be_hw_params_fixup,
 		.ops = &msm_slimbus_1_be_ops,
 		.ignore_pmdown_time = 1, /* this dainlink has playback support */
 
@@ -2027,7 +2250,7 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.codec_dai_name = "msm-stub-tx",
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_1_TX,
-		.be_hw_params_fixup =  msm_btsco_be_hw_params_fixup,
+		.be_hw_params_fixup =  msm_slim_1_tx_be_hw_params_fixup,
 		.ops = &msm_slimbus_1_be_ops,
 	},
 	/* Ultrasound TX Back End DAI Link */
@@ -2064,7 +2287,7 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.codec_dai_name = "msm-stub-rx",
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_4_RX,
-		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.be_hw_params_fixup = msm_slim_4_rx_be_hw_params_fixup,
 		.ops = &msm_slimbus_4_be_ops,
 		.ignore_pmdown_time = 1, /* this dainlink has playback support */
 	},
@@ -2173,7 +2396,6 @@ static int __init msm_audio_init(void)
 
 	mutex_init(&cdc_mclk_mutex);
 	atomic_set(&auxpcm_rsc_ref, 0);
-
 	return ret;
 
 }

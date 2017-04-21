@@ -103,6 +103,17 @@ config LEDS_COBALT_QUBE
 	help
 	  This option enables support for the front LED on Cobalt Qube series
 
+config LEDS_MAX77693
+	bool "LED support for the MAX77693"
+	depends on LEDS_CLASS
+	depends on MFD_MAX77693
+	default n
+	help
+	  This option enables support for the LEDs
+	  on the MAX77693 and MAX77803.
+	  Now camera_class is exceptioned
+	  by sgonil.kim.
+
 config LEDS_COBALT_RAQ
 	bool "LED Support for the Cobalt Raq series"
 	depends on LEDS_CLASS=y && MIPS_COBALT
@@ -194,6 +205,23 @@ config LEDS_MSM_TRICOLOR
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called leds-msm-tricolor.
+
+config LEDS_GPIO_PLATFORM
+	bool "Platform device bindings for GPIO LEDs"
+	depends on LEDS_GPIO
+	default y
+	help
+	  Let the leds-gpio driver drive LEDs which have been defined as
+	  platform devices.  If you don't know what this means, say yes.
+
+config LEDS_GPIO_OF
+	bool "OpenFirmware platform device bindings for GPIO LEDs"
+	depends on LEDS_GPIO && OF_DEVICE
+	default y
+	help
+	  Let the leds-gpio driver drive LEDs which have been defined as
+	  of_platform devices.  For instance, LEDs which are listed in a "dts"
+	  file.
 
 config LEDS_LP3944
 	tristate "LED Support for N.S. LP3944 (Fun Light) I2C chip"
@@ -492,6 +520,26 @@ config LEDS_OT200
 	  This option enables support for the LEDs on the Bachmann OT200.
 	  Say Y to enable LEDs on the Bachmann OT200.
 
+config LEDS_AAT1290A
+	bool "LED support for the AAT1290A"
+	depends on LEDS_CLASS
+	default n
+	help
+	  This option enables support for the LEDs on the AAT1290A.
+
+config LEDS_RT8547
+	bool "LED Support for RT8547"
+	default n
+	help
+	  This option enabled support for RT8547 LED drivers
+
+config LEDS_RT8547_DBG
+	bool "LED RT8547 Debug"
+	depends on LEDS_RT8547
+	default n
+	help
+	  This option enabled RT8547 LED drivers debug option
+
 config LEDS_TRIGGERS
 	bool "LED Trigger support"
 	depends on LEDS_CLASS
@@ -568,4 +616,11 @@ config LEDS_TRIGGER_SLEEP
 comment "iptables trigger is under Netfilter config (LED target)"
 	depends on LEDS_TRIGGERS
 
+config LEDS_AN30259A
+	tristate "LED support for AN30259A I2C chip"
+	depends on LEDS_CLASS
+	depends on I2C
+	help
+	  This option enables support for LEDs connected to the AN30259A
+	  LED driver chip accessed via the I2C bus.
 endif # NEW_LEDS

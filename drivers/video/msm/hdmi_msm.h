@@ -14,6 +14,7 @@
 #define __HDMI_MSM_H__
 
 #include <mach/msm_iomap.h>
+#include <linux/switch.h>
 #include "external_common.h"
 /* #define PORT_DEBUG */
 
@@ -38,11 +39,12 @@ uint32 hdmi_inp(uint32 offset);
  * Ref. HDMI 1.4a
  * Supplement-1 CEC Section 6, 7
  */
+#define CEC_MAX_OPERAND_SIZE 15
 struct hdmi_msm_cec_msg {
 	uint8 sender_id;
 	uint8 recvr_id;
 	uint8 opcode;
-	uint8 operand[15];
+	uint8 operand[CEC_MAX_OPERAND_SIZE];
 	uint8 frame_size;
 	uint8 retransmit;
 };
@@ -107,6 +109,13 @@ struct hdmi_msm_state_type {
 	struct external_common_state_type common;
 	boolean is_mhl_enabled;
 	struct completion hpd_event_processed;
+	struct switch_dev	hdmi_audio_switch;
+	struct switch_dev	hdmi_audio_ch;
+	boolean hpd_on_offline;
+	boolean mhl_hpd_state;
+#if !defined CONFIG_SAMSUNG_MHL_8240
+	boolean boot_completion;
+#endif
 };
 
 extern struct hdmi_msm_state_type *hdmi_msm_state;
@@ -120,7 +129,7 @@ void hdmi_phy_reset(void);
 void hdmi_msm_reset_core(void);
 void hdmi_msm_init_phy(int video_format);
 void hdmi_msm_powerdown_phy(void);
-void hdmi_frame_ctrl_cfg(const struct hdmi_disp_mode_timing_type *timing);
+void hdmi_frame_ctrl_cfg(const struct msm_hdmi_mode_timing_info *timing);
 void hdmi_msm_phy_status_poll(void);
 #endif
 

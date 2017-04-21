@@ -81,6 +81,7 @@ struct pm8xxx_ccadc_chip {
 	int			r_sense_uohm;
 	struct delayed_work	calib_ccadc_work;
 	struct mutex		calib_mutex;
+	bool			periodic_wakeup;
 };
 
 static struct pm8xxx_ccadc_chip *the_chip;
@@ -319,6 +320,26 @@ static int calib_ccadc_program_trim(struct pm8xxx_ccadc_chip *chip,
 	return 0;
 }
 
+#if defined(CONFIG_MACH_MELIUS) || defined (CONFIG_MACH_SERRANO_EUR_LTE) || defined (CONFIG_MACH_SERRANO_EUR_3G)
+#define TEMP_GPIO	PM8XXX_AMUX_MPP_3
+#define TEMP_ADC_CHNNEL	ADC_MPP_1_AMUX6
+static int get_batt_temp(struct pm8xxx_ccadc_chip *chip, int *batt_temp)
+{
+	int rc;
+	struct pm8xxx_adc_chan_result result;
+
+	rc = pm8xxx_adc_mpp_config_read(TEMP_GPIO, TEMP_ADC_CHNNEL, &result);
+	if (rc) {
+		pr_err("error reading mpp %d, rc = %d\n", TEMP_GPIO, rc);
+		return rc;
+	}
+	*batt_temp = result.physical;
+	pr_debug("[battery] batt_temp phy = %lld meas = 0x%llx\n",
+		result.physical, result.measurement);
+
+	return 0;
+}
+#else
 static int get_batt_temp(struct pm8xxx_ccadc_chip *chip, int *batt_temp)
 {
 	int rc;
@@ -327,14 +348,15 @@ static int get_batt_temp(struct pm8xxx_ccadc_chip *chip, int *batt_temp)
 	rc = pm8xxx_adc_read(chip->batt_temp_channel, &result);
 	if (rc) {
 		pr_err("error reading batt_temp_channel = %d, rc = %d\n",
-					chip->batt_temp_channel, rc);
+						chip->batt_temp_channel, rc);
 		return rc;
 	}
 	*batt_temp = result.physical;
 	pr_debug("batt_temp phy = %lld meas = 0x%llx\n", result.physical,
-						result.measurement);
+							result.measurement);
 	return 0;
 }
+#endif
 
 static int get_current_time(unsigned long *now_tm_sec)
 {
@@ -367,7 +389,7 @@ static int get_current_time(unsigned long *now_tm_sec)
 	return 0;
 }
 
-void pm8xxx_calib_ccadc(void)
+static void __pm8xxx_calib_ccadc(int sample_count)
 {
 	u8 data_msb, data_lsb, sec_cntrl;
 	int result_offset, result_gain;
@@ -378,6 +400,8 @@ void pm8xxx_calib_ccadc(void)
 		pr_err("chip not initialized\n");
 		return;
 	}
+
+	pr_debug("sample_count = %d\n", sample_count);
 
 	mutex_lock(&the_chip->calib_mutex);
 	rc = pm8xxx_readb(the_chip->dev->parent,
@@ -405,7 +429,7 @@ void pm8xxx_calib_ccadc(void)
 	}
 
 	result_offset = 0;
-	for (i = 0; i < SAMPLE_COUNT; i++) {
+	for (i = 0; i < sample_count; i++) {
 		/* Short analog inputs to CCADC internally to ground */
 		rc = pm8xxx_writeb(the_chip->dev->parent, ADC_ARB_SECP_RSV,
 							CCADC_CALIB_RSV_GND);
@@ -431,7 +455,7 @@ void pm8xxx_calib_ccadc(void)
 		result_offset += result;
 	}
 
-	result_offset = result_offset / SAMPLE_COUNT;
+	result_offset = result_offset / sample_count;
 
 
 	pr_debug("offset result_offset = 0x%x, voltage = %llduV\n",
@@ -470,7 +494,7 @@ void pm8xxx_calib_ccadc(void)
 	}
 
 	result_gain = 0;
-	for (i = 0; i < SAMPLE_COUNT; i++) {
+	for (i = 0; i < sample_count; i++) {
 		rc = pm8xxx_writeb(the_chip->dev->parent,
 					ADC_ARB_SECP_RSV, CCADC_CALIB_RSV_25MV);
 		if (rc < 0) {
@@ -494,7 +518,7 @@ void pm8xxx_calib_ccadc(void)
 
 		result_gain += result;
 	}
-	result_gain = result_gain / SAMPLE_COUNT;
+	result_gain = result_gain / sample_count;
 
 	/*
 	 * result_offset includes INTRINSIC OFFSET
@@ -518,6 +542,16 @@ bail:
 	pm8xxx_writeb(the_chip->dev->parent, ADC_ARB_SECP_CNTRL, sec_cntrl);
 calibration_unlock:
 	mutex_unlock(&the_chip->calib_mutex);
+}
+
+static void pm8xxx_calib_ccadc_quick(void)
+{
+	__pm8xxx_calib_ccadc(2);
+}
+
+void pm8xxx_calib_ccadc(void)
+{
+	__pm8xxx_calib_ccadc(SAMPLE_COUNT);
 }
 EXPORT_SYMBOL(pm8xxx_calib_ccadc);
 
@@ -737,6 +771,7 @@ static int __devinit pm8xxx_ccadc_probe(struct platform_device *pdev)
 	chip->r_sense_uohm = pdata->r_sense_uohm;
 	chip->calib_delay_ms = pdata->calib_delay_ms;
 	chip->batt_temp_channel = pdata->ccadc_cdata.batt_temp_channel;
+	chip->periodic_wakeup = pdata->periodic_wakeup;
 	mutex_init(&chip->calib_mutex);
 
 	calib_ccadc_read_offset_and_gain(chip,
@@ -776,10 +811,20 @@ static int __devexit pm8xxx_ccadc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int pm8xxx_ccadc_suspend(struct device *dev)
+{
+	struct pm8xxx_ccadc_chip *chip = dev_get_drvdata(dev);
+
+	cancel_delayed_work_sync(&chip->calib_ccadc_work);
+
+	return 0;
+}
+
 #define CCADC_CALIB_TEMP_THRESH 20
 static int pm8xxx_ccadc_resume(struct device *dev)
 {
-	int rc, batt_temp, delta_temp;
+  int rc, delta_temp;
+	int batt_temp = 0;
 	unsigned long current_time_sec;
 	unsigned long time_since_last_calib;
 
@@ -793,6 +838,12 @@ static int pm8xxx_ccadc_resume(struct device *dev)
 		pr_err("unable to get current time: %d\n", rc);
 		return 0;
 	}
+
+	if (the_chip->periodic_wakeup) {
+		pm8xxx_calib_ccadc_quick();
+		return 0;
+	}
+
 	if (current_time_sec > the_chip->last_calib_time) {
 		time_since_last_calib = current_time_sec -
 					the_chip->last_calib_time;
@@ -803,13 +854,19 @@ static int pm8xxx_ccadc_resume(struct device *dev)
 				|| delta_temp > CCADC_CALIB_TEMP_THRESH) {
 			the_chip->last_calib_time = current_time_sec;
 			the_chip->last_calib_temp = batt_temp;
-			pm8xxx_calib_ccadc();
+			schedule_delayed_work(&the_chip->calib_ccadc_work, 0);
+		} else {
+			schedule_delayed_work(&the_chip->calib_ccadc_work,
+				msecs_to_jiffies(the_chip->calib_delay_ms -
+					(time_since_last_calib * 1000)));
 		}
 	}
+
 	return 0;
 }
 
 static const struct dev_pm_ops pm8xxx_ccadc_pm_ops = {
+	.suspend	= pm8xxx_ccadc_suspend,
 	.resume		= pm8xxx_ccadc_resume,
 };
 

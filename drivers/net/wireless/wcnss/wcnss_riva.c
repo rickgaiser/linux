@@ -67,7 +67,7 @@ static struct vregs_info iris_vregs[] = {
 	{"iris_vddxo",  VREG_NULL_CONFIG, 1800000, 0, 1800000, 10000,  NULL},
 	{"iris_vddrfa", VREG_NULL_CONFIG, 1300000, 0, 1300000, 100000, NULL},
 	{"iris_vddpa",  VREG_NULL_CONFIG, 2900000, 0, 3000000, 515000, NULL},
-	{"iris_vdddig", VREG_NULL_CONFIG, 1200000, 0, 1225000, 10000,  NULL},
+	{"iris_vdddig", VREG_NULL_CONFIG, 1300000, 0, 1300000, 10000,  NULL},
 };
 
 static struct vregs_info riva_vregs[] = {
@@ -99,22 +99,20 @@ static int configure_iris_xo(struct device *dev, bool use_48mhz_xo, int on)
 			goto fail;
 		}
 
-		/* power on thru SSR should not set NV bit,
-		 * during SSR, NV bin is downloaded by WLAN driver
-		 */
-		if (!wcnss_cold_boot_done()) {
-			pr_debug("wcnss: Indicate NV bin download\n");
-			reg = readl_relaxed(RIVA_SPARE_OUT);
-			reg |= NVBIN_DLND_BIT;
-			writel_relaxed(reg, RIVA_SPARE_OUT);
-		}
-
 		/* Enable IRIS XO */
 		rc = clk_prepare_enable(cxo);
 		if (rc) {
 			pr_err("cxo enable failed\n");
 			goto fail;
 		}
+		/* NV bit is set to indicate that platform driver is capable
+		 * of doing NV download.
+		 */
+		pr_debug("wcnss: Indicate NV bin download\n");
+		reg = readl_relaxed(RIVA_SPARE_OUT);
+		reg |= NVBIN_DLND_BIT;
+		writel_relaxed(reg, RIVA_SPARE_OUT);
+
 		writel_relaxed(0, RIVA_PMU_CFG);
 		reg = readl_relaxed(RIVA_PMU_CFG);
 		reg |= RIVA_PMU_CFG_GC_BUS_MUX_SEL_TOP |

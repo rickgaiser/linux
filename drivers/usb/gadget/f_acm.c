@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
+#include <linux/usb/android_composite.h>
 #include <mach/usb_gadget_xport.h>
 
 #include "u_serial.h"
@@ -518,6 +519,9 @@ static int acm_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 		 * that bit, we should return to that no-flow state.
 		 */
 		acm->port_handshake_bits = w_value;
+#ifdef CONFIG_USB_DUN_SUPPORT
+		notify_control_line_state((unsigned long)w_value);
+#endif
 		if (acm->port.notify_modem) {
 			unsigned port_num =
 				gacm_ports[acm->port_num].client_port_num;
@@ -712,6 +716,18 @@ static void acm_cdc_notify_complete(struct usb_ep *ep, struct usb_request *req)
 		acm_notify_serial_state(acm);
 }
 
+#ifdef CONFIG_USB_DUN_SUPPORT
+void acm_notify(void *dev, u16 state)
+{
+	struct f_acm    *acm = (struct f_acm *)dev;
+
+	if (acm) {
+		acm->serial_state = state;
+	acm_notify_serial_state(acm);
+	}
+}
+#endif
+
 /* connect == the TTY link is open */
 
 static void acm_connect(struct gserial *port)
@@ -854,6 +870,11 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 			gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
 			acm->port.in->name, acm->port.out->name,
 			acm->notify->name);
+	/* To notify serial state by datarouter*/
+	#ifdef CONFIG_USB_DUN_SUPPORT
+	modem_register(acm);
+	#endif
+
 	return 0;
 
 fail:
@@ -883,6 +904,9 @@ acm_unbind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct f_acm		*acm = func_to_acm(f);
 
+#ifdef CONFIG_USB_DUN_SUPPORT
+        modem_unregister();
+#endif
 	if (gadget_is_dualspeed(c->cdev->gadget))
 		usb_free_descriptors(f->hs_descriptors);
 	if (gadget_is_superspeed(c->cdev->gadget))
@@ -963,7 +987,11 @@ int acm_bind_config(struct usb_configuration *c, u8 port_num)
 	acm->port.send_break = acm_send_break;
 	acm->port.send_modem_ctrl_bits = acm_send_modem_ctrl_bits;
 
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	acm->port.func.name = kasprintf(GFP_KERNEL, "acm%u", port_num);
+#else
 	acm->port.func.name = kasprintf(GFP_KERNEL, "acm%u", port_num + 1);
+#endif
 	if (!acm->port.func.name) {
 		kfree(acm);
 		return -ENOMEM;
@@ -985,7 +1013,7 @@ int acm_bind_config(struct usb_configuration *c, u8 port_num)
 /**
  * acm_init_port - bind a acm_port to its transport
  */
-static int acm_init_port(int port_num, const char *name)
+static int acm_init_port(int port_num, const char *name, const char *port_name)
 {
 	enum transport_type transport;
 
@@ -1013,6 +1041,9 @@ static int acm_init_port(int port_num, const char *name)
 		no_acm_smd_ports++;
 		break;
 	case USB_GADGET_XPORT_HSIC:
+		ghsic_ctrl_set_port_name(port_name, name);
+		ghsic_data_set_port_name(port_name, name);
+
 		/*client port number will be updated in acm_port_setup*/
 		no_acm_hsic_sports++;
 		break;
