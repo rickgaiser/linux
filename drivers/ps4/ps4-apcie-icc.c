@@ -6,6 +6,8 @@
 #include <linux/pci.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
+#include <linux/fs.h>
+#include <linux/uaccess.h>
 #include <asm/ps4.h>
 #include "aeolia.h"
 
@@ -34,6 +36,17 @@ int icc_pwrbutton_init(struct apcie_dev *sc);
 void icc_pwrbutton_remove(struct apcie_dev *sc);
 void icc_pwrbutton_trigger(struct apcie_dev *sc, int state);
 
+#define ICC_MAJOR	'I'
+
+struct icc_cmd {
+	u8 major;
+	u16 minor;
+	void __user *data;
+	u16 length;
+	void __user *reply;
+	u16 reply_length;
+};
+#define ICC_IOCTL_CMD _IOWR(ICC_MAJOR, 1, struct icc_cmd)
 
 static u16 checksum(const void *p, int length)
 {
@@ -339,6 +352,51 @@ void icc_reboot(void)
 	WARN_ON(1);
 }
 
+static void *ioctl_tmp_buf = NULL;
+
+static long icc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	int ret;
+	void __user *uap = (void __user *)arg;
+	switch (cmd) {
+	case ICC_IOCTL_CMD: {
+		struct icc_cmd cmd;
+		int reply_len;
+		ret = copy_from_user(&cmd, uap, sizeof(cmd));
+		if (ret) {
+			ret = -EFAULT;
+			break;
+		}
+		ret = copy_from_user(ioctl_tmp_buf, cmd.data, cmd.length);
+		if (ret) {
+			ret = -EFAULT;
+			break;
+		}
+		reply_len = apcie_icc_cmd(cmd.major, cmd.minor, ioctl_tmp_buf,
+			cmd.length, ioctl_tmp_buf, cmd.reply_length);
+		if (reply_len < 0) {
+			ret = reply_len;
+			break;
+		}
+		ret = copy_to_user(cmd.reply, ioctl_tmp_buf, cmd.reply_length);
+		if (ret) {
+			ret = -EFAULT;
+			break;
+		}
+		ret = reply_len;
+		} break;
+	default:
+		ret = -ENOENT;
+		break;
+	}
+	return ret;
+}
+
+static const struct file_operations icc_fops = {
+	.owner = THIS_MODULE,
+	.unlocked_ioctl = icc_ioctl,
+};
+
 int apcie_icc_init(struct apcie_dev *sc)
 {
 	int ret;
@@ -422,6 +480,17 @@ int apcie_icc_init(struct apcie_dev *sc)
 	do_icc_init();
 	pm_power_off = &icc_shutdown;
 
+	ioctl_tmp_buf = kzalloc(1 << 16, GFP_KERNEL);
+	if (!ioctl_tmp_buf) {
+		sc_err("icc: alloc ioctl_tmp_buf failed\n");
+		goto done;
+	}
+	ret = register_chrdev(ICC_MAJOR, "icc", &icc_fops);
+	if (ret) {
+		sc_err("icc: register_chrdev failed: %d\n", ret);
+		goto done;
+	}
+done:
 	return 0;
 
 unassign_global:

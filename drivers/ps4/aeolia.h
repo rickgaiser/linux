@@ -106,11 +106,11 @@ enum apcie_subfunc {
 #define ICC_EVENT_MAGIC 0x24
 
 struct icc_message_hdr {
-	u8 magic;
-	u8 major;
-	u16 minor;
+	u8 magic;// not magic: it's ID of sender. 0x32=EAP,0x42=SoC(x86/fbsd)
+	u8 major;// service id (destination)
+	u16 minor;// message id (command)
 	u16 unknown;
-	u16 cookie;
+	u16 cookie;//normally monotonic xfer counter, can be set to special values
 	u16 length;
 	u16 checksum;
 } __packed;
